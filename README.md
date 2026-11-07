@@ -28,6 +28,7 @@ Successful tests of the existing Symcon integration are not desktop test results
 - [Architecture and shared source ownership](docs/ARCHITECTURE.md)
 - [Development workflow and planned verification](docs/DEVELOPMENT.md)
 - [Automatic application versioning](docs/VERSIONING.md)
+- [D0 localization: implementation and verification](docs/LOCALIZATION.md)
 - [Initial architecture decision](docs/adr/0001-parallel-desktop-platforms.md)
 
 The separate [Symcon integration](https://github.com/Burki24/Symcon_Z2MAutomations)

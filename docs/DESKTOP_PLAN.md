@@ -297,12 +297,15 @@ desktop support.
 
 ## 11. Immediate next step
 
-**D0 first:** inventory text and define the message contract, add local JSON
-catalogs and our own resolver, complete German/English support in the current designer and verify
-preservation of input. D0 remains a bounded task affecting the still-canonical
-designer sources in the Symcon repository; importing this plan has not started
-that implementation. Then begin D1 with both native application targets.
-Project creation and these guidelines do not complete D1.
+**D0 implementation:** Local German/English JSON catalogs and our own resolver
+are implemented in the canonical Symcon designer. Synthetic browser/native
+checks cover open input, typed values, order, preferences and protected debug;
+see [LOCALIZATION.md](LOCALIZATION.md). A real module/tile update check remains
+separate. No installed desktop application has been tested.
+
+**D1 next:** establish both native application targets and the restricted adapter,
+then extract the shared designer once. Repository creation and D0 do not complete
+the Windows/Ubuntu build or platform acceptance work.
 
 During designer extraction, both repositories must clearly reference the source
 ownership transition and pinned designer package. The imported original plan

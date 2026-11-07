@@ -93,9 +93,9 @@ Symcon ModuleCI PHP action as a desktop check.
 
 Port existing PHP business logic to our own TypeScript logic only as needed;
 shared synthetic cases verify equivalent contracts. D0 initially changes the
-canonical designer in the separate Symcon repository and requires its own bounded
-request and checks there. This setup imports no source code, distributes no
-helpers and updates no modules.
+canonical designer in the separate Symcon repository. Its implementation and
+synthetic evidence are now described in [LOCALIZATION.md](LOCALIZATION.md).
+No source code was copied here, and no running module was updated.
 
 During D1, extract the designer once and jointly verify package version,
 provenance/checksums and Symcon integration. Continue consuming the Z2M extension

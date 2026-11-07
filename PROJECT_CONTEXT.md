@@ -53,13 +53,27 @@ for the application. Its action permissions use the confirmed Z2M catalog.
 Existing Symcon and device tests remain evidence for that product; they do not
 establish desktop acceptance.
 
+## D0 implementation
+
+German/English localization is implemented in the still-canonical Symcon
+designer using local JSON catalogs and our own dependency-free resolver.
+Offline browser and native-hook checks cover switching with open input,
+ordering, typed values, system separation, preferences and safe German debug.
+See [LOCALIZATION.md](docs/LOCALIZATION.md) for the exact scope and commands.
+No UI fork, desktop dependency or desktop executable was added here.
+
+The version action is tested locally but is still absent from the checked
+ModuleCI `main` revision. Follow [VERSIONING.md](docs/VERSIONING.md) before
+claiming a successful consumer Actions run. Existing commit history is retained.
+
 ## Next step
 
-**D0 – Multilingual designer:** inventory existing text and message contracts,
-implement German/English catalogs and switch languages without losing input.
-This step initially affects the still-canonical designer sources in the Symcon
-library and will be implemented separately. D1 then covers both desktop targets.
+**D1 – Both desktop targets:** establish the restricted Electron adapter and
+extract the shared designer once. The implemented D0 UI remains in the Symcon
+repository until that verified extraction. Its real module/tile update check
+remains separate from the synthetic evidence.
 
-Repository setup completes only a prerequisite of D1. All milestones D0–D7 and
-their platform acceptance checks remain open. Real Z2M/live tests, package
-publication, commits and pushes are not part of this setup step.
+Repository setup completes a prerequisite of D1. D1–D7 and native desktop
+platform acceptance remain open. D0 has shared-source implementation and
+synthetic evidence, not desktop-platform acceptance. Real Z2M/live tests,
+publication, commits and pushes are not part of this change.

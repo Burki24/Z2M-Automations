@@ -30,6 +30,27 @@ available on `Symcon_ModuleCI/main`. Commit/push and that approval remain with
 the user. Afterwards, pull the generated metadata commit through GitHub Desktop.
 An actual GitHub run remains to be checked after those steps.
 
+## Current verification and activation order
+
+On 2026-11-07, the shared library/application regression checks and a read-only
+application calculation against this repository passed. The application starts
+at `0.1.0`; a first ordinary source increment proposes `0.2.0`. The calculation
+does not modify metadata or create a commit.
+
+The action exists on ModuleCI's development branch but is not yet present on
+the checked `main` revision `4ec6a01246ff112c3cc6492dbcbb306fd1557e6f`.
+This prevents the consumer workflow from resolving its configured action;
+it is a release-order prerequisite, not a reason to change the reference to `dev`.
+
+1. Review and merge the application metadata action and its shared script from
+   `Symcon_ModuleCI/dev` into `main` through the normal repository workflow.
+2. Commit/push this application's changes from GitHub Desktop. If a previous
+   metadata run failed because the action was unavailable, rerun that run after
+   the central merge instead of editing the action reference.
+3. Check the successful Actions run and its metadata-only bot commit, then pull
+   that commit. Only this final check establishes operation on GitHub.
+
+
 Current local check, requiring Node 22 or later and no npm dependencies:
 
 ```sh
