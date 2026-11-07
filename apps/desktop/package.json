@@ -1,0 +1,22 @@
+{
+  "name": "@z2ma/desktop",
+  "productName": "Z2M-Automations",
+  "version": "0.2.0",
+  "description": "Zigbee2MQTT automation designer for Windows and Ubuntu Linux",
+  "author": "Burkhard Kneiseler",
+  "private": true,
+  "type": "commonjs",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "main": ".build/main.js",
+  "scripts": {
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "make": "electron-forge make"
+  },
+  "config": {
+    "forge": "./forge.config.cjs"
+  },
+  "devDependencies": {
+    "electron": "45.2.3"
+  }
+}

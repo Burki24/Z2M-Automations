@@ -44,11 +44,13 @@ applications. Conflict detection requires fresh Z2M state.
   validated IPC. MQTT, files and secrets stay in the desktop backend.
 - Projects contain neither passwords nor private keys. Missing protected storage
   on Linux must not trigger a silent fallback to plaintext.
-- Desktop license, initial version and distribution model remain explicitly open.
-  Creating this project does not change the rights attached to existing sources.
+- Owner decision on 2026-11-07: the desktop app uses PolyForm Noncommercial
+  1.0.0; source notices and third-party licenses stay intact. Application
+  versioning is independent and starts at 0.1.0; version.json is authoritative.
 - Retain general engineering, Git and private-data principles. Symcon module
   structures, PHP tools and Store requirements do not apply here.
 - The operational agenda is [DESKTOP_PLAN.md](../DESKTOP_PLAN.md). Repository
-  and guidelines are prepared; milestones D0–D7 are not implemented or accepted.
+  and guidelines are prepared. D0 and the D1 offline foundation are implemented;
+  Ubuntu CI/native acceptance and later milestones remain open. See ../D1.md.
 - Installation, broker connections, live changes and publication are outside
   the scope of this initial setup.

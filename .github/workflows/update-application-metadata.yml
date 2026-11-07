@@ -40,7 +40,7 @@ jobs:
       - name: Set up Node for project checks
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24.20.0'
       - name: Check project before versioning
         run: node scripts/check-project.mjs
       - name: Determine and update application metadata

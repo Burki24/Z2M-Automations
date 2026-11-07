@@ -25,37 +25,23 @@ The central action shares the existing tested library-policy implementation in
 ModuleCI, using an explicit application target with three-component versions.
 The library mode and its two-component versions remain unchanged.
 
-Before the first consumer push, the new central action must be approved and
-available on `Symcon_ModuleCI/main`. Commit/push and that approval remain with
-the user. Afterwards, pull the generated metadata commit through GitHub Desktop.
-An actual GitHub run remains to be checked after those steps.
+## Confirmed GitHub operation
 
-## Current verification and activation order
+On 2026-11-07, consumer run 42367039704 succeeded with
+Burki24/Symcon_ModuleCI/application-metadata@main at
+f09d5053d439ef5aafcdbf7d9408994ccb294d5f. Bot commit
+744fc251503047068bed507a6f84cd4457cf6cb8 updated only version.json to 0.2.0;
+the follow-up bot run correctly skipped generation. The user pulled that commit.
 
-On 2026-11-07, the shared library/application regression checks and a read-only
-application calculation against this repository passed. The application starts
-at `0.1.0`; a first ordinary source increment proposes `0.2.0`. The calculation
-does not modify metadata or create a commit.
+D1 builds read version.json when staging the Electron application and the shared
+designer package. Forge overrides the application version and updates the copied
+package manifest; source package manifests are not version authorities.
+The user continues to commit/push; no tag or publication is produced.
 
-The action exists on ModuleCI's development branch but is not yet present on
-the checked `main` revision `4ec6a01246ff112c3cc6492dbcbb306fd1557e6f`.
-This prevents the consumer workflow from resolving its configured action;
-it is a release-order prerequisite, not a reason to change the reference to `dev`.
+The dependency-free metadata/text check remains:
 
-1. Review and merge the application metadata action and its shared script from
-   `Symcon_ModuleCI/dev` into `main` through the normal repository workflow.
-2. Commit/push this application's changes from GitHub Desktop. If a previous
-   metadata run failed because the action was unavailable, rerun that run after
-   the central merge instead of editing the action reference.
-3. Check the successful Actions run and its metadata-only bot commit, then pull
-   that commit. Only this final check establishes operation on GitHub.
-
-
-Current local check, requiring Node 22 or later and no npm dependencies:
-
-```sh
+~~~sh
 node scripts/check-project.mjs
-```
+~~~
 
-This checks metadata, UTF-8, line endings and own project text. It does not
-establish application functionality or platform acceptance.
+It does not replace runtime or platform acceptance.

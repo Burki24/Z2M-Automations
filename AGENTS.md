@@ -51,18 +51,18 @@
 
 - Inspect suitable existing components and central helpers before implementation.
   Do not introduce PHP/Symcon helpers as desktop dependencies or modified copies.
-- Designer sources remain canonical in `../Symcon_Z2MAutomations` until their
-  verified extraction. This repository will then provide a versioned designer
-  package for both products. Do not maintain two independent UI forks.
+- Designer sources are canonical in `packages/designer/src`. Both products
+  consume this source through a versioned package; Symcon commits verified,
+  pinned assets. Do not maintain two independent editable UI forks.
 - The extension and schema initially remain canonical in the Symcon repository.
   The desktop application will consume a verified artifact with provenance,
   build identity and checksums; it must not create a separate runtime fork.
 - Use our own implementation. Do not copy code, translated code or internal
   implementation structure from `Luligu/zigbee2mqtt-automations`. External
   documentation describes interfaces and is not an implementation template.
-- The desktop license and distribution model are undecided. Do not silently
-  replace an existing third-party or PolyForm Noncommercial license or apply it
-  to the entire new application. Clarify reuse rights before importing sources.
+- The desktop application uses PolyForm Noncommercial 1.0.0, explicitly
+  confirmed by the owner. Retain existing source notices. Third-party packages
+  retain their respective licenses; do not replace them.
 
 ## Interaction, localization and debug
 

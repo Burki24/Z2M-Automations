@@ -1,8 +1,8 @@
 # D0: dependency-free designer localization
 
-As of 2026-11-07. Sources remain canonical in
-Symcon_Z2MAutomations/Z2MAutomations/visualization. This repository contains no
-UI fork, Electron executable or installed desktop application yet.
+As of 2026-11-07. Canonical sources now live in packages/designer/src after
+the D1 extraction. Symcon consumes pinned, verified artifacts. The desktop
+loads the same catalogs locally; installed-app acceptance remains separate.
 
 ## Implemented
 
@@ -20,17 +20,17 @@ UI fork, Electron executable or installed desktop application yet.
 - A guarded audit endpoint receives only language codes and an open-editor flag.
   It logs German native debug, changes no draft and emits no MQTT.
 
-## Reproduce in the canonical Symcon repository
+## Verify the pinned integration in the Symcon repository
 
 ~~~sh
-npm run build:locales
 npm run check:locales
 node --import ./tests/locale-setup.mjs --test tests/designer-localization.test.mjs
 php tests/designer.php
 ~~~
 
-The build reproducibly generates locales.js and locales/messages.json; commit
-both with their JSON sources. Checks reject missing keys, incompatible
+In this repository, npm run pack:designer generates locales.js and the native
+presentation index from canonical sources. Symcon imports the reviewed archive
+with node tests/import-designer.mjs <archive.tgz>; its checks are read-only. Checks reject missing keys, incompatible
 placeholders, catalog markup, unknown view keys and stale artifacts.
 
 The offline test tests/designer-localization.browser.mjs starts its own loopback
@@ -42,5 +42,5 @@ and 360/1920/3840-pixel layouts.
 
 These are shared-designer checks on Windows, not desktop-platform acceptance.
 A real Symcon/tile check after module update remains separate. No live system
-was changed. D1 creates both desktop targets and extracts this designer once;
-do not independently copy and evolve the UI or catalogs.
+was changed. D1 has extracted the shared package and checks the real Windows
+renderer; do not independently edit the delivered UI or catalogs in Symcon.

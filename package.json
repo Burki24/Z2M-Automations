@@ -1,0 +1,35 @@
+{
+  "name": "z2m-automations",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "workspaces": [
+    "apps/desktop",
+    "packages/designer"
+  ],
+  "engines": {
+    "node": ">=24.20.0 <25"
+  },
+  "scripts": {
+    "build:designer": "node scripts/build-designer.mjs",
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --project apps/desktop/tsconfig.json --noEmit",
+    "check": "node scripts/check-project.mjs && node scripts/check-designer.mjs && npm run typecheck",
+    "test": "node --test tests/*.test.mjs",
+    "verify": "npm run build && npm run check && npm test",
+    "start": "npm run build && npm run start --workspace @z2ma/desktop",
+    "package": "npm run build && npm run package --workspace @z2ma/desktop",
+    "make": "npm run build && npm run make --workspace @z2ma/desktop",
+    "smoke": "node scripts/smoke.mjs",
+    "pack:designer": "npm run build:designer && node scripts/pack-designer.mjs",
+    "setup:tools": "node scripts/setup-tools.mjs"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "8.0.1",
+    "@electron-forge/maker-deb": "8.0.1",
+    "@electron-forge/maker-squirrel": "8.0.1",
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2"
+  }
+}

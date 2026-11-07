@@ -4,7 +4,9 @@ As of 2026-11-07. This is the operational desktop agenda for the new repository
 `Burki24/Z2M-Automations`, located locally at `E:\git\Z2M-Automations`.
 Windows and Linux will be developed in parallel; **Ubuntu LTS x64** is the
 confirmed first Linux platform. The repository and development guidelines are
-prepared. The application and milestones D0–D7 are not yet implemented or accepted.
+prepared. D0 is implemented; D1 now has an offline application and shared designer
+package. Windows checks passed; Ubuntu CI/native acceptance remains open. D2–D7
+remain planned. See [D1](D1.md) for implemented behavior and verification limits.
 Importing this plan did not change any Symcon or Z2M installation.
 
 Imported from the [original plan in the Symcon repository](https://github.com/Burki24/Symcon_Z2MAutomations/blob/01f444d91d5c664177a5d2a60a5d644c72840523/docs/DESKTOP_PLAN.md)
@@ -81,9 +83,9 @@ flowchart TB
     C --> Z
 ```
 
-The current designer directly uses `fetch`, hook URLs, Symcon access credentials
-and preformatted PHP messages in several files. It cannot be reused unchanged
-as a window wrapper. First introduce an explicit adapter for:
+D1 introduces an explicit transport adapter: Symcon keeps its existing HTTP
+contract and the offline desktop uses a restricted preload bridge. The next
+milestones expand this boundary for:
 
 - Systems, selection, device data and capabilities.
 - Local drafts, unsaved edits, copying/deleting and action sequences.
@@ -115,10 +117,9 @@ tests/                Shared cases and platform-specific integration tests
 docs/                 Setup, architecture, verification and platform requirements
 ```
 
-Until the verified transition, designer sources remain canonical in
-`Symcon_Z2MAutomations/Z2MAutomations/visualization`. During extraction, move
-canonical UI ownership once to `packages/designer` in the desktop repository.
-It will provide a versioned designer package for both products. Symcon receives
+Canonical UI ownership moved once from the Symcon repository to
+`packages/designer/src` during D1. It provides a versioned designer package
+for both products. Symcon receives
 pinned, reproducible assets with version/source references and checksums;
 adapt and verify its existing asset-allowlist/CSP contract. Do not maintain two
 independently edited UI copies or download assets from another repository at runtime.
@@ -289,23 +290,24 @@ desktop support.
 - Before public distribution, define and test Windows code signing, package
   checksums and the update channel. Initially provide no unattended automatic
   updates. Verify rollback and data-format migration before updates.
-- Explicitly decide licensing and the intended distribution model before
-  publication. Do not silently change existing PolyForm Noncommercial sources
-  or third-party licenses; this plan makes no new licensing decision.
+- The owner confirmed PolyForm Noncommercial 1.0.0 for the full desktop app.
+  Existing source notices and third-party licenses remain intact. Signing and
+  publication are separate future decisions.
 - The user continues to commit and push. Project creation, package builds and
   internal tests do not authorize Store publication or releases.
 
 ## 11. Immediate next step
 
 **D0 implementation:** Local German/English JSON catalogs and our own resolver
-are implemented in the canonical Symcon designer. Synthetic browser/native
+are implemented in the canonical shared designer. Synthetic browser/native
 checks cover open input, typed values, order, preferences and protected debug;
 see [LOCALIZATION.md](LOCALIZATION.md). A real module/tile update check remains
 separate. No installed desktop application has been tested.
 
-**D1 next:** establish both native application targets and the restricted adapter,
-then extract the shared designer once. Repository creation and D0 do not complete
-the Windows/Ubuntu build or platform acceptance work.
+**D1 implemented, platform evidence open:** restricted desktop adapter, shared
+designer extraction, Windows executable/setup and synthetic tests are available.
+Push to run both CI jobs; native Ubuntu acceptance is still required. D2 then
+adds local projects and drafts. No real MQTT is part of D1.
 
 During designer extraction, both repositories must clearly reference the source
 ownership transition and pinned designer package. The imported original plan

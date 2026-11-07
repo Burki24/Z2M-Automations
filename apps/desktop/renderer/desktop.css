@@ -1,0 +1,16 @@
+/* D1 exposes only implemented offline capabilities. The shared layout stays canonical. */
+.desktop-foundation #new-automation-button,
+.desktop-foundation #new-sequence-button,
+.desktop-foundation #edit-automation-button,
+.desktop-foundation .entry-tools,
+.desktop-foundation .inspector-edit,
+.desktop-foundation .designer-menu,
+.desktop-foundation .designer-controls { display: none !important; }
+.desktop-debug { margin: 1rem; padding: 1rem; border: 1px solid var(--border, #8293a8); border-radius: .75rem; }
+.desktop-debug summary { cursor: pointer; font-weight: 600; }
+.desktop-debug-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: .75rem 0; }
+.desktop-debug ol { max-height: 14rem; overflow: auto; padding-inline-start: 2rem; }
+.desktop-debug li { padding: .3rem 0; overflow-wrap: anywhere; }
+
+.desktop-foundation .preview-notice { display: flex; flex-wrap: wrap; }
+.desktop-foundation .system-selector > span { display: none; }

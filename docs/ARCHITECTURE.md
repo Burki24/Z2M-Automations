@@ -1,6 +1,7 @@
 # Architecture
 
-Status: planned; no application is implemented yet. Decisions and complete
+Status: D1 offline foundation implemented; native Ubuntu evidence remains open.
+Current behavior is described in [D1](D1.md). Decisions and complete
 milestones are described in [ADR 0001](adr/0001-parallel-desktop-platforms.md)
 and the [desktop plan](DESKTOP_PLAN.md).
 
@@ -10,12 +11,12 @@ Windows and Ubuntu use the same designer and business logic. Platform-specific
 concerns are file paths, dialogs, protected secret storage, desktop integration
 and packages. Do not maintain different feature sets per operating system.
 
-Planned responsibilities; these package directories do not exist yet:
+Responsibilities (core, mqtt and platform packages are later milestones):
 
 | Area | Responsibility |
 | --- | --- |
 | `apps/desktop` | Electron main process, preload, windows and package configuration |
-| `packages/designer` | After extraction: shared interface and language catalogs |
+| `packages/designer` | Canonical shared interface and language catalogs |
 | `packages/core` | Drafts, schema/capability validation, conflicts and adapter contracts |
 | `packages/mqtt` | Broker connections and correlated Z2M requests |
 | `packages/platform` | OS paths, dialogs and protected credentials |
@@ -27,15 +28,15 @@ has no Node access, broker secrets or MQTT clients.
 
 ## One canonical source per component
 
-| Component | Until the transition | Planned consumption afterwards |
+| Component | Canonical source | Consumption |
 | --- | --- | --- |
-| Designer | `Symcon_Z2MAutomations/Z2MAutomations/visualization` | One-time move to `packages/designer`; versioned package for Symcon and desktop |
+| Designer | `packages/designer/src` | Versioned archive with provenance, license and hashes; pinned in Symcon |
 | Z2M extension and schema | `Symcon_Z2MAutomations/libs/z2m` | Remains canonical there; desktop bundles a verified artifact with provenance and build identity |
 | Symcon helpers | `Symcon_ModuleHelper` and its unchanged consumer package | Continue using them in the Symcon adapter; no PHP copies or new desktop PHP runtime |
 | Desktop business logic | Not implemented | Our own TypeScript implementation with shared synthetic contract cases |
 
-Before extraction, verify resource paths, CSP, asset allowlists, translations,
-reuse rights and rollback for both products. Do not silently use a sibling
+The extraction preserves the PolyForm notice, native presentation templates
+and Symcon endpoint behavior. Its fixed asset allowlist includes transport.js. Do not silently use a sibling
 repository as a build source. Distributed packages contain pinned assets;
 there are no runtime downloads from GitHub.
 

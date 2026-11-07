@@ -1,0 +1,14 @@
+{
+  "name": "@z2ma/designer",
+  "version": "0.2.0",
+  "description": "Shared local visual designer and German/English catalogs",
+  "private": true,
+  "type": "module",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node ../../scripts/build-designer.mjs"
+  }
+}

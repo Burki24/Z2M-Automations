@@ -1,0 +1,12 @@
+import {fileURLToPath} from 'node:url';
+import {spawnSync} from 'node:child_process';
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import assert from 'node:assert/strict';
+const checked = spawnSync(process.execPath, [fileURLToPath(new URL('./build-designer.mjs', import.meta.url)), '--check'], {stdio: 'inherit'});
+assert.equal(checked.status, 0, 'Shared sources must match their generated artifacts');
+const base = new URL('../packages/designer/dist/', import.meta.url);
+const manifest = JSON.parse(readFileSync(new URL('manifest.json', base), 'utf8'));
+for (const [file, hash] of Object.entries(manifest.assets)) assert.equal(createHash('sha256').update(readFileSync(new URL('assets/' + file, base))).digest('hex'), hash, file);
+assert.equal(createHash('sha256').update(JSON.stringify(manifest.assets)).digest('hex'), manifest.content);
+console.log('Shared designer integrity verified.');
