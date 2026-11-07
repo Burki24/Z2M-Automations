@@ -1,57 +1,59 @@
-# Projektkontext: Z2M-Automations
+# Project context: Z2M-Automations
 
-Stand: 07.11.2026. Repository `Burki24/Z2M-Automations`, lokal
-`E:\git\Z2M-Automations`. Dauerhafter Arbeitsbranch `dev`; `main` ist Hauptbranch.
+As of 2026-11-07. Repository: `Burki24/Z2M-Automations`; local path:
+`E:\git\Z2M-Automations`. Permanent working branch: `dev`; primary branch: `main`.
 
-## Auftrag und tatsächlicher Stand
+## Request and actual state
 
-Der Benutzer hat eine gemeinsame Windows-/Linux-App und Ubuntu LTS auf x64 als
-erste Linux-Referenz bestätigt. Das neue Projekt und Repository wurden vom
-Benutzer angelegt. Dieser Einrichtungsschritt übernimmt den bestehenden Plan
-und richtet die Entwicklungsvorgaben ein.
+The user has confirmed a shared Windows/Linux application, with Ubuntu LTS x64
+as the first Linux reference platform. The user created the new project and
+repository. The initial setup imports the existing plan and establishes the
+development guidelines.
 
-Vorhanden sind README, AGENTS, Projektkontext, Architektur, Entwicklungsablauf,
-ADR 0001 und Text-/Ignore-Konfiguration. Noch keine App, Paketstruktur,
-Abhängigkeiten, Lockdatei, App-CI, Installer oder MQTT-Verbindung implementiert.
-Es wurden keine Systeme kontaktiert, installiert oder verändert.
+The repository contains the README, AGENTS, project context, architecture,
+development workflow, ADR 0001 and text/ignore configuration. No application,
+package structure, dependencies, lockfile, application CI, installer or MQTT
+connection has been implemented. No systems were contacted, installed or changed.
 
-Die operative Agenda ist [DESKTOP_PLAN.md](docs/DESKTOP_PLAN.md), übernommen aus
-`Symcon_Z2MAutomations` zum Planstand
+The operational agenda is [DESKTOP_PLAN.md](docs/DESKTOP_PLAN.md), imported from
+`Symcon_Z2MAutomations` at planning commit
 `01f444d91d5c664177a5d2a60a5d644c72840523`.
-Quellbezüge und Fortschritt werden künftig in diesem Repository gepflegt.
+Maintain source references and progress in this repository from now on.
+English is the primary language of all repository documentation; application
+localization continues to target both German and English.
 
-## Bestätigte Richtung
+## Confirmed direction
 
-- Produkt: Z2M-Automations für Windows / Z2M-Automations für Linux.
-- Windows 11 x64 und Ubuntu Desktop LTS x64 parallel. Geplante Ubuntu-Prüfziele:
-  24.04 LTS und zusätzlicher Abnahmelauf auf 26.04 LTS; noch kein Praxisnachweis.
-- Gemeinsamer Designer mit Deutsch/Englisch; geplanter Unterbau Electron,
-  TypeScript, Electron Forge und MQTT.js. Versionsauswahl folgt im Grundgerüst.
-- Bis zu acht Systeme, mehrere Basistopics an einem oder mehreren Brokern.
-- Die Laufzeit bleibt in der eigenen Z2M-Erweiterung, unabhängig von der App.
-- Desktop-Lizenz, erste App-Version und Vertriebsmodell sind noch offen.
+- Product: Z2M-Automations for Windows / Z2M-Automations for Linux.
+- Develop Windows 11 x64 and Ubuntu Desktop LTS x64 in parallel. Planned Ubuntu
+  verification targets: 24.04 LTS and an additional acceptance run on 26.04 LTS.
+  There is no practical-test evidence yet.
+- Shared designer with German/English; planned foundation: Electron, TypeScript,
+  Electron Forge and MQTT.js. Select versions when creating the skeleton.
+- Up to eight systems, with multiple base topics on one or more brokers.
+- Automations remain in our own Z2M extension, independently of the application.
+- Desktop license, initial application version and distribution model remain open.
 
-## Quellen und Abgrenzung
+## Source ownership and boundaries
 
-`../Symcon_Z2MAutomations` ist die bestehende eigene Symcon-Library. Dort bleiben
-Designer und Erweiterung zunächst kanonisch. Erst die geplante Extraktion
-verlegt die UI-Quelle nach `packages/designer` und liefert ein versioniertes
-Paket an Symcon. Die Erweiterung bleibt zunächst im anderen Repository.
-Keine UI-, Helper- oder Laufzeitkopie wurde in diesem Schritt angelegt.
+`../Symcon_Z2MAutomations` is our existing Symcon library. Its designer and
+extension initially remain canonical there. The planned extraction will move
+UI ownership to `packages/designer` and provide a versioned package to Symcon.
+The extension initially remains in the other repository. No UI, helper or
+runtime copy was created during this setup.
 
-Symcon-Ereignisimport und native Objekt-/Schaltvariablen sind keine Voraussetzung
-der App. Ihre Aktionsrechte werden über den bestätigten Z2M-Katalog geprüft.
-Vorhandene Symcon- und Geräteprüfungen bleiben Herkunftsnachweise dieses Produkts
-und werden nicht als Desktop-Abnahme ausgegeben.
+Symcon event import and native object/action variables are not prerequisites
+for the application. Its action permissions use the confirmed Z2M catalog.
+Existing Symcon and device tests remain evidence for that product; they do not
+establish desktop acceptance.
 
-## Nächster Arbeitsschritt
+## Next step
 
-**D0 – Mehrsprachiger Designer:** vorhandene Texte und Meldungsverträge erfassen,
-deutsche/englische Kataloge und Sprachwechsel ohne Eingabeverlust umsetzen.
-Dieser Schritt betrifft zunächst die noch kanonischen Quellen der Symcon-Library
-und wird gesondert umgesetzt. Danach D1 mit beiden Desktop-Zielplattformen.
+**D0 – Multilingual designer:** inventory existing text and message contracts,
+implement German/English catalogs and switch languages without losing input.
+This step initially affects the still-canonical designer sources in the Symcon
+library and will be implemented separately. D1 then covers both desktop targets.
 
-Die Repositoryeinrichtung erledigt lediglich eine Voraussetzung von D1.
-Alle Meilensteine D0–D7 und ihre Plattformabnahmen bleiben offen. Echte
-Z2M-/Live-Tests, Paketveröffentlichung sowie Commit und Push sind nicht Teil
-dieses Einrichtungsschritts.
+Repository setup completes only a prerequisite of D1. All milestones D0–D7 and
+their platform acceptance checks remain open. Real Z2M/live tests, package
+publication, commits and pushes are not part of this setup step.

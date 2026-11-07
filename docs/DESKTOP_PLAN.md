@@ -1,329 +1,321 @@
-# Z2M-Automations – Umsetzungsplan
+# Z2M-Automations – Implementation plan
 
-Stand: 07.11.2026. Dies ist die operative Desktop-Agenda im neuen Repository
-`Burki24/Z2M-Automations`, lokal unter `E:\git\Z2M-Automations`.
-Windows und Linux werden parallel entwickelt; als erste Linux-Plattform ist
-**Ubuntu LTS auf x64** bestätigt. Repository und Entwicklungsvorgaben sind
-angelegt. Die App selbst und D0–D7 sind noch nicht implementiert oder abgenommen.
-Keine Symcon-/Z2M-Installation wurde bei der Planübernahme verändert.
+As of 2026-11-07. This is the operational desktop agenda for the new repository
+`Burki24/Z2M-Automations`, located locally at `E:\git\Z2M-Automations`.
+Windows and Linux will be developed in parallel; **Ubuntu LTS x64** is the
+confirmed first Linux platform. The repository and development guidelines are
+prepared. The application and milestones D0–D7 are not yet implemented or accepted.
+Importing this plan did not change any Symcon or Z2M installation.
 
-Übernommen aus der [Ausgangsplanung im Symcon-Repository](https://github.com/Burki24/Symcon_Z2MAutomations/blob/01f444d91d5c664177a5d2a60a5d644c72840523/docs/DESKTOP_PLAN.md)
-zum Quellstand `01f444d91d5c664177a5d2a60a5d644c72840523`. Fachlicher Umfang und Reihenfolge bleiben
-bestehen; Repositorybezug, Quellenzuständigkeiten und Links sind hier angepasst.
-Diese Datei wird ab jetzt als maßgebliche Desktop-Agenda weitergeführt.
+Imported from the [original plan in the Symcon repository](https://github.com/Burki24/Symcon_Z2MAutomations/blob/01f444d91d5c664177a5d2a60a5d644c72840523/docs/DESKTOP_PLAN.md)
+at source commit `01f444d91d5c664177a5d2a60a5d644c72840523`. Scope and sequence
+are preserved; repository context, source ownership and links are adapted here.
+This file is now the authoritative desktop agenda. Repository documentation is
+maintained in English; the application still targets German and English UI support.
 
-Architekturentscheidung: [ADR 0001](adr/0001-parallel-desktop-platforms.md).
+Architecture decision: [ADR 0001](adr/0001-parallel-desktop-platforms.md).
 
-## 1. Ziel und Produktaufteilung
+## 1. Goals and product separation
 
-| Bestandteil | Festlegung |
+| Component | Decision |
 | --- | --- |
-| Produkt | Z2M-Automations |
-| Plattformangaben | Z2M-Automations für Windows beziehungsweise für Linux |
-| Repository | `Burki24/Z2M-Automations`; lokaler Pfad `E:\git\Z2M-Automations` |
-| Entwicklung | Gemeinsamer dauerhafter `dev`; `main` für geprüfte Veröffentlichungsstände |
-| Windows-Ziel | Windows 11, x64 als erste geplante Referenz |
-| Linux-Ziel | Ubuntu Desktop LTS, x64; zunächst 24.04 LTS als Build-/Testbasis, 26.04 LTS als zusätzlicher geplanter Abnahmelauf |
-| Erste Sprachen | Deutsch und Englisch; zusätzliche Sprachen durch Kataloge ergänzbar |
-| Systeme | Bis zu acht Z2M-Systeme, an einem oder mehreren Brokern |
-| Ausführung | In der bestehenden eigenen Z2M-Erweiterung; die App darf nach der Einrichtung geschlossen werden |
+| Product | Z2M-Automations |
+| Platform editions | Z2M-Automations for Windows / Z2M-Automations for Linux |
+| Repository | `Burki24/Z2M-Automations`; local path `E:\git\Z2M-Automations` |
+| Development | Shared permanent `dev` branch; `main` for verified release states |
+| Windows target | Windows 11 x64 as the first planned reference |
+| Linux target | Ubuntu Desktop LTS x64; initially 24.04 LTS for builds/tests, with an additional planned acceptance run on 26.04 LTS |
+| Initial languages | German and English; further languages can be added through catalogs |
+| Systems | Up to eight Z2M systems on one or more brokers |
+| Execution | In our existing Z2M extension; the application may be closed after setup |
 
-Die Symcon-Library wird im eigenen Repository `Symcon_Z2MAutomations` geführt.
-Die GitHub-Umbenennung und die getrennte Anlage dieses App-Repositorys sind
-erfolgt. Beide Produkte behalten eigene Versionierung und Freigaben; technische
-Symcon-Modulkennungen werden durch dieses Desktop-Projekt nicht geändert.
+The Symcon library has its own repository, `Symcon_Z2MAutomations`. Its GitHub
+rename and the separate creation of this application repository are complete.
+Both products retain independent versioning and releases. This desktop project
+does not change technical Symcon module identifiers.
 
-Die konkreten OS-Ausgaben sind Prüfziele, noch keine nachgewiesene Unterstützung.
-Vor der ersten Beta werden installierte Testumgebungen und die tatsächlich
-bestandenen Versionen festgehalten. Weitere Linux-Distributionen, ARM64 und
-macOS sind spätere Ziele; der gemeinsame Code erhält dafür keine unnötigen Sperren.
+The named OS editions are verification targets, not demonstrated support.
+Before the first beta, record the installed test environments and versions
+actually accepted. Further Linux distributions, ARM64 and macOS are later goals;
+do not introduce unnecessary barriers to them in the shared code.
 
-Es entstehen keine getrennten Windows- und Linux-Quellzweige. Jede Funktion
-gehört auf beiden Zielplattformen zum selben Meilenstein. Die Symcon-Library
-bleibt ein eigenständiges Produkt mit eigener Versionierung und Abnahme.
+There will be no separate Windows and Linux source branches. Each feature belongs
+to the same milestone on both platforms. The Symcon library remains a separate
+product with its own versioning and acceptance process.
 
-## 2. Technische Grundlage
+## 2. Technical foundation
 
-**Planungsentscheidung: Electron mit TypeScript für den Desktop-Unterbau,
-Electron Forge für Pakete und MQTT.js für direkte MQTT-Verbindungen.** Der
-vorhandene HTML-/CSS-/JavaScript-Designer wird schrittweise weiterverwendet;
-ein zusätzliches UI-Framework wird dafür nicht vorausgesetzt.
+**Planning decision: Electron with TypeScript for the desktop backend,
+Electron Forge for packaging and MQTT.js for direct MQTT connections.** Reuse
+our existing HTML/CSS/JavaScript designer incrementally. An additional UI framework
+is not a prerequisite.
 
-| Alternative | Bewertung für diese Anwendung |
+| Alternative | Assessment for this application |
 | --- | --- |
-| Electron | Gemeinsames Chromium-Verhalten auf Windows und Linux, Node.js für MQTT/TLS und lokale Dateien; Anschluss an unsere vorhandene JavaScript-Codebasis. Größere Pakete und zusätzlicher Ressourcenbedarf sind gegen die Wiederverwendung abzuwägen. |
-| Tauri | Mögliche Alternative mit systemeigenen WebViews und Rust-Unterbau. Unter Windows und Linux unterschiedliche WebView-Grundlagen; zusätzliche Rust-/Adapterarbeit für unseren derzeitigen JavaScript-Schwerpunkt. Für den ersten gemeinsamen Umsetzungsweg nicht gewählt. |
+| Electron | Consistent Chromium behavior on Windows and Linux; Node.js for MQTT/TLS and local files; fits our existing JavaScript codebase. Weigh larger packages and resource usage against reuse. |
+| Tauri | An alternative using native WebViews and a Rust backend. Windows and Linux have different WebView foundations; our current JavaScript focus would require additional Rust/adapter work. Not selected for the initial shared implementation. |
 
-Die endgültigen Abhängigkeitsversionen werden beim Grundgerüst anhand aktueller
-stabiler Versionen geprüft, fest gebunden und per Lockdatei reproduzierbar gemacht.
-Eine Frameworkversion ist kein pauschaler Nachweis für jede Betriebssystemversion.
+When creating the skeleton, verify current stable dependency versions, pin them
+and make builds reproducible through a lockfile. A framework version does not
+establish support for every operating-system version.
 
-Die Desktop-App lädt ihre Oberfläche und Sprachdateien lokal. Sie benötigt
-weder einen Symcon-Webserver noch eine Internetverbindung für die Administration
-der im eigenen Netz erreichbaren Z2M-Systeme. Brokerpasswörter, Dateizugriffe
-und MQTT-Clients gehören nicht in den Renderer.
+The desktop application loads its interface and language files locally. It needs
+neither a Symcon web server nor an Internet connection to administer Z2M systems
+reachable on the local network. Broker passwords, file access and MQTT clients
+do not belong in the renderer.
 
-## 3. Gemeinsame Oberfläche, getrennte Anbindungen
+## 3. Shared interface, separate adapters
 
 ```mermaid
 flowchart TB
-    UI[Gemeinsamer Designer und Sprachkataloge]
-    API[Einheitliche Schnittstelle für Entwürfe und Systemaufträge]
+    UI[Shared designer and language catalogs]
+    API[Common interface for drafts and system requests]
     UI --> API
-    API --> S[Symcon-Adapter]
-    API --> D[Desktop-Adapter über eng begrenztes IPC]
-    S --> P[Bestehende PHP-Module und native MQTT-Anbindung]
-    D --> C[Desktop-Kern: Entwürfe, Gerätefähigkeiten, MQTT]
-    C --> W[Windows-Integration]
-    C --> L[Ubuntu-Integration]
-    P --> Z[Eigene Erweiterung je Z2M-System]
+    API --> S[Symcon adapter]
+    API --> D[Desktop adapter through restricted IPC]
+    S --> P[Existing PHP modules and native MQTT integration]
+    D --> C[Desktop core: drafts, device capabilities, MQTT]
+    C --> W[Windows integration]
+    C --> L[Ubuntu integration]
+    P --> Z[Our extension on each Z2M system]
     C --> Z
 ```
 
-Der heutige Designer verwendet `fetch`, Hookadressen, Symcon-Zugänge und bereits
-formulierte PHP-Meldungen direkt in mehreren Dateien. Er kann deshalb nicht
-unverändert als bloße Fensterhülle übernommen werden. Zuerst erhält er einen
-expliziten Adapter für:
+The current designer directly uses `fetch`, hook URLs, Symcon access credentials
+and preformatted PHP messages in several files. It cannot be reused unchanged
+as a window wrapper. First introduce an explicit adapter for:
 
-- Systeme, Auswahl, Gerätedaten und Gerätefähigkeiten.
-- Lokale Entwürfe, offene Bearbeitungen, Kopieren/Löschen und Aktionsfolgen.
-- Validierung, Übertragung, Betriebsstatus, Einzelstart und Stopp.
-- Erweiterungsinstallation, Diagnose und begrenzte Ablaufaufzeichnung.
-- Partnerfreigaben sowie optionale Funktionen des jeweiligen Produkts.
+- Systems, selection, device data and capabilities.
+- Local drafts, unsaved edits, copying/deleting and action sequences.
+- Validation, transfer, operational status, single-run start and stop.
+- Extension installation, diagnostics and bounded execution recording.
+- Partner permissions and optional features of each product.
 
-Der Symcon-Adapter nutzt weiterhin die bestehenden geprüften PHP-Einstiege,
-Sperren und Bestätigungen. Der Desktop-Adapter nutzt einen lokalen Dienst im
-Electron-Unterbau. Er portiert die benötigte PHP-Fachlogik in eigenen TypeScript-
-Code; eine PHP-Laufzeit wird nicht mitgeliefert. Gemeinsame synthetische Fälle
-prüfen, dass Editor- und Übertragungsverhalten übereinstimmen.
+The Symcon adapter continues using the existing verified PHP entry points,
+locks and confirmations. The desktop adapter uses a local service in the
+Electron backend. Port the necessary PHP business logic to our own TypeScript
+code; do not ship a PHP runtime. Shared synthetic cases verify equivalent
+editor and transfer behavior.
 
-Symcon-Ereignisimport und native Objektverweise bleiben Funktionen des
-Symcon-Adapters. Der Desktop-Designer blendet sie über Fähigkeiten aus, statt
-funktionslose Symcon-Buttons anzubieten.
+Symcon event import and native object references remain Symcon-adapter features.
+The desktop designer hides them through capabilities instead of exposing
+nonfunctional Symcon buttons.
 
-## 4. Quellzuständigkeit und Wiederverwendung
+## 4. Source ownership and reuse
 
-Geplante Struktur im neuen Repository:
+Planned repository structure:
 
 ```text
-apps/desktop/          Electron-Fenster, Main-Prozess, Preload und Paketkonfiguration
-packages/designer/    Gemeinsame UI und Übersetzungen
-packages/core/        Desktop-Fachmodell, Entwürfe, Konfliktprüfung, Adapterverträge
-packages/mqtt/        Direkte Brokeranbindung und Z2M-Auftragsabläufe
-packages/platform/    Dateipfade, Dialoge und geschützte Zugangsdatenablage
-tests/                Gemeinsame Fälle und plattformabhängige Integrationstests
-docs/                 Einrichtung, Architektur, Prüfungen und Plattformangaben
+apps/desktop/         Electron windows, main process, preload and package configuration
+packages/designer/    Shared UI and translations
+packages/core/        Desktop model, drafts, conflict checks and adapter contracts
+packages/mqtt/        Direct broker connections and Z2M request workflows
+packages/platform/    File paths, dialogs and protected credential storage
+tests/                Shared cases and platform-specific integration tests
+docs/                 Setup, architecture, verification and platform requirements
 ```
 
-Bis zum geprüften Übergang bleiben die Designerquellen in
-`Symcon_Z2MAutomations/Z2MAutomations/visualization` maßgeblich. Bei der tatsächlichen Extraktion wechselt die kanonische UI-Quelle
-einmalig nach `packages/designer` im Desktop-Repository. Dieses liefert ein
-versioniertes Designerpaket für beide Produkte. Symcon erhält einen fest
-gebundenen, reproduzierbaren Assetstand mit Versions-/Quellbezug und Prüfsummen;
-der vorhandene Asset-Allowlist-/CSP-Vertrag wird gezielt angepasst und geprüft.
-Es gibt keine zwei unabhängig weiterbearbeiteten UI-Kopien und keinen Laufzeit-
-Download aus einem fremden Repository.
+Until the verified transition, designer sources remain canonical in
+`Symcon_Z2MAutomations/Z2MAutomations/visualization`. During extraction, move
+canonical UI ownership once to `packages/designer` in the desktop repository.
+It will provide a versioned designer package for both products. Symcon receives
+pinned, reproducible assets with version/source references and checksums;
+adapt and verify its existing asset-allowlist/CSP contract. Do not maintain two
+independently edited UI copies or download assets from another repository at runtime.
 
-Die kanonische Quelle der Z2M-Erweiterung einschließlich Schema bleibt zunächst
-in `Symcon_Z2MAutomations/libs/z2m` im getrennten Symcon-Repository. Die App bündelt ausschließlich ein genau bezeichnetes, geprüftes
-Artefakt mit Buildkennung und Schema. Die Erweiterung wird nicht für Windows
-und Linux auseinanderentwickelt. Änderungen an ihrer Schnittstelle müssen
-beide Verwaltungsprodukte berücksichtigen.
+The canonical Z2M extension and schema initially remain in
+`Symcon_Z2MAutomations/libs/z2m` in the separate Symcon repository. The application
+bundles only an explicitly identified, verified artifact with build identity and
+schema. Do not split the extension into Windows and Linux implementations.
+Interface changes must account for both management products.
 
-Die vorhandenen Symcon-Helper wurden betrachtet. `HelperTranslationHelper` ist
-PHP-/Symcon-gebunden; Visualisierungs-, Origin- und Debug-Helper werden im
-Symcon-Adapter weiter regulär eingebunden. Sie werden nicht als veränderte
-Kopien in die Desktop-App übernommen. Fachlicher Designercode wird nicht allein
-für die App nach `Symcon_ModuleHelper` verschoben. Ein drittes gemeinsames
-Repository wird für den Einstieg nicht benötigt.
+The existing Symcon helpers have been reviewed. `HelperTranslationHelper` is
+PHP/Symcon-specific; visualization, origin and debug helpers continue to be
+consumed normally by the Symcon adapter. Do not import modified copies into the
+desktop application. Do not move designer business logic to `Symcon_ModuleHelper`
+solely for the application. A third shared repository is not needed initially.
 
-## 5. Mehrsprachigkeit als erster Baustein
+## 5. Multilingual support as the first step
 
-1. Alle sichtbaren Texte erfassen: statisches HTML, JavaScript, Dialoge,
-   Bestätigungen, Titel, Hilfetexte, Barrierefreiheitsbeschriftungen,
-   Status-/Fehleranzeigen, Startfehler und native App-Menüs.
-2. Stabile Meldungsschlüssel und Parameter definieren. Auch PHP-Antworten
-   benötigen für die UI auflösbare Kennungen; ein deutscher fertiger Satz ist
-   kein zuverlässiger internationaler Datenvertrag. Für den Übergang erhalten
-   bestehende Antwortfelder ihre Bedeutung, zusätzliche Kennungen werden geprüft.
-3. i18next lokal bündeln; deutsche und englische Kataloge vollständig pflegen.
-   Vorhandene UI-Texte zuerst inhaltlich übernehmen, nicht nebenbei umdeuten.
-4. Browser-/Systemsprache als Vorgabe, manuelle Auswahl mit Vorrang und
-   gespeicherter Präferenz je Benutzer. Englisch als definierte Ersatzsprache.
-5. `Intl` für Darstellung von Zahlen, Daten, Wochentagen und Mehrzahlformen.
-   Geräte-/Regelnamen, MQTT-Werte wie `ON`, IDs und YAML-Schlüssel bleiben unverändert.
-6. Sprachwechsel ohne Verlust offener Bearbeitungen. Sprache ändert weder
-   Zeitzonen noch gespeicherte Regelwerte. Zahlenannahme und interne Darstellung
-   werden getrennt geprüft, beispielsweise `18,5` und `18.5`.
-7. Katalogvollständigkeit, gleiche Platzhalter, lange Texte, Singular/Plural und
-   fehlende Übersetzungen automatisiert prüfen. Deutsch/Englisch in Browser,
-   Kachel und Desktop prüfen. Andere Schriften sind noch keine geprüfte Zusage.
+1. Inventory all visible text: static HTML, JavaScript, dialogs, confirmations,
+   titles, help text, accessibility labels, status/errors, startup failures and
+   native application menus.
+2. Define stable message keys and parameters. PHP responses also need identifiers
+   the UI can resolve; a preformatted German sentence is not a reliable
+   international data contract. Preserve the meaning of existing response fields
+   during the transition and verify additional identifiers.
+3. Bundle i18next locally and maintain complete German and English catalogs.
+   Preserve the meaning of existing UI text during the initial extraction.
+4. Use the browser/system language by default, with a manually selected language
+   taking precedence and a saved preference per user. English is the fallback.
+5. Use `Intl` to display numbers, dates, weekdays and plural forms. Device/rule
+   names, MQTT values such as `ON`, IDs and YAML keys remain unchanged.
+6. Switch languages without losing unsaved edits. Language does not change time
+   zones or stored rule values. Verify number input and internal representation
+   separately, including `18,5` and `18.5`.
+7. Automatically verify catalog completeness, matching placeholders, long text,
+   singular/plural forms and missing translations. Check German/English in the
+   browser, tile and desktop. Other writing systems are not yet verified support.
 
-Die vorgeschriebenen nativen Symcon-Debugausgaben bleiben deutsch und verwenden
-den kanonischen Helper. Desktop-Diagnose erhält strukturierte Ereignisse mit
-System-, Auftrags-, Regel-, Lauf- und Schrittbezug sowie lokalisierbarer Anzeige.
-Passwörter, Zugänge, private Geräteinhalte und komplette YAML werden nicht protokolliert.
+Required native Symcon debug output remains German and uses the canonical helper.
+Desktop diagnostics use structured events with system, request, rule, run and
+step correlation and localized display. Do not log passwords, access credentials,
+private device contents or complete YAML documents.
 
-## 6. Direkte MQTT-Anbindung und Geräteauswahl
+## 6. Direct MQTT connections and device selection
 
-Die App verwaltet Brokerverbindungen getrennt von Z2M-Systemen. Ein Broker kann
-mehrere unterschiedliche Basistopics bedienen. Pro Broker werden Verbindungen
-kontrolliert geteilt; Client-IDs sind eindeutig gegenüber Symcon und anderen Apps.
-Erst nach ausdrücklichem Verbinden wird MQTT aufgebaut.
+Manage broker connections separately from Z2M systems. One broker may serve
+multiple base topics. Share connections per broker in a controlled way and use
+client IDs distinct from Symcon and other applications. Establish MQTT only
+after an explicit connection request.
 
-Geplant sind TCP und TLS, Benutzer/Passwort sowie bei Bedarf CA-/Clientzertifikate.
-Zertifikatsprüfungen werden nicht still abgeschaltet. Der Renderer darf keine
-beliebigen Topics veröffentlichen; nur geprüfte Aufträge für zugeordnete Systeme.
+Plan for TCP and TLS, username/password and CA/client certificates as needed.
+Do not silently disable certificate verification. The renderer may not publish
+to arbitrary topics; it can issue only validated requests for assigned systems.
 
-Die vorhandenen Health-, Status-, Katalog-, Editor-, Prüf-, Speicher-, Betriebs-
-und Debugprotokolle werden übernommen. Frische Sitzung, Revision, Prüfsumme,
-Anfragezuordnung, Zeitlimit und Bestätigung bleiben pro System getrennt.
-Eine MQTT-Wiederverbindung ist erlaubt; ein unsicherer Speicher-, Installations-
-oder Schaltauftrag wird dadurch nicht blind erneut gesendet. Bibliotheksseitige
-Offlinewarteschlangen und QoS-Wiederholungen müssen dafür ausdrücklich geprüft
-und für Steueraufträge passend konfiguriert werden. Keine retained Steueraufträge.
+Reuse the existing health, status, catalog, editor, validation, storage, operation
+and debug protocols. Keep fresh session, revision, checksum, request correlation,
+timeout and acknowledgement handling separate per system. MQTT reconnection is
+allowed; it does not blindly resend an uncertain save, installation or device
+request. Explicitly review library-side offline queues and QoS retries and
+configure control requests accordingly. Never retain control requests.
 
-**Die Desktop-App kann keine Symcon-Schaltvariablen voraussetzen.** Deshalb gelten
-zwei bewusst getrennte Aktionsrichtlinien:
+**The desktop application cannot require Symcon action variables.** Use two
+explicit action policies:
 
-| Produkt | Grundlage der Geräteauswahl |
+| Product | Basis for device selection |
 | --- | --- |
-| Symcon | Z2M-Fähigkeit plus weiterhin vorhandene schaltbare native Symcon-Variable. |
-| Desktop | Bestätigter Z2M-Katalog: veröffentlichte Werte für Auslöser/Bedingungen, setzbare Eigenschaften für Aktionen, einschließlich Typ, Einheit, Kanal, Grenzen und unterstützter Werte. |
+| Symcon | Z2M capability plus an existing actionable native Symcon variable. |
+| Desktop | Confirmed Z2M catalog: published values for triggers/conditions and settable properties for actions, including types, units, channels, limits and supported values. |
 
-Der bestehende Erweiterungskatalog liefert bereits begrenzte typisierte
-Eigenschaften mit Zugriffsbits. Er wird zuerst auf Vollständigkeit geprüft und
-gezielt ergänzt, falls Desktop-Funktionen zusätzliche Metadaten benötigen.
-Unbekannte Geräte, Eigenschaften oder Rechte bleiben gesperrt; Rohdaten sind
-keine automatische Schaltfreigabe. Gruppen und Szenen werden eigenständig geprüft;
-von einem Gruppenmitglied wird keine Fähigkeit pauschal auf alle Mitglieder übertragen.
+The existing extension catalog already provides a limited set of typed properties
+with access bits. Check completeness first and extend it where desktop features
+need additional metadata. Unknown devices, properties or permissions remain
+blocked; raw data does not automatically authorize actions. Verify groups and
+scenes independently. Do not infer capabilities for all group members from one member.
 
-Bis zu acht Systeme, gleiche Kennungen auf verschiedenen Systemen, eindeutige
-Mesh-Ziele und gerichtete Partnerfreigaben bleiben Prüfgegenstand. Die App
-installiert oder konfiguriert keine MQTT-Broker und legt keine Broker-Bridges
-automatisch an. Die vorhandene [Mosquitto-Anleitung](https://github.com/Burki24/Symcon_Z2MAutomations/blob/01f444d91d5c664177a5d2a60a5d644c72840523/Z2MConnection/README.md#bis-zu-acht-mqtt-broker-miteinander-verbinden)
-bleibt der gesonderte Einrichtungsweg.
+Up to eight systems, identical identifiers on different systems, explicit mesh
+targets and directed partner permissions remain verification requirements.
+The application does not install/configure MQTT brokers or automatically create
+broker bridges. The existing [Mosquitto setup guide](https://github.com/Burki24/Symcon_Z2MAutomations/blob/01f444d91d5c664177a5d2a60a5d644c72840523/Z2MConnection/README.md#bis-zu-acht-mqtt-broker-miteinander-verbinden)
+remains the separate setup procedure.
 
-## 7. Lokale Projekte, Übernahme und Konflikte
+## 7. Local projects, import and conflicts
 
-- Versioniertes, portables Projektformat mit stabilen System-/Regel-/Folgenkennungen,
-  lokalen Entwürfen und den bekannten Z2M-Basisrevisionen/-prüfsummen.
-- Brokerkonfiguration und Geheimnisse getrennt speichern. Ein normaler
-  Projektexport enthält keine Passwörter, Sitzungen, Symcon-Instanz-IDs oder
-  fremden Bearbeitungszugänge. Zertifikatsschlüssel bleiben außerhalb des Projekts.
-- Geräteidentitäten bleiben Z2M-Kennungen mit ausdrücklicher Systemzuordnung;
-  Anzeigenamen und Pfade werden nicht als Ersatzschlüssel verwendet.
-- Z2M zuerst lesend einrichten: gespeicherte YAML unverändert als Basis sichern,
-  Regeln, IDs, Regelschalter, Folgen und Partnerfreigaben erhalten. Lesen aktiviert
-  oder stoppt nichts. Neue Regeln und Kopien beginnen ausgeschaltet.
-- Noch nicht nach Z2M übertragene Symcon-Entwürfe benötigen einen eigenen
-  geprüften Export-/Importweg. Sie dürfen nicht durch Einlesen des älteren
-  Z2M-Stands verloren gehen. Native Variablenrechte werden nicht exportiert.
-- Vor jeder Speicherung erneut gegen Z2M vergleichen. Bei Konflikt getrennt
-  sichern und Unterschiede zeigen; kein stilles Zusammenführen oder Überschreiben.
-- Die bisherige Besitzerzuordnung ist innerhalb einer Symcon-Installation lokal.
-  Sie ist keine globale Sperre gegen andere Apps. Koexistenz mit Symcon und einer
-  zweiten Desktop-App wird explizit über frische Z2M-Stände geprüft.
-- Lokale Bearbeitung, geprüfter Entwurf, bestätigte Speicherung und laufender
-  Betrieb bleiben sichtbar getrennt. Vor Änderungen private Sicherung und
-  rücknehmbaren lokalen Entwurf bereitstellen. Ein lokaler Rückweg setzt keinen
-  bereits geänderten Z2M-Betrieb zurück.
+- Versioned portable project format with stable system/rule/sequence identifiers,
+  local drafts and known Z2M base revisions/checksums.
+- Store broker configuration separately from secrets. Normal project exports
+  contain no passwords, sessions, Symcon instance IDs or other editors' access
+  credentials. Keep certificate keys outside the project.
+- Device identities remain Z2M identifiers with explicit system ownership.
+  Display names and paths are not substitute keys.
+- Set up Z2M read-only first: back up stored YAML unchanged as the baseline and
+  preserve rules, IDs, enabled flags, sequences and partner permissions. Reading
+  neither activates nor stops anything. New rules and copies start disabled.
+- Symcon drafts not yet transferred to Z2M need a separate, verified export/import
+  path. Reading older Z2M state must not discard them. Native variable permissions
+  are not exported.
+- Compare against Z2M again before every save. On conflict, keep separate backups
+  and show differences; never silently merge or overwrite.
+- Existing ownership mapping is local to a Symcon installation, not a global lock
+  against other applications. Explicitly verify coexistence with Symcon and a
+  second desktop application using fresh Z2M state.
+- Visibly distinguish local editing, validated draft, confirmed storage and active
+  operation. Before changes, provide a private backup and a reversible local
+  draft. Local rollback does not restore Z2M operation already changed remotely.
 
-Zugangsdaten werden über eine OS-gestützte verschlüsselte Ablage im Desktop-
-Unterbau verwaltet. Unter Linux ist ein verfügbarer Schlüsseldienst zu prüfen.
-Bei fehlendem Schutz oder gesperrtem Schlüsseldienst wird kein Klartext-Ersatz
-still akzeptiert: wahlweise nur für die Sitzung verwenden und nach App-Neustart
-erneut eingeben.
-Das Wiederöffnen eines Projekts speichert oder aktiviert keine Automationen.
+Manage credentials through OS-backed encrypted storage in the desktop backend.
+On Linux, check for an available secret service. If protection is unavailable
+or the service is locked, do not silently accept plaintext storage. Offer
+session-only credentials that must be entered again after restarting the app.
+Reopening a project does not save or activate automations.
 
-## 8. Sicherheits- und Plattformgrenze
+## 8. Security and platform boundaries
 
-Der Electron-Renderer bleibt isoliert und sandboxed, ohne Node-Integration.
-Preload/IPC bieten eine kleine feste Positivliste mit Schema-/Senderprüfung.
-Keine Shellkommandos, allgemeinen Dateioperationen oder beliebigen MQTT-Publish-
-Funktionen für UI-Inhalte. Lokale Assets, restriktive CSP und kontrollierte
-Navigation/Linköffnung gehören in das Grundgerüst.
+Keep the Electron renderer isolated and sandboxed, without Node integration.
+Preload/IPC expose a small fixed allowlist with schema and sender validation.
+Do not expose shell commands, general file operations or arbitrary MQTT publish
+functions to UI content. Local assets, restrictive CSP and controlled navigation
+and link handling belong in the skeleton.
 
-Windows und Linux verwenden dieselbe Fachlogik. Getrennt werden nur OS-Pfade,
-Dateidialoge, geschützte Ablage, Desktopintegration, Pakete und Updates behandelt.
-Auf Linux insbesondere gesperrter/fehlender Keyring, Wayland/X11, Dateirechte,
-Groß-/Kleinschreibung und Paketabhängigkeiten prüfen. Auf Windows DPI-Skalierung,
-Benutzerinstallation, gesperrte Dateien und geschützte Ablage prüfen.
+Windows and Linux share the same business logic. Separate only OS paths, file
+dialogs, protected storage, desktop integration, packages and updates. On Linux,
+verify locked/unavailable keyrings, Wayland/X11, file permissions, case sensitivity
+and package dependencies. On Windows, verify DPI scaling, per-user installation,
+locked files and protected storage.
 
-Ein WSL-, Browser- oder headless Linux-Lauf ersetzt nicht die Abnahme des
-installierten Ubuntu-Desktop-Pakets. Verfügbare Windows-/Ubuntu-Testumgebungen
-werden vor der Paketabnahme konkret bereitgestellt; bislang ist kein separater
-Ubuntu-Desktop-Testrechner durch den Benutzer bestätigt.
+A WSL, browser or headless Linux run does not replace acceptance of the installed
+Ubuntu desktop package. Establish concrete Windows/Ubuntu test environments
+before package acceptance. The user has not yet confirmed a separate Ubuntu
+desktop test machine.
 
-## 9. Umsetzung in gemeinsamen Meilensteinen
+## 9. Shared implementation milestones
 
-| Schritt | Lieferumfang | Nachweis und Abschlusskriterium |
+| Step | Deliverables | Evidence and completion criteria |
 | --- | --- | --- |
-| D0 – Sprachfähiger Designer | Deutsche/englische Kataloge, Spracheinstellung, Meldungskennungen und automatische Katalogprüfung im bestehenden Designer. | Vollständige Bedienwege mit beiden Sprachen, ohne Eingabeverlust; aktuelle Symcon- und Kachelabläufe erhalten. |
-| D1 – Neues Projekt und zwei App-Builds | Repository-Grundgerüst, enger Desktop-Adapter, extrahierter gemeinsamer Designer, Electron-Fenster und getrennte CI-Jobs. | Derselbe Quellstand startet auf Windows und Ubuntu; zunächst synthetische Offline-Daten, keine echten Broker. Versionierter UI-Bezug zur Library geprüft. |
-| D2 – Projekte und Zugänge | Portables lokales Format, Sicherung/Wiederherstellung, Zugangsdatenablage und OS-Dateidialoge. | Speichern/Öffnen/Export ohne Geheimnisse; fehlender Linux-Schlüsseldienst und Windows-Dateisperren abgefangen. |
-| D3 – MQTT zunächst lesend | Broker-/Systemassistent, TLS, Verbindung, Status, Geräte-/Szenenkatalog und vorhandene Automationen lesen. | Ein gemeinsamer sowie getrennte Broker; Ausfall/Wiederverbindung ohne Entwurfsverlust. Kein Gerätebefehl oder Upload. |
-| D4 – Vollständige lokale Bearbeitung | Geräte-/Zeit-/Sonnenregeln, Bedingungen, Mehrfachaktionen, Farben, Szenen, Folgen, Partnerfreigaben; Export-/Importweg für Symcon-Entwürfe. | Gleiche Datenfälle und Grenzen wie im bestehenden Editor; korrekte Z2M-Schreibrechte ohne Symcon-Abhängigkeit. |
-| D5 – Erweiterung, Prüfung und Speicherung | Mitgeliefertes Artefakt, Buildvergleich, Installation, Validierung, Übertragung und Statusbestätigung. | Ausschließlich isolierte Z2M-Gegenstelle; stale Revision, Abbruch und verlorene Antwort geprüft. Regeln zunächst ausgeschaltet. |
-| D6 – Betrieb und Mesh | Aktivieren, Stopp, Einzelstart, Wiederanlauf und korrelierte Ablaufaufzeichnung; bis acht Systeme. | Synthetische 1/2/8-Systemfälle, Zweigausfall und geteilte/gesperrte Ziele; reale Schaltfälle nur mit gesondertem Praxisauftrag. App schließen und Z2M-Betrieb getrennt nachweisen. |
-| D7 – Installierte Beta beider Plattformen | Windows-Installer und Ubuntu-Paket, sprachgerechte Einrichtung, Update-/Rückweg und Benutzeranleitung. | Installation, Update, Neustart und Deinstallation auf beiden Referenzsystemen; Entwürfe erhalten; Veröffentlichung ausschließlich nach Auftrag. |
+| D0 – Multilingual designer | German/English catalogs, language settings, message identifiers and automated catalog checks in the existing designer. | Complete workflows in both languages without input loss; preserve current Symcon and tile workflows. |
+| D1 – New project and two application builds | Repository skeleton, restricted desktop adapter, extracted shared designer, Electron window and separate CI jobs. | The same source state starts on Windows and Ubuntu; initially use synthetic offline data and no real brokers. Verify the versioned UI reference consumed by the library. |
+| D2 – Projects and credentials | Portable local format, backup/restore, credential storage and OS file dialogs. | Save/open/export without secrets; handle missing Linux secret service and Windows file locks. |
+| D3 – Read-only MQTT first | Broker/system wizard, TLS, connection, status, device/scene catalog and reading existing automations. | Shared and separate brokers; disconnect/reconnect without draft loss. No device command or upload. |
+| D4 – Complete local editing | Device/clock/solar rules, conditions, multiple actions, colors, scenes, sequences, partner permissions and export/import of Symcon drafts. | Equivalent data cases and limits to the existing editor; correct Z2M write permissions without a Symcon dependency. |
+| D5 – Extension, validation and storage | Bundled artifact, build comparison, installation, validation, transfer and status confirmation. | Isolated Z2M peer only; verify stale revision, cancellation and lost responses. Rules initially disabled. |
+| D6 – Operation and mesh | Activation, stop, single-run start, restart recovery and correlated execution recording; up to eight systems. | Synthetic 1/2/8-system cases, branch failure and shared/blocked targets; real device cases only under a separate practical-test request. Separately demonstrate closing the app and continued Z2M operation. |
+| D7 – Installed beta on both platforms | Windows installer and Ubuntu package, localized setup, update/rollback and user guide. | Install, update, restart and uninstall on both reference systems while preserving drafts; publish only when explicitly requested. |
 
-Jeder Schritt enthält Windows- und Linux-Prüfungen. Ein roter Plattformjob wird
-nicht als spätere Linux-Aufgabe ausgeklammert. Symcon-Änderungen werden als
-abgegrenzte Änderungen mit eigenen Regressionstests integriert. Vorhandene
-Beta-Nachweise bleiben erhalten, belegen aber keine neue Desktop-Unterstützung.
+Each step includes Windows and Linux verification. Do not defer a failing platform
+job as later Linux work. Integrate Symcon changes as bounded changes with their
+own regression tests. Preserve existing beta evidence; it does not establish new
+desktop support.
 
-## 10. Pakete, CI und Freigabe
+## 10. Packages, CI and release
 
-- Windows zunächst Setup-EXE über Electron Forge/Squirrel.Windows.
-- Ubuntu zunächst `.deb` über Electron Forge; AppImage, Snap und Flatpak sind
-  spätere Paketziele, keine Bedingung für die erste gemeinsame Beta.
-- Beide Plattformen erhalten dieselbe App-Version aus demselben Quellstand;
-  Library- und Erweiterungsversion bleiben unabhängig.
-- Windows-Paket auf Windows, Linux-Paket auf Linux bauen. Geprüfte feste
-  Buildumgebungen und Lockdateien statt ungepinnter Tagesstände verwenden.
-- Gemeinsame Unit-/Vertragstests, UI-Tests und synthetisches MQTT/Z2M ergänzen
-  plattformspezifische Installations-, Keyring- und Desktopprüfungen.
-- Mindestmatrix: Deutsch/Englisch, Hell/Dunkel, schmale/breite Fenster,
-  DPI/Skalierung, Tastatur, Dialoge/Auswahllisten, Drag & Drop, Mausrad und
-  Scrollgrenzen. Linux Wayland/X11 und beide vorgesehenen LTS-Ausgaben getrennt erfassen.
-- Vor öffentlicher Ausgabe Windows-Codesignierung, Paketprüfsummen und den
-  Updatekanal festlegen und testen. Im ersten Schritt keine unbeaufsichtigte
-  automatische Aktualisierung. Rückweg und Datenformatmigration vor Updates prüfen.
-- Lizenz und gewünschtes Vertriebsmodell vor Veröffentlichung ausdrücklich
-  festlegen. Bestehende PolyForm-Noncommercial-Quellen und fremde Lizenzen werden
-  nicht still geändert; dieser Plan trifft keine neue Lizenzentscheidung.
-- Commit/Push erfolgen weiterhin durch den Benutzer. Projektanlage, Paketbau
-  und interne Tests sind keine Erlaubnis für Store-/Releaseveröffentlichungen.
+- Initially provide a Windows setup EXE through Electron Forge/Squirrel.Windows.
+- Initially provide an Ubuntu `.deb` through Electron Forge. AppImage, Snap and
+  Flatpak are later package targets, not prerequisites for the first shared beta.
+- Both platforms receive the same application version from the same source state;
+  library and extension versions remain independent.
+- Build Windows packages on Windows and Linux packages on Linux. Use verified,
+  pinned build environments and lockfiles rather than unpinned daily versions.
+- Shared unit/contract tests, UI tests and synthetic MQTT/Z2M complement
+  platform-specific installation, keyring and desktop checks.
+- Minimum matrix: German/English, light/dark, narrow/wide windows, DPI/scaling,
+  keyboard, dialogs/selects, drag and drop, mouse wheel and scroll boundaries.
+  Record Linux Wayland/X11 and both planned LTS editions separately.
+- Before public distribution, define and test Windows code signing, package
+  checksums and the update channel. Initially provide no unattended automatic
+  updates. Verify rollback and data-format migration before updates.
+- Explicitly decide licensing and the intended distribution model before
+  publication. Do not silently change existing PolyForm Noncommercial sources
+  or third-party licenses; this plan makes no new licensing decision.
+- The user continues to commit and push. Project creation, package builds and
+  internal tests do not authorize Store publication or releases.
 
-## 11. Unmittelbar nächster Arbeitsschritt
+## 11. Immediate next step
 
-**D0 zuerst:** Textinventar und Meldungsvertrag festlegen, i18next lokal anbinden,
-Deutsch/Englisch im aktuellen Designer vollständig durchziehen und mit erhaltenen
-Eingaben prüfen. D0 ist weiterhin ein abgegrenztes Arbeitspaket an den noch
-kanonischen Designerquellen im Symcon-Repository; es wurde durch diese
-Planübernahme nicht begonnen. Danach D1 mit beiden nativen App-Zielen beginnen.
-Die Projektanlage und die vorliegenden Vorgaben schließen D1 noch nicht ab.
+**D0 first:** inventory text and define the message contract, bundle i18next
+locally, complete German/English support in the current designer and verify
+preservation of input. D0 remains a bounded task affecting the still-canonical
+designer sources in the Symcon repository; importing this plan has not started
+that implementation. Then begin D1 with both native application targets.
+Project creation and these guidelines do not complete D1.
 
-Bei der tatsächlichen Designer-Extraktion müssen beide Repositories den
-Wechsel der kanonischen Quelle und das gebundene Designerpaket nachvollziehbar
-referenzieren. Der übernommene Ausgangsplan bleibt Herkunftsnachweis;
-Fortschritt und offene Punkte werden in dieser Desktop-Agenda geführt.
+During designer extraction, both repositories must clearly reference the source
+ownership transition and pinned designer package. The imported original plan
+remains provenance evidence; maintain progress and open items in this desktop agenda.
 
-## 12. Geprüfte technische Quellen
+## 12. Technical references from the original plan
 
-Die Ausgangsplanung hat diese Primärquellen am 07.11.2026 herangezogen.
-Bei der Planübernahme wurden keine Frameworkversionen neu geprüft oder
-installiert; konkrete Paketversionen und unterstützte OS-Stände vor der
-Implementierung erneut prüfen und fest binden.
+The original plan consulted these primary sources on 2026-11-07. No framework
+versions were reverified or installed during import. Before implementation,
+recheck and pin concrete package versions and supported OS editions.
 
-- [Electron: Prozesse und gemeinsame Weboberfläche](https://www.electronjs.org/docs/latest/tutorial/process-model)
-- [Electron: Sicherheit und IPC-Grenzen](https://www.electronjs.org/docs/latest/tutorial/security)
-- [Electron: geschützte Ablage und Linux-Unterschiede](https://www.electronjs.org/docs/latest/api/safe-storage)
-- [Electron Forge: Windows-Installer](https://www.electronforge.io/config/makers/squirrel.windows)
-- [Electron Forge: Debian-/Ubuntu-Paket](https://www.electronforge.io/config/makers/deb)
-- [Tauri: plattformspezifische Voraussetzungen](https://v2.tauri.app/start/prerequisites/)
-- [MQTT.js: Node-/TLS-Anbindung und Wiederverbindung](https://github.com/mqttjs/MQTT.js)
-- [Z2M: Exposes und Zugriffsbits](https://www.zigbee2mqtt.io/guide/usage/exposes.html)
-- [i18next: lokale Ressourcen und Einbindung](https://www.i18next.com/overview/getting-started)
-- [Ubuntu: unterstützte LTS-Ausgaben](https://ubuntu.com/about/release-cycle)
+- [Electron: processes and shared web interface](https://www.electronjs.org/docs/latest/tutorial/process-model)
+- [Electron: security and IPC boundaries](https://www.electronjs.org/docs/latest/tutorial/security)
+- [Electron: protected storage and Linux differences](https://www.electronjs.org/docs/latest/api/safe-storage)
+- [Electron Forge: Windows installer](https://www.electronforge.io/config/makers/squirrel.windows)
+- [Electron Forge: Debian/Ubuntu package](https://www.electronforge.io/config/makers/deb)
+- [Tauri: platform prerequisites](https://v2.tauri.app/start/prerequisites/)
+- [MQTT.js: Node/TLS connections and reconnection](https://github.com/mqttjs/MQTT.js)
+- [Z2M: exposes and access bits](https://www.zigbee2mqtt.io/guide/usage/exposes.html)
+- [i18next: local resources and integration](https://www.i18next.com/overview/getting-started)
+- [Ubuntu: supported LTS editions](https://ubuntu.com/about/release-cycle)

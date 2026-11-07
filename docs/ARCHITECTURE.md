@@ -1,67 +1,67 @@
-# Architektur
+# Architecture
 
-Stand: Planung, noch keine implementierte App. Entscheidungen und vollständige
-Meilensteine stehen in [ADR 0001](adr/0001-parallel-desktop-platforms.md) und im
-[Desktop-Plan](DESKTOP_PLAN.md).
+Status: planned; no application is implemented yet. Decisions and complete
+milestones are described in [ADR 0001](adr/0001-parallel-desktop-platforms.md)
+and the [desktop plan](DESKTOP_PLAN.md).
 
-## Gemeinsame Anwendung für zwei Plattformen
+## Shared application for two platforms
 
-Windows und Ubuntu verwenden denselben Designer und dieselbe Fachlogik.
-Plattformspezifisch sind Dateipfade, Dialoge, geschützte Geheimnisablage,
-Desktopintegration und Pakete. Keine getrennten Funktionsstände je Betriebssystem.
+Windows and Ubuntu use the same designer and business logic. Platform-specific
+concerns are file paths, dialogs, protected secret storage, desktop integration
+and packages. Do not maintain different feature sets per operating system.
 
-Geplante Zuständigkeiten, noch nicht angelegte Paketverzeichnisse:
+Planned responsibilities; these package directories do not exist yet:
 
-| Bereich | Zuständigkeit |
+| Area | Responsibility |
 | --- | --- |
-| `apps/desktop` | Electron-Main, Preload, Fenster und Paketkonfiguration |
-| `packages/designer` | Nach der Extraktion: gemeinsame Oberfläche und Sprachkataloge |
-| `packages/core` | Entwürfe, Schema-/Fähigkeitsprüfung, Konflikte und Adapterverträge |
-| `packages/mqtt` | Brokerverbindungen und korrelierte Z2M-Aufträge |
-| `packages/platform` | OS-Pfade, Dialoge und geschützte Zugangsdaten |
-| `tests` | Synthetische Vertrags-, Integrations-, UI- und Plattformfälle |
+| `apps/desktop` | Electron main process, preload, windows and package configuration |
+| `packages/designer` | After extraction: shared interface and language catalogs |
+| `packages/core` | Drafts, schema/capability validation, conflicts and adapter contracts |
+| `packages/mqtt` | Broker connections and correlated Z2M requests |
+| `packages/platform` | OS paths, dialogs and protected credentials |
+| `tests` | Synthetic contract, integration, UI and platform cases |
 
-Die Oberfläche arbeitet gegen einen festen Adaptervertrag. Der Symcon-Adapter
-bleibt im Symcon-Repository; der Desktop-Adapter läuft hinter begrenztem IPC.
-Der Renderer enthält weder Node-Zugriff noch Brokergeheimnisse oder MQTT-Clients.
+The interface uses a defined adapter contract. The Symcon adapter stays in the
+Symcon repository; the desktop adapter runs behind restricted IPC. The renderer
+has no Node access, broker secrets or MQTT clients.
 
-## Eine maßgebliche Quelle je Komponente
+## One canonical source per component
 
-| Komponente | Bis zum Übergang | Geplanter Bezug danach |
+| Component | Until the transition | Planned consumption afterwards |
 | --- | --- | --- |
-| Designer | `Symcon_Z2MAutomations/Z2MAutomations/visualization` | Einmalige Übernahme nach `packages/designer`; versioniertes Paket für Symcon und Desktop |
-| Z2M-Erweiterung und Schema | `Symcon_Z2MAutomations/libs/z2m` | Dort weiterhin kanonisch; Desktop bündelt verifiziertes Artefakt mit Herkunft und Buildkennung |
-| Symcon-Helper | `Symcon_ModuleHelper` und unverändertes Consumerpaket | Im Symcon-Adapter weiterverwenden; keine PHP-Kopien oder neue Desktop-PHP-Laufzeit |
-| Desktop-Fachlogik | Noch nicht vorhanden | Eigene TypeScript-Implementierung mit gemeinsamen synthetischen Vertragsfällen |
+| Designer | `Symcon_Z2MAutomations/Z2MAutomations/visualization` | One-time move to `packages/designer`; versioned package for Symcon and desktop |
+| Z2M extension and schema | `Symcon_Z2MAutomations/libs/z2m` | Remains canonical there; desktop bundles a verified artifact with provenance and build identity |
+| Symcon helpers | `Symcon_ModuleHelper` and its unchanged consumer package | Continue using them in the Symcon adapter; no PHP copies or new desktop PHP runtime |
+| Desktop business logic | Not implemented | Our own TypeScript implementation with shared synthetic contract cases |
 
-Vor der Extraktion werden Ressourcenpfade, CSP, Asset-Allowlist, Übersetzungen,
-Lizenzrechte und der Rückweg für beide Produkte geprüft. Ein Schwesterrepository
-wird nicht heimlich als Buildquelle verwendet. Ausgelieferte Pakete enthalten
-die fest gebundenen Assets; keine Laufzeitdownloads aus GitHub.
+Before extraction, verify resource paths, CSP, asset allowlists, translations,
+reuse rights and rollback for both products. Do not silently use a sibling
+repository as a build source. Distributed packages contain pinned assets;
+there are no runtime downloads from GitHub.
 
-## Systeme, Daten und Aufträge
+## Systems, data and requests
 
-- Brokerverbindung und Z2M-System getrennt modellieren. Mehrere Basistopics
-  dürfen einen Broker teilen; maximal acht Systeme bleiben ausdrücklich zugeordnet.
-- Identitäten sind stabile System-/Geräte-/Regelkennungen. Anzeigenamen sind veränderbar.
-- Portables Projekt und Geheimnisse getrennt ablegen. Private Schlüssel und
-  Sitzungen gehören weder in Exporte noch in Diagnose oder Repository.
-- Entwurf, Z2M-Basisrevision/-prüfsumme und bestätigten Betriebsstand getrennt halten.
-  Speichern vergleicht gegen einen frischen Stand und meldet Konflikte.
-- Wiederverbindung wiederholt keine unbestätigten Steueraufträge automatisch.
-  Eine lokale Symcon-Besitzerkennung ist keine installationsübergreifende Sperre.
-- Die App führt keine Regeln selbst aus. Z2M bleibt die Laufzeit; Broker-Bridges
-  werden gesondert eingerichtet und nicht durch die App installiert.
+- Model broker connections and Z2M systems separately. Several base topics may
+  share a broker; explicitly assign up to eight systems.
+- Identities are stable system/device/rule identifiers. Display names may change.
+- Store portable projects separately from secrets. Private keys and sessions
+  belong in neither exports nor diagnostics nor the repository.
+- Keep drafts, Z2M base revisions/checksums and confirmed operational state
+  separate. Saving compares against fresh state and reports conflicts.
+- Reconnection does not automatically repeat unacknowledged control requests.
+  A local Symcon owner identifier is not a cross-installation lock.
+- The application does not execute rules itself. Z2M remains the runtime;
+  broker bridges are configured separately and are not installed by the app.
 
-## Sprache, Rechte und Diagnose
+## Language, permissions and diagnostics
 
-Sichtbare Meldungen tragen Schlüssel und Parameter. Der Designer löst sie anhand
-der gewählten Sprache auf; Protokollwerte und benutzerdefinierte Namen bleiben
-unverändert. Geräteaktionen benötigen bestätigte Z2M-Schreibrechte; Sensoren
-bleiben als lesbare Auslöser und Bedingungen verwendbar.
+Visible messages carry keys and parameters. The designer resolves them using the
+selected language; protocol values and user-defined names remain unchanged.
+Device actions require confirmed Z2M write permissions. Sensors remain available
+as readable triggers and conditions.
 
-Alle Aufträge und Entscheidungen sind mit strukturierten, bereinigten Ereignissen
-nachvollziehbar. System-, Auftrags-, Regel-, Lauf- und Schrittkennung verbinden
-lokale Diagnose und Erweiterungsmeldungen. Start, feste Endzeit und Stopp einer
-Aufzeichnung sind ausdrücklich sichtbar. Ein Auftrag gilt erst nach seiner
-passenden Bestätigung als erfolgreich; eine Gerätewirkung ist getrennt zu prüfen.
+All requests and decisions are traceable through structured, sanitized events.
+System, request, rule, run and step identifiers connect local diagnostics to
+extension messages. Recording start, fixed end time and stop are explicitly
+visible. A request succeeds only after its matching acknowledgement; a physical
+device effect must be verified separately.
