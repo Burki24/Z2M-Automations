@@ -44,7 +44,7 @@ jobs:
           sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
       - name: Verify Linux renderer and IPC under Xvfb
         if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum npm run smoke
+        run: xvfb-run --auto-servernum --server-args="-screen 0 3840x2160x24" npm run smoke
       - name: Build the shared designer handoff
         run: npm run pack:designer
       - uses: actions/upload-artifact@v4

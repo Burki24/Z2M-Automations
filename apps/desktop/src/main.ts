@@ -43,7 +43,8 @@ async function open(): Promise<void> {
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.on('will-download', event => event.preventDefault());
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({cancel: !details.url.startsWith('z2ma://app/')}));
-  window = new BrowserWindow({width: 1360, height: 900, minWidth: 360, minHeight: 500, show: !smoke,
+  // Give Linux smoke a mapped rendering surface for capturePage; CI supplies Xvfb.
+  window = new BrowserWindow({width: 1360, height: 900, minWidth: 360, minHeight: 500, show: !smoke || process.platform === 'linux',
     title: 'Z2M-Automations ' + (process.platform === 'win32' ? 'for Windows' : 'for Linux'),
     webPreferences: {...rendererPreferences, preload: join(__dirname, 'preload.js')}});
   const view = window.webContents;
@@ -104,6 +105,7 @@ async function open(): Promise<void> {
         await new Promise(resolve => setTimeout(resolve, 150));
         const fits: boolean = await view.executeJavaScript('document.documentElement.scrollWidth <= innerWidth + 1');
         if (!fits) throw new Error('Desktop layout overflow: ' + width + '/' + theme);
+        console.log('DESKTOP_VIEWPORT_OK ' + width + '/' + theme);
       }
     }
     if (!app.isPackaged) {
@@ -111,7 +113,11 @@ async function open(): Promise<void> {
       await view.executeJavaScript("document.querySelector('#search').value = ''; document.querySelector('#search').dispatchEvent(new Event('input', {bubbles: true}));");
       await new Promise(resolve => setTimeout(resolve, 150));
       mkdirSync(join(__dirname, '../out'), {recursive: true});
-      writeFileSync(join(__dirname, '../out/smoke.png'), (await window.capturePage()).toPNG());
+      console.log('DESKTOP_CAPTURE_START');
+      const image = await window.capturePage();
+      if (image.isEmpty()) throw new Error('Desktop capture is empty.');
+      writeFileSync(join(__dirname, '../out/smoke.png'), image.toPNG());
+      console.log('DESKTOP_CAPTURE_OK');
     }
     console.log('DESKTOP_LAYOUT_OK 360/1920/3840 light/dark');
     app.exit(0);

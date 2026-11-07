@@ -1,6 +1,6 @@
 # Project context: Z2M-Automations
 
-As of 2026-11-07. Repository Burki24/Z2M-Automations; working branch dev,
+As of 2026-11-08. Repository Burki24/Z2M-Automations; working branch dev,
 primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 ## Current state
@@ -20,16 +20,20 @@ repositories. No independent editable UI fork or sibling runtime dependency.
 Windows compilation, real Electron smoke and packaged-app smoke have passed;
 the Windows setup has been generated unsigned. Shared checks cover strict types,
 invalid IPC/origins, read-only isolation, debug expiry and responsive themes.
-Ubuntu CI targets the same source on 24.04. It has not run before push; native
-Ubuntu acceptance, 26.04 and installed-app tests remain open. See docs/D1.md.
+The first CI run passed Windows. Ubuntu 24.04 passed checks, `.deb` generation
+and functional renderer assertions, then failed with UnknownVizError before
+the final layout marker. A mapped Linux smoke window, explicit Xvfb dimensions
+and phase markers are prepared; their Ubuntu execution remains pending push.
+Native Ubuntu acceptance, 26.04 and installed-app tests remain open. See docs/D1.md.
 No Live system was contacted or changed.
 
 ## Versioning and next work
 
 The automatic metadata action on Symcon_ModuleCI/main is operational. Run
 42367039704 passed; bot commit 744fc251503047068bed507a6f84cd4457cf6cb8 set
-version.json to 0.2.0. Builds read that canonical metadata. The user pulled it
-before D1; this task does not manually bump it.
+version.json to 0.2.0. The subsequent D1 source push produced metadata commit
+1d4f284274bc1f67dd7e24c788026f1eec6438b1 with version 0.3.0, present locally.
+Builds read that canonical metadata; do not manually bump it.
 
 The operational agenda is docs/DESKTOP_PLAN.md. Finish Windows/Ubuntu CI evidence
 before accepting D1 across both platforms. Then D2 adds versioned local projects

@@ -306,7 +306,10 @@ separate. No installed desktop application has been tested.
 
 **D1 implemented, platform evidence open:** restricted desktop adapter, shared
 designer extraction, Windows executable/setup and synthetic tests are available.
-Push to run both CI jobs; native Ubuntu acceptance is still required. D2 then
+The first CI run passed Windows; Ubuntu passed shared checks and package build
+but failed after functional renderer assertions with UnknownVizError. Verify
+the prepared Linux rendering/capture correction in a fresh CI run after user
+push; see [D1 evidence](D1.md). Native Ubuntu acceptance remains open. D2 then
 adds local projects and drafts. No real MQTT is part of D1.
 
 During designer extraction, both repositories must clearly reference the source

@@ -20,8 +20,10 @@ enable all dependency lifecycle scripts to work around missing tools.
 
 verify builds the canonical designer and TypeScript backend, checks UTF-8/LF,
 matching catalog keys/parameters, markup/key references, generated asset hashes,
-strict types and behavior tests. smoke opens its own hidden Electron window with
-a temporary profile, uses only synthetic data and exits. It checks the real
+strict types and behavior tests. smoke opens its own Electron window with
+a temporary profile, uses only synthetic data and exits. The window is hidden
+on Windows; on Linux it is mapped onto the CI Xvfb display for image capture
+(a local Linux run briefly shows a window). It checks the real
 preload/renderer, system switching, language/input preservation, diagnostics and
 light/dark layouts. Its local screenshot is apps/desktop/out/smoke.png.
 
@@ -53,7 +55,9 @@ Ubuntu packaging needs fakeroot and dpkg; renderer smoke uses Xvfb with Chromium
 sandbox enabled. Local Windows success is not Ubuntu acceptance. Actual Ubuntu
 24.04/26.04 desktop installation, Wayland/X11, DPI, dialogs, credentials, update
 and uninstallation remain separate milestone evidence. No local Ubuntu or WSL
-installation was available during D1. CI execution requires the user to push.
+installation was available during D1. The first CI run passed Windows; Ubuntu
+passed checks and packaging but failed during the final renderer/capture phase.
+The follow-up needs another user push; see docs/D1.md for evidence and limits.
 
 No real broker, Symcon system, private project or device command is part of the
 D1 checks. Later features must add synthetic protocol, persistence, credential
