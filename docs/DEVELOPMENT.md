@@ -3,7 +3,9 @@
 ## Current scope
 
 This repository initially contains the imported plan and development guidelines.
-There is no `package.json`, lockfile or executable application/test/CI command yet.
+There is no `package.json`, lockfile or executable application/build command yet.
+The dependency-free project check is `node scripts/check-project.mjs`; the metadata
+workflow is described in [VERSIONING.md](VERSIONING.md).
 Do not install dependencies or report a successful build at this stage. The
 application checks below are requirements for the forthcoming skeleton.
 
@@ -33,7 +35,7 @@ Project creation does not authorize publication or automated release/signing act
 
 ## Tooling and code requirements for D1
 
-- Verify Electron/Node/Forge/MQTT.js/i18next versions against official documentation
+- Verify Electron/Node/Forge/MQTT.js versions against official documentation
   before adoption. Pin compatible versions and the build environment; commit the
   lockfile. Do not invent versions or depend on unpinned daily builds.
 - Enable strict TypeScript checking. Do not use `any` or unsafe casts instead of
@@ -46,8 +48,9 @@ Project creation does not authorize publication or automated release/signing act
   and native build steps; do not enable or suppress all such steps indiscriminately.
 - Do not import `library.json`, Symcon module metadata, PHP stubs, StylePHP
   submodules or PHP check actions merely because the designer originated in Symcon.
-- Decide application versioning, release workflow and licensing before the first
-  package handoff. Do not derive an application version from the Symcon library.
+- Use the application metadata in `version.json` for later packages. Decide the
+  release workflow and licensing before the first package handoff. Do not derive
+  an application version from the Symcon library.
 
 ## Required verification areas
 

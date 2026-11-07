@@ -1,0 +1,75 @@
+name: Update application metadata
+
+on:
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-application-metadata-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  update-application-metadata:
+    if: "${{ github.event.head_commit == null || !startsWith(github.event.head_commit.message, 'CHORE: Update application metadata') }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.HELPER_SYNC_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HELPER_SYNC_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - name: Check out development branch with full history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name }}
+          token: ${{ steps.app-token.outputs.token }}
+      - name: Get GitHub App user ID
+        id: app-user
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          echo "user-id=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
+      - name: Set up Node for project checks
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Check project before versioning
+        run: node scripts/check-project.mjs
+      - name: Determine and update application metadata
+        id: metadata
+        uses: Burki24/Symcon_ModuleCI/application-metadata@main
+        with:
+          source-sha: ${{ github.sha }}
+          before-sha: ${{ github.event.before }}
+      - name: Validate generated application metadata
+        if: steps.metadata.outputs.changed == 'true'
+        run: node scripts/check-project.mjs
+      - name: Commit and push metadata only
+        if: steps.metadata.outputs.changed == 'true'
+        shell: bash
+        env:
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          APP_USER_ID: ${{ steps.app-user.outputs.user-id }}
+          SHORT_SHA: ${{ steps.metadata.outputs.short-sha }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- version.json; then
+            echo "version.json is already up to date."
+            exit 0
+          fi
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${APP_USER_ID}+${APP_SLUG}[bot]@users.noreply.github.com"
+          git add version.json
+          git commit -m "CHORE: Update application metadata to v${VERSION} (${SHORT_SHA})" \
+            -m "Source-Commit: ${SOURCE_SHA}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

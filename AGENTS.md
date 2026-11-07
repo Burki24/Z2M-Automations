@@ -23,6 +23,8 @@
 - This documentation policy does not remove localization requirements. The
   application must still support German and English through language catalogs;
   localized UI text belongs in those catalogs.
+- Use local JSON catalogs and our own small resolver. Do not introduce i18next
+  or another translation runtime dependency. Use platform `Intl` facilities.
 
 ## Goals and architecture
 
@@ -112,4 +114,5 @@
   Preserve third-party artifacts according to their source contracts.
 - Keep documentation concise and accurate about the current state. A plan is
   neither an implementation nor practical-test evidence. Decide package/application
-  versioning before the skeleton; do not continue Symcon library version numbers.
+  versioning as described in `docs/VERSIONING.md`; do not continue Symcon library
+  version numbers.

@@ -12,8 +12,11 @@ development guidelines.
 
 The repository contains the README, AGENTS, project context, architecture,
 development workflow, ADR 0001 and text/ignore configuration. No application,
-package structure, dependencies, lockfile, application CI, installer or MQTT
-connection has been implemented. No systems were contacted, installed or changed.
+package structure, dependencies, lockfile, application build CI, installer or MQTT
+connection has been implemented. A separate metadata workflow and dependency-free
+project check now implement the usual automatic versioning from `0.1.0`; see
+[VERSIONING.md](docs/VERSIONING.md). The new shared ModuleCI action needs approval
+on `main` before the first consumer run. No systems were contacted or changed.
 
 The operational agenda is [DESKTOP_PLAN.md](docs/DESKTOP_PLAN.md), imported from
 `Symcon_Z2MAutomations` at planning commit
@@ -32,7 +35,10 @@ localization continues to target both German and English.
   Electron Forge and MQTT.js. Select versions when creating the skeleton.
 - Up to eight systems, with multiple base topics on one or more brokers.
 - Automations remain in our own Z2M extension, independently of the application.
-- Desktop license, initial application version and distribution model remain open.
+- Desktop license and distribution model remain open. Initial application version:
+  `0.1.0`, independent of the Symcon library.
+- Translation uses local `de.json`/`en.json` catalogs and our own small resolver;
+  no i18next or other translation runtime dependency.
 
 ## Source ownership and boundaries
 

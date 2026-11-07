@@ -137,6 +137,10 @@ solely for the application. A third shared repository is not needed initially.
 
 ## 5. Multilingual support as the first step
 
+Decision updated on 2026-11-07: use local JSON catalogs and a small implementation
+of our own, with no i18next dependency. This supersedes the translation-library
+choice in the original imported plan.
+
 1. Inventory all visible text: static HTML, JavaScript, dialogs, confirmations,
    titles, help text, accessibility labels, status/errors, startup failures and
    native application menus.
@@ -144,7 +148,8 @@ solely for the application. A third shared repository is not needed initially.
    the UI can resolve; a preformatted German sentence is not a reliable
    international data contract. Preserve the meaning of existing response fields
    during the transition and verify additional identifiers.
-3. Bundle i18next locally and maintain complete German and English catalogs.
+3. Maintain local `de.json` and `en.json` catalogs with our own small resolver,
+   without a translation runtime dependency.
    Preserve the meaning of existing UI text during the initial extraction.
 4. Use the browser/system language by default, with a manually selected language
    taking precedence and a saved preference per user. English is the fallback.
@@ -292,8 +297,8 @@ desktop support.
 
 ## 11. Immediate next step
 
-**D0 first:** inventory text and define the message contract, bundle i18next
-locally, complete German/English support in the current designer and verify
+**D0 first:** inventory text and define the message contract, add local JSON
+catalogs and our own resolver, complete German/English support in the current designer and verify
 preservation of input. D0 remains a bounded task affecting the still-canonical
 designer sources in the Symcon repository; importing this plan has not started
 that implementation. Then begin D1 with both native application targets.
@@ -317,5 +322,4 @@ recheck and pin concrete package versions and supported OS editions.
 - [Tauri: platform prerequisites](https://v2.tauri.app/start/prerequisites/)
 - [MQTT.js: Node/TLS connections and reconnection](https://github.com/mqttjs/MQTT.js)
 - [Z2M: exposes and access bits](https://www.zigbee2mqtt.io/guide/usage/exposes.html)
-- [i18next: local resources and integration](https://www.i18next.com/overview/getting-started)
 - [Ubuntu: supported LTS editions](https://ubuntu.com/about/release-cycle)

@@ -14,7 +14,8 @@ Linux distributions, ARM64 and macOS are not promised initial targets.
 
 The planned foundation is Electron, TypeScript, Electron Forge and MQTT.js.
 Prepare German/English support in the existing designer first using locally
-bundled catalogs; i18next is the planned translation library. Tauri remains an
+bundled JSON catalogs and a small resolver of our own. The user explicitly
+selected this dependency-free approach instead of i18next on 2026-11-07. Tauri remains an
 alternative considered during planning but is not selected for the initial
 shared approach because of the additional Rust/WebView work.
 
