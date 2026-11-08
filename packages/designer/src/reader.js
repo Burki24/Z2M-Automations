@@ -251,6 +251,15 @@ import {installNativeEmbedding} from './embedding.js';
         if (isDesktop()) {
             document.title = 'Z2M-Automations';
             bindText($('.preview-label'), () => t('desktop.readOnly'));
+            if (data.desktop?.project) {
+                bindText($('.preview-notice strong'), () => t('mqtt.title'));
+                bindText($('.preview-notice > span:last-child'), () => t('mqtt.draftsSeparate'));
+                bindText($('#draft-status'), () => t(data.desktop.source === 'stored' ? 'mqtt.storedRevision' : 'mqtt.localRevision', {revision: data.configuration.revision}));
+                bindText($('#runtime-status'), () => t(!data.status.confirmed ? 'mqtt.operationUnknown' : data.status.executing ? 'mqtt.operationActive' : 'mqtt.operationStopped'));
+                bindText($('.canvas-footer > span:last-child'), () => t('mqtt.draftsSeparate'));
+                bindText($('#entry-subtitle'), () => data.module.name + ' · ' + data.desktop.systemName);
+                $('#issues').hidden = true; message(() => t('mqtt.draftsSeparate')); return;
+            }
             bindText($('.preview-notice strong'), () => t('desktop.offline'));
             bindText($('.preview-notice > span:last-child'), () => t('desktop.notice'));
             bindText($('#draft-status'), () => t('desktop.examples'));

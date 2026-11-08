@@ -25,3 +25,5 @@
 .project-form input[type=checkbox] { width: 1.5rem; height: 1.5rem; }
 .desktop-project button { padding: .5rem .75rem; font: inherit; cursor: pointer; }
 .desktop-project :focus-visible { outline: 3px solid Highlight; outline-offset: 2px; }
+.mqtt-overview { padding-inline-start: 1.5rem; max-height: 20rem; overflow-y: auto; }
+.mqtt-overview li { padding: .4rem 0; overflow-wrap: anywhere; }

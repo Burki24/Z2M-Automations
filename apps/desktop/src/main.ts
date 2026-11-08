@@ -11,6 +11,10 @@ import {ProjectService, type ProjectCommand} from './project-service.js';
 import {Credentials, readCredentialFile, type CredentialCommand} from './credentials.js';
 import {smokeProjects} from './smoke-projects.js';
 import {osProtection} from './os-protection.js';
+import {MqttReader, parseTLS, type NetworkCommand} from './mqtt-reader.js';
+import {boundedRead} from './project-files.js';
+import {connect} from 'mqtt';
+import {smokeNetwork} from './smoke-network.js';
 
 const smoke = process.argv.includes('--smoke-test');
 if (configureSmokeRendering(app, {smoke, platform: process.platform, ci: process.env['CI'] === 'true'})) console.log('DESKTOP_CI_SOFTWARE_RENDERING');
@@ -24,6 +28,7 @@ const workspace = new OfflineWorkspace(debug, process.platform, metadata.version
 let window: BrowserWindow | null = null;
 let language: 'de' | 'en' = 'en';
 let projects: ProjectService;
+let reader: MqttReader;
 function message(key: string): string {
   const catalog = JSON.parse(readFileSync(join(assetsRoot, 'locales', language + '.json'), 'utf8')) as Record<string, string>;
   return catalog['project.' + key] ?? key;
@@ -33,8 +38,13 @@ function snapshot(): unknown {
   if (!projects.active) return base;
   const project = projects.data();
   const system = project.systems.find(system => system.id === projects.selected);
-  return {...base, module: {...base.module, name: project.name, baseTopic: system?.baseTopic ?? ''}, devices: [],
-    catalogAvailable: false, configuration: system?.configuration ?? {schema_version: 1, revision: 1, automations: [], sequences: [], mesh_peers: []},
+  const remote = system ? reader.current(system.id) : null;
+  const source = system ? reader.source(system.id) : 'draft';
+  const configuration = source === 'stored' ? remote?.configuration ?? system?.stored?.configuration : system?.configuration;
+  return {...base, desktop: {...base.desktop, project: true, source, systemName: system?.name ?? ''}, module: {...base.module, name: project.name, baseTopic: system?.baseTopic ?? ''}, devices: remote?.devices ?? [], scenes: remote?.scenes ?? [],
+    status: {...base.status, mqttConnected: system ? reader.connected(system.brokerId) : false, confirmed: remote?.fresh ?? false,
+      executing: remote?.fresh ? remote.status.executing : false, activeRevision: remote?.fresh && remote.status.executing ? remote.status.revision : null},
+    catalogAvailable: Boolean(remote), configuration: configuration ?? {schema_version: 1, revision: 1, automations: [], sequences: [], mesh_peers: []},
     workspace: {fingerprint: project.id, systems: project.systems.map(system => ({name: system.name, binding: {systemId: system.id, generation: 1, baseTopic: system.baseTopic}}))},
     workspaceContext: {systemId: system?.id ?? '', generation: 1, fingerprint: project.id}};
 }
@@ -50,10 +60,28 @@ function handle(channel: Channel, payload: unknown): unknown {
     case 'language': if (languageChange(payload)) { language = payload.language; debug.record('languageChanged', undefined, payload.language); return {ok: true}; } break;
     case 'diagnostics': return debug.read();
     case 'recording': if (payload === 'start' || payload === 'stop') return debug.control(payload); break;
-    case 'project': return projects.command(payload as ProjectCommand);
-    case 'credential': return projects.credential(payload as CredentialCommand);
+    case 'project': return projects.command(payload as ProjectCommand).then(state => { reader.reconcile(projects.active ? projects.data() : null, projects.generation()); return state; });
+    case 'credential': return projects.credential(payload as CredentialCommand).then(state => { reader.disconnect((payload as CredentialCommand).brokerId); return state; });
+    case 'network': return network(payload as NetworkCommand);
   }
   throw new Error('Invalid desktop request.');
+}
+async function network(command: NetworkCommand): Promise<unknown> {
+  switch (command.action) {
+    case 'status': break;
+    case 'connect': await reader.connectBroker(command.id); break;
+    case 'disconnect': reader.disconnect(command.id); break;
+    case 'refresh': void reader.refresh(command.id).catch(() => {}); break;
+    case 'clearCertificates': reader.setTLS(command.id, null); break;
+    case 'view': reader.view(command.id, command.source!); break;
+    case 'certificates': {
+      if (!window || smoke) break;
+      const result = await dialog.showOpenDialog(window, {title: message('tlsImport'), properties: ['openFile'], filters: [{name: 'JSON', extensions: ['json']}]});
+      if (!result.canceled && result.filePaths[0]) reader.setTLS(command.id, parseTLS(await boundedRead(result.filePaths[0], 196608)));
+      break;
+    }
+  }
+  return reader.state();
 }
 
 async function open(): Promise<void> {
@@ -109,6 +137,14 @@ async function open(): Promise<void> {
       return readCredentialFile(result.filePaths[0]);
     }
   }, debug);
+  reader = new MqttReader(vault, debug, (project, epoch, system, stored, current) => projects.serialize(async () => {
+    if (!current()) throw new Error('stale');
+    projects.observe(project, epoch, system, stored);
+    reader.reconcile(projects.data(), projects.generation());
+  }), smoke ? options => {
+    if (options.host !== '127.0.0.1' || options.port !== Number(process.env['Z2MA_SMOKE_MQTT_PORT'])) throw new Error('smokeNetworkDisabled');
+    return connect(options);
+  } : undefined);
   let closing = false;
   window.on('close', event => {
     if (closing || !projects.isDirty()) return;
@@ -123,14 +159,14 @@ async function open(): Promise<void> {
     if (!window || !trustedSender(view.id, event.sender.id, event.senderFrame === view.mainFrame, event.senderFrame?.url ?? '') || args.length > 1) {
       debug.record('rejected'); throw new Error('Unauthorized desktop request.');
     }
-    if (channel !== 'project' && channel !== 'credential') return handle(channel, args[0]);
+    if (channel !== 'project' && channel !== 'credential' && channel !== 'network') return handle(channel, args[0]);
     // No paths, file contents, secrets or raw exception messages leave these operations.
     return projects.serialize(async () => {
       try { return {ok: true, state: await handle(channel, args[0])}; }
       catch (error) {
         debug.record('projectFailed');
         const key = error instanceof Error ? error.message : '';
-        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'applyFirst'].includes(key) ? key : 'failed'};
+        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored'].includes(key) ? key : 'failed'};
       }
     });
   });
@@ -143,7 +179,7 @@ async function open(): Promise<void> {
       await wait(() => document.querySelector('#designer-system')?.options.length === 2);
       const bridge = window.z2maDesktop;
       if (typeof require !== 'undefined' || typeof process !== 'undefined') throw new Error('Node exposed');
-      if (Object.keys(bridge).sort().join(',') !== 'credential,diagnostics,language,project,recording,selectSystem,snapshot') throw new Error('Unexpected bridge');
+      if (Object.keys(bridge).sort().join(',') !== 'credential,diagnostics,language,network,project,recording,selectSystem,snapshot') throw new Error('Unexpected bridge');
       const first = await bridge.snapshot();
       const before = JSON.stringify(first.configuration);
       await bridge.recording('start');
@@ -175,6 +211,7 @@ async function open(): Promise<void> {
     })()`);
     console.log('DESKTOP_SMOKE_OK ' + JSON.stringify(result));
     await smokeProjects(view);
+    await smokeNetwork(view, Number(process.env['Z2MA_SMOKE_MQTT_PORT']));
     for (const width of [360, 1920, 3840]) {
       window.setContentSize(width, 900);
       for (const theme of ['light', 'dark'] as const) {
@@ -209,5 +246,6 @@ else {
     app.exit(1);
   });
   app.on('window-all-closed', () => app.quit());
+  app.on('before-quit', () => reader?.close());
   app.on('will-quit', () => { if (profile) { try { rmSync(profile, {recursive: true, force: true}); } catch { /* OS locks may outlive shutdown. */ } } });
 }

@@ -37,7 +37,7 @@ jobs:
         run: npm run setup:tools
       - name: Install Linux build and display tools
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --yes fakeroot dpkg xvfb
+        run: sudo apt-get update && sudo apt-get install --yes fakeroot dpkg xvfb openssl
       - name: Verify shared sources and desktop contracts
         run: npm run verify
       - name: Package the native application
@@ -45,14 +45,20 @@ jobs:
       - name: Verify Windows renderer and IPC
         if: runner.os == 'Windows'
         run: npm run smoke
+      - name: Verify packaged Windows application and runtime dependencies
+        if: runner.os == 'Windows'
+        run: npm run smoke:packaged
       - name: Configure the Chromium sandbox in the disposable Linux runner
         if: runner.os == 'Linux'
         run: |
-          sudo chown root:root node_modules/electron/dist/chrome-sandbox
-          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox apps/desktop/out/Z2M-Automations-linux-x64/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox apps/desktop/out/Z2M-Automations-linux-x64/chrome-sandbox
       - name: Verify Linux renderer and IPC under Xvfb
         if: runner.os == 'Linux'
         run: xvfb-run --auto-servernum --server-args="-screen 0 3840x2160x24" npm run smoke
+      - name: Verify packaged Linux application and runtime dependencies
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 3840x2160x24" npm run smoke:packaged
       - name: Build the shared designer handoff
         run: npm run pack:designer
       - uses: actions/upload-artifact@v4

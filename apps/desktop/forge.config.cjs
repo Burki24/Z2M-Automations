@@ -1,9 +1,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const {stageRuntimeDependencies} = require('./runtime-dependencies.cjs');
 const metadata = JSON.parse(fs.readFileSync(path.join(__dirname, '../../version.json'), 'utf8'));
 module.exports = {
   packagerConfig: {
     asar: true,
+    prune: false,
     executableName: 'Z2M-Automations',
     appVersion: metadata.version,
     buildVersion: String(metadata.build),
@@ -16,6 +18,7 @@ module.exports = {
     const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
     pkg.version = metadata.version;
     fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + '\n');
+    stageRuntimeDependencies(directory);
   }},
   makers: [
     {name: '@electron-forge/maker-squirrel', platforms: ['win32'], config: {name: 'Z2MAutomations', authors: 'Burkhard Kneiseler', description: 'Zigbee2MQTT automation designer', setupExe: 'Z2M-Automations-Setup.exe'}},

@@ -1,6 +1,7 @@
 import type {ProjectCommand} from './project-service.js';
 import type {CredentialCommand} from './credentials.js';
-export const channels = ['snapshot', 'select-system', 'language', 'diagnostics', 'recording', 'project', 'credential'] as const;
+import type {NetworkCommand} from './mqtt-reader.js';
+export const channels = ['snapshot', 'select-system', 'language', 'diagnostics', 'recording', 'project', 'credential', 'network'] as const;
 export type Channel = typeof channels[number];
 export type Language = 'de' | 'en';
 export interface LanguageChange { language: Language; previousLanguage: Language; openEditor: boolean }
@@ -12,4 +13,5 @@ export interface DesktopBridge {
   recording(action: 'start' | 'stop'): Promise<unknown>;
   project(command: ProjectCommand): Promise<unknown>;
   credential(input: CredentialCommand): Promise<unknown>;
+  network(input: NetworkCommand): Promise<unknown>;
 }

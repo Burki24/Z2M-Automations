@@ -22,6 +22,7 @@
     "package": "npm run build && npm run package --workspace @z2ma/desktop",
     "make": "npm run build && npm run make --workspace @z2ma/desktop",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:packaged": "node scripts/smoke-packaged.mjs",
     "pack:designer": "npm run build:designer && node scripts/pack-designer.mjs",
     "setup:tools": "node scripts/setup-tools.mjs"
   },
@@ -30,6 +31,7 @@
     "@electron-forge/maker-deb": "8.0.1",
     "@electron-forge/maker-squirrel": "8.0.1",
     "@types/node": "24.19.2",
+    "mqtt-packet": "9.0.2",
     "typescript": "7.0.2"
   }
 }

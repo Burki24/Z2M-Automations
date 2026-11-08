@@ -4,12 +4,11 @@ A standalone Zigbee2MQTT automation designer for **Windows and Ubuntu Linux**.
 The shared designer will manage up to eight systems on one or more MQTT brokers.
 Automations will run in our own Z2M extension, independently of the application.
 
-**Current state:** D2 adds portable local projects, per-system drafts,
-backup/restore and separate protected or session-only broker credentials.
-Expand **Local project** to create/open a project, add brokers/systems and manage
-disabled drafts. No MQTT connection is made. German/English and bounded debug
-remain available. D1 Windows/Ubuntu CI passed; D2 platform CI and native Linux
-keyring/dialog acceptance remain open. See [D2](docs/D2.md).
+**Current state:** D3 adds explicitly connected, read-only MQTT with TLS,
+per-system status, device/scene catalogs and stored Z2M configuration alongside
+local drafts. No upload or device commands are available. D2 Windows/Ubuntu CI
+passed; new D3 platform CI and native acceptance remain open. See
+[D3](docs/D3.md) and [local projects/credentials](docs/D2.md).
 
 ## Run the development application
 
@@ -29,6 +28,7 @@ diagnostics" below the designer and start a one-minute recording.
 npm run verify
 npm run smoke
 npm run make
+npm run smoke:packaged
 ~~~
 
 make builds a Windows setup EXE on Windows or an Ubuntu .deb on Linux. The output

@@ -43,6 +43,7 @@ See [D2](D2.md) for the format, persistence and credential boundaries.
 ~~~sh
 npm run package
 npm run make
+npm run smoke:packaged
 npm run pack:designer
 ~~~
 
@@ -51,6 +52,15 @@ or Ubuntu .deb. Both read version.json, including the copied application package
 version. Do not hand-bump tracked package versions or version.json. Signing,
 installed-app acceptance and publication belong to D7. Never publish from these
 local commands. Forge dependencies are development tooling, not renderer APIs.
+
+D3 tests use an independent ephemeral loopback MQTT peer, never a real broker.
+Install OpenSSL on development/CI hosts for temporary CA and mutual-TLS test
+certificates (Git for Windows supplies a supported local executable). MQTT.js
+5.16.1 is a pinned main-process production dependency; mqtt-packet 9.0.2 is
+test tooling. Packaging stages the lockfile-selected production dependency
+closure with original licenses. `smoke:packaged` verifies that closure inside
+ASAR, then repeats the actual read-only UI/MQTT smoke against the packaged
+executable. It must follow `package` or `make`. See [D3](D3.md).
 
 ## Shared source ownership
 
@@ -75,6 +85,7 @@ existing renderer settings. Screenshot capture remains mandatory. CI run
 completed D1 scope and remaining native installed-app verification limits.
 
 No real broker, Symcon system, private project or device command is part of the
-D1/D2 checks. D2 exercises temporary persistence and credentials; later features
-must add synthetic protocol and recovery checks at their actual boundaries.
-See docs/D1.md and docs/D2.md for current scope.
+D1/D2/D3 checks. D2 exercises temporary persistence and credentials; D3 adds
+synthetic MQTT/TLS protocol and recovery checks. D2 CI run 42481799451 passed
+Windows and Ubuntu 24.04. D3 requires a new platform run after the user pushes.
+See docs/D1.md, docs/D2.md and docs/D3.md for current scope.

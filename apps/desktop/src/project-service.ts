@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {newProject, validProject, emptyConfiguration, type Project, type Broker, type ProjectSystem} from './project.js';
+import {newProject, validProject, projectBytes, validStored, emptyConfiguration, type Project, type Broker, type ProjectSystem, type StoredConfiguration} from './project.js';
 import {ProjectFile} from './project-files.js';
 import {Credentials, type CredentialCommand} from './credentials.js';
 import type {Diagnostics} from './diagnostics.js';
@@ -35,6 +35,16 @@ export class ProjectService {
     this.queue = result.catch(() => {}); return result;
   }
   data(): Project { return structuredClone(this.project); }
+  generation(): number { return this.epoch; }
+  observe(projectId: string, epoch: number, systemId: string, stored: StoredConfiguration): void {
+    if (!this.active || this.project.id !== projectId || this.epoch !== epoch || !validStored(stored)) throw new Error('stale');
+    const next = this.data(); const system = next.systems.find(system => system.id === systemId);
+    if (!system) throw new Error('stale');
+    if (JSON.stringify(system.stored) === JSON.stringify(stored)) return;
+    system.stored = structuredClone(stored);
+    system.baseline = stored.revision > 0 && stored.checksum ? {revision: stored.revision, checksum: stored.checksum} : null;
+    projectBytes(next); this.project = next; this.dirty = true;
+  }
   isDirty(): boolean { return this.dirty || this.pending; }
   async state(): Promise<unknown> {
     const credentials: Record<string, string> = {};
@@ -83,16 +93,16 @@ export class ProjectService {
           const index = next.brokers.findIndex(broker => broker.id === command.broker.id);
           const old = next.brokers[index];
           if (old && (old.host !== command.broker.host || old.port !== command.broker.port || old.tls !== command.broker.tls)) {
-            for (const system of next.systems) if (system.brokerId === old.id) system.baseline = null;
+            for (const system of next.systems) if (system.brokerId === old.id) { system.baseline = null; delete system.stored; }
           }
           if (index < 0) next.brokers.push(structuredClone(command.broker)); else next.brokers[index] = structuredClone(command.broker);
         }
         if (command.action === 'system') {
           const index = next.systems.findIndex(system => system.id === command.system.id);
           const old = next.systems[index];
-          const system: ProjectSystem = {...command.system, baseline: old?.baseline ?? null, configuration: old?.configuration ?? emptyConfiguration()};
+          const system: ProjectSystem = {...command.system, baseline: old?.baseline ?? null, configuration: old?.configuration ?? emptyConfiguration(), ...(old?.stored ? {stored: old.stored} : {})};
           // A changed binding has no known remote baseline. Keep the local draft.
-          if (old && (old.brokerId !== system.brokerId || old.baseTopic !== system.baseTopic)) system.baseline = null;
+          if (old && (old.brokerId !== system.brokerId || old.baseTopic !== system.baseTopic)) { system.baseline = null; delete system.stored; }
           if (index < 0) next.systems.push(system); else next.systems[index] = system;
         }
         if (command.action === 'draft') {

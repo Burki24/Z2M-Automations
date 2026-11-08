@@ -1,8 +1,8 @@
 # Architecture
 
-Status: D1 complete with Windows/Ubuntu CI evidence; D2 local project/vault
-implementation is available with platform CI and native acceptance still open.
-Current behavior is described in [D1](D1.md) and [D2](D2.md). Decisions and complete
+Status: D1/D2 implementation and Windows/Ubuntu CI are complete. D3 read-only
+MQTT is implemented; new platform CI and native acceptance remain open.
+Current behavior is described in [D1](D1.md), [D2](D2.md) and [D3](D3.md). Decisions and complete
 milestones are described in [ADR 0001](adr/0001-parallel-desktop-platforms.md)
 and the [desktop plan](DESKTOP_PLAN.md).
 
@@ -12,7 +12,7 @@ Windows and Ubuntu use the same designer and business logic. Platform-specific
 concerns are file paths, dialogs, protected secret storage, desktop integration
 and packages. Do not maintain different feature sets per operating system.
 
-Responsibilities (local D2 services currently live in `apps/desktop/src`;
+Responsibilities (local project/platform and MQTT services currently live in `apps/desktop/src`;
 core, mqtt and platform packages are not empty placeholders):
 
 | Area | Responsibility |

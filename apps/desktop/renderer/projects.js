@@ -68,6 +68,9 @@ export async function installProjects(bridge) {
     const element = document.createElement('select'); element.id = 'project-' + key; label.append(caption, element); parent.append(label); return element;
   }
   function options(element, entries, emptyKey) {
+    const identity = JSON.stringify([t('project.' + emptyKey), entries]);
+    if (element.dataset.options === identity) return;
+    element.dataset.options = identity;
     const previous = element.value;
     element.replaceChildren(...[[ '', t('project.' + emptyKey)], ...entries].map(([value, label]) => {
       const option = document.createElement('option'); option.value = value; option.textContent = label; return option;
@@ -208,6 +211,14 @@ export async function installProjects(bridge) {
   }
   for (const element of [nameForm, brokerForm, systemForm, draftForm, credentialForm]) element.addEventListener('submit', event => event.preventDefault());
   document.body.prepend(root);
+  document.addEventListener('z2ma-project-changed', async () => {
+    if (busy || !state) return;
+    const epoch = state.epoch;
+    try {
+      const result = await bridge.project({action: 'status'});
+      if (!busy && result.ok && result.state.epoch === epoch) { state = result.state; state.dirty ||= pending.size > 0; paint(); }
+    } catch { /* A later explicit refresh can still recover the latest main-process state. */ }
+  });
   onLanguageChange(() => { if (!busy) paint(); });
   // Synchronize native dialog language even when the stored preference overrides the OS.
   await bridge.language({language: language(), previousLanguage: language(), openEditor: false});

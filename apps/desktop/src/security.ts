@@ -1,6 +1,7 @@
 import {posix} from 'node:path';
 import {channels, type Channel, type LanguageChange} from './contracts.js';
 import {exact, validId, validBroker, text} from './project.js';
+import {validNetworkCommand} from './mqtt-reader.js';
 
 export const entryURL = 'z2ma://app/index.html';
 export const csp = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
@@ -34,6 +35,7 @@ export function validPayload(channel: Channel, value: unknown): boolean {
     case 'select-system': return validId(value);
     case 'language': return languageChange(value);
     case 'recording': return value === 'start' || value === 'stop';
+    case 'network': return validNetworkCommand(value);
     case 'project': return validProjectCommand(value);
     case 'credential': return exact(value, ['brokerId', 'mode']) && validId(value['brokerId'])
       && ['remove', 'protected', 'session'].includes(String(value['mode']));

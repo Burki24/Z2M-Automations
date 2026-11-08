@@ -1,9 +1,11 @@
-import {randomUUID} from 'node:crypto';
+import {randomUUID, createHash} from 'node:crypto';
+const createChecksum = (yaml: string): string => createHash('sha256').update(yaml, 'utf8').digest('hex');
 
 export type Json = null | boolean | number | string | Json[] | {[key: string]: Json};
 export interface Configuration {schema_version: 1; revision: number; automations: {[key: string]: Json}[]; sequences: {[key: string]: Json}[]; mesh_peers: string[]}
 export interface Broker {id: string; name: string; host: string; port: number; tls: boolean}
-export interface ProjectSystem {id: string; name: string; brokerId: string; baseTopic: string; baseline: {revision: number; checksum: string} | null; configuration: Configuration}
+export interface StoredConfiguration {revision: number; checksum: string | null; yaml: string | null; configuration: Configuration}
+export interface ProjectSystem {id: string; name: string; brokerId: string; baseTopic: string; baseline: {revision: number; checksum: string} | null; configuration: Configuration; stored?: StoredConfiguration}
 export interface Project {format: 'z2m-automations-project'; version: 1; id: string; name: string; brokers: Broker[]; systems: ProjectSystem[]}
 export const maximumProjectBytes = 2 * 1024 * 1024;
 export const validId = (value: unknown): value is string => typeof value === 'string' && /^(?:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|example-[ab])$/.test(value);
@@ -23,9 +25,9 @@ function json(value: unknown, depth = 0): boolean {
   return Object.entries(value).length <= 100 && Object.entries(value).every(([key, item]) =>
     !/^(?:__proto__|prototype|constructor|password|username|credentials?|(?:access_?|refresh_?|owner_?)?token|session(?:_?id)?|instance_?id|object_?id|variable_?id|private_?key|certificate|symcon.*)$/i.test(key) && json(item, depth + 1));
 }
-function configuration(value: unknown): value is Configuration {
+export function validConfiguration(value: unknown, allowEmpty = false): value is Configuration {
   if (!exact(value, ['schema_version', 'revision', 'automations', 'sequences', 'mesh_peers']) || value['schema_version'] !== 1
-    || !Number.isSafeInteger(value['revision']) || Number(value['revision']) < 1 || !json(value)) return false;
+    || !Number.isSafeInteger(value['revision']) || Number(value['revision']) < (allowEmpty ? 0 : 1) || !json(value)) return false;
   for (const [field, limit] of [['automations', 100], ['sequences', 32]] as const) {
     const entries = value[field];
     if (!Array.isArray(entries) || entries.length > limit || new Set(entries.map(entry => entry?.id)).size !== entries.length) return false;
@@ -49,10 +51,11 @@ export function validProject(value: unknown): value is Project {
   if (new Set(brokers.map(broker => broker.id)).size !== brokers.length || new Set(systems.map(system => system?.id)).size !== systems.length) return false;
   const bindings = new Set<string>();
   return systems.every(system => {
-    if (!exact(system, ['id', 'name', 'brokerId', 'baseTopic', 'baseline', 'configuration']) || !validId(system['id']) || !text(system['name'])
+    if (!exact(system, ['id', 'name', 'brokerId', 'baseTopic', 'baseline', 'configuration', ...(system && Object.hasOwn(system, 'stored') ? ['stored'] : [])]) || !validId(system['id']) || !text(system['name'])
       || !brokers.some(broker => broker.id === system['brokerId']) || !text(system['baseTopic'], 256)
       || /[#+]/.test(system['baseTopic']) || system['baseTopic'].startsWith('/') || system['baseTopic'].endsWith('/')
-      || !configuration(system['configuration'])) return false;
+      || !validConfiguration(system['configuration'])) return false;
+    if (system['stored'] !== undefined && !validStored(system['stored'])) return false;
     const binding = system['brokerId'] + ':' + system['baseTopic'];
     if (bindings.has(binding)) return false;
     bindings.add(binding);
@@ -60,6 +63,14 @@ export function validProject(value: unknown): value is Project {
     return base === null || (exact(base, ['revision', 'checksum']) && Number.isSafeInteger(base['revision']) && Number(base['revision']) > 0
       && typeof base['checksum'] === 'string' && /^[a-f0-9]{64}$/.test(base['checksum']));
   });
+}
+export function validStored(value: unknown): value is StoredConfiguration {
+  if (!exact(value, ['revision', 'checksum', 'yaml', 'configuration']) || !Number.isSafeInteger(value['revision']) || Number(value['revision']) < 0
+    || !validConfiguration(value['configuration'], true) || value['configuration'].revision !== value['revision']) return false;
+  if (value['revision'] === 0) return value['checksum'] === null && value['yaml'] === null && value['configuration'].automations.length === 0
+    && value['configuration'].sequences.length === 0 && value['configuration'].mesh_peers.length === 0;
+  return typeof value['checksum'] === 'string' && /^[a-f0-9]{64}$/.test(value['checksum']) && typeof value['yaml'] === 'string'
+    && Buffer.byteLength(value['yaml'], 'utf8') <= 1048576 && createChecksum(value['yaml']) === value['checksum'];
 }
 export function parseProject(bytes: Buffer): Project {
   if (bytes.length > maximumProjectBytes) throw new Error('invalidProject');

@@ -1,6 +1,7 @@
 import {installTransport} from './transport.js';
 import {t, bindText, onLanguageChange, formatDate} from './localization.js';
 import {installProjects} from './projects.js';
+import {installNetwork} from './network.js';
 
 const bridge = window.z2maDesktop;
 installTransport({kind: 'desktop', request: async (input, init = {}) => {
@@ -30,7 +31,7 @@ function paint() {
     start.disabled = recording.active; stop.disabled = !recording.active;
     events.replaceChildren(...recording.events.map(event => {
         const row = document.createElement('li');
-        bindText(row, () => formatDate(event.time) + ' · ' + t('desktop.' + event.code) + ' · #' + event.request + (event.operation ? ' · ' + t('project.' + event.operation) : '') + (event.system ? ' · ' + event.system : '') + (event.language ? ' · ' + event.language : ''));
+        bindText(row, () => formatDate(event.time) + ' · ' + t('desktop.' + event.code) + ' · #' + event.request + (event.operation ? ' · ' + t('project.' + event.operation) : '') + (event.reason ? ' · ' + t('mqtt.error.' + event.reason) : '') + (event.system ? ' · ' + event.system : '') + (event.broker ? ' · ' + event.broker : '') + (event.transaction ? ' · ' + event.transaction : '') + (event.language ? ' · ' + event.language : ''));
         return row;
     }));
 }
@@ -40,6 +41,7 @@ setInterval(async () => { if (panel.open || recording.active) { recording = awai
 onLanguageChange(paint); paint();
 try {
     await installProjects(bridge);
+    await installNetwork(bridge);
     await import('./reader.js');
     const view = await bridge.snapshot();
     const caption = document.querySelector('.brand-copy strong') ?? document.querySelector('.brand strong');
