@@ -56,7 +56,7 @@ export async function smokeProjects(view: WebContents): Promise<void> {
       assert((await bridge.credential({brokerId, mode: 'remove'})).ok, 'remove protected credential');
     }
     const snapshot = await bridge.snapshot();
-    assert(!snapshot.status.mqttConnected && !snapshot.status.executing && !snapshot.editAllowed, 'offline isolation');
+    assert(!snapshot.status.mqttConnected && !snapshot.status.executing && !snapshot.capabilities.operationControls && snapshot.editAllowed, 'offline isolation');
     document.dispatchEvent(new Event('z2ma-project-changed'));
     click('refresh'); await wait(() => !document.querySelector('#local-project').hasAttribute('aria-busy'));
     field('name', 'Pending across renderer reload');

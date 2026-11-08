@@ -3,6 +3,7 @@ import {spawnSync} from 'node:child_process';
 import {readFileSync, writeFileSync, cpSync, mkdirSync, copyFileSync, rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {root} from './build-designer.mjs';
+import {createHash} from 'node:crypto';
 
 // Fixed generated directory inside the workspace; never project/user storage.
 rmSync(join(root, 'apps/desktop/.build'), {recursive: true, force: true});
@@ -17,4 +18,8 @@ writeFileSync(join(destination, 'index.html'), index);
 copyFileSync(join(root, 'packages/designer/dist/manifest.json'), join(root, 'apps/desktop/.build/designer-package.json'));
 copyFileSync(join(root, 'version.json'), join(root, 'apps/desktop/.build/version.json'));
 copyFileSync(join(root, 'LICENSE'), join(root, 'apps/desktop/.build/LICENSE'));
+const schemaRoot = join(root, 'apps/desktop/schema');
+const provenance = JSON.parse(readFileSync(join(schemaRoot, 'provenance.json'), 'utf8'));
+if (createHash('sha256').update(readFileSync(join(schemaRoot, 'automations.schema.json'))).digest('hex') !== provenance.sha256) throw new Error('Schema artifact integrity mismatch.');
+cpSync(schemaRoot, join(root, 'apps/desktop/.build/schema'), {recursive: true});
 console.log('Desktop compiled and local assets staged.');

@@ -22,6 +22,7 @@ export class ProjectService {
   private project: Project = newProject('');
   private dirty = false;
   private pending = false;
+  private editorPending = false;
   private epoch = 0;
   private file = new ProjectFile();
   private queue: Promise<unknown> = Promise.resolve();
@@ -36,6 +37,16 @@ export class ProjectService {
   }
   data(): Project { return structuredClone(this.project); }
   generation(): number { return this.epoch; }
+  replaceDraft(systemId: string, configuration: ProjectSystem['configuration']): void {
+    if (!this.active) throw new Error('noProject');
+    const next = this.data(); const system = next.systems.find(system => system.id === systemId);
+    if (!system) throw new Error('stale');
+    system.configuration = structuredClone(configuration);
+    projectBytes(next); this.project = next; this.dirty = true;
+    this.debug.record('projectChanged', systemId, undefined, {operation: 'draft'});
+  }
+  async backup(path: string): Promise<void> { await this.file.export(this.project, path); }
+  async exportBytes(path: string, bytes: Buffer): Promise<void> { await this.file.exportBytes(path, bytes); }
   observe(projectId: string, epoch: number, systemId: string, stored: StoredConfiguration): void {
     if (!this.active || this.project.id !== projectId || this.epoch !== epoch || !validStored(stored)) throw new Error('stale');
     const next = this.data(); const system = next.systems.find(system => system.id === systemId);
@@ -45,14 +56,15 @@ export class ProjectService {
     system.baseline = stored.revision > 0 && stored.checksum ? {revision: stored.revision, checksum: stored.checksum} : null;
     projectBytes(next); this.project = next; this.dirty = true;
   }
-  isDirty(): boolean { return this.dirty || this.pending; }
+  isDirty(): boolean { return this.dirty || this.pending || this.editorPending; }
+  editorState(pending: boolean): void { this.editorPending = pending; }
   async state(): Promise<unknown> {
     const credentials: Record<string, string> = {};
     for (const broker of this.project.brokers) credentials[broker.id] = await this.vault.status(this.project.id, broker);
     return {active: this.active, epoch: this.epoch, project: this.data(), dirty: this.isDirty(), hasPath: this.file.hasPath(), protectedAvailable: await this.vault.protectedAvailable(), credentials};
   }
   private replace(project: Project): void {
-    this.vault.clearSession(); this.epoch++; this.project = project; this.active = true; this.dirty = false; this.pending = false; this.selected = project.systems[0]?.id ?? '';
+    this.vault.clearSession(); this.epoch++; this.project = project; this.active = true; this.dirty = false; this.pending = false; this.editorPending = false; this.selected = project.systems[0]?.id ?? '';
   }
   select(id: string): void {
     if (!this.project.systems.some(system => system.id === id)) throw new Error('invalidRequest');
@@ -75,7 +87,7 @@ export class ProjectService {
       }
       case 'save': case 'saveAs': case 'export': {
         if (!this.active) throw new Error('noProject');
-        if (this.pending) throw new Error('applyFirst');
+        if (this.pending || this.editorPending) throw new Error('applyFirst');
         const destination = command.action === 'save' && this.file.hasPath() ? undefined : await this.dialogs.chooseSave();
         if (destination === null) return this.state();
         if (command.action === 'export') { await this.file.export(this.project, destination!); }
@@ -110,13 +122,14 @@ export class ProjectService {
           const system = next.systems.find(system => system.id === command.systemId); if (!system) throw new Error('invalidRequest');
           const rules = system.configuration.automations;
           const rule = rules.find(rule => rule['id'] === command.ruleId);
-          if (command.operation === 'new') rules.push({id: randomUUID(), name: command.name, enabled: false, triggers: [], conditions: [], actions: []});
+          if (command.operation === 'new') rules.push({id: 'rule-' + randomUUID(), name: command.name, enabled: false, triggers: [], conditions: [], actions: []});
           else {
             if (!rule) throw new Error('invalidRequest');
             if (command.operation === 'rename') rule['name'] = command.name;
-            if (command.operation === 'copy') rules.push({...structuredClone(rule), id: randomUUID(), name: command.name, enabled: false});
+            if (command.operation === 'copy') rules.push({...structuredClone(rule), id: 'rule-' + randomUUID(), name: command.name, enabled: false});
             if (command.operation === 'delete') system.configuration.automations = rules.filter(item => item !== rule);
           }
+          system.configuration.revision++;
         }
         if (!validProject(next)) throw new Error('invalidProject');
         this.project = next; this.dirty = true;

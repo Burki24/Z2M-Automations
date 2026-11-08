@@ -35,7 +35,8 @@ export function validConfiguration(value: unknown, allowEmpty = false): value is
       && (field === 'sequences' || typeof entry.enabled === 'boolean'))) return false;
   }
   return Array.isArray(value['mesh_peers']) && value['mesh_peers'].length <= 8
-    && value['mesh_peers'].every(peer => text(peer, 64) && /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(peer));
+    && value['mesh_peers'].every(peer => text(peer, 128) && (/^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/.test(peer)
+      || /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(peer)));
 }
 export function validBroker(value: unknown): value is Broker {
   return exact(value, ['id', 'name', 'host', 'port', 'tls']) && validId(value['id']) && text(value['name'])

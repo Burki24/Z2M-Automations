@@ -7,7 +7,8 @@ confirmed first Linux platform. The repository and development guidelines are
 prepared. D0 and D1 are complete for the shared offline foundation. Windows and
 Ubuntu 24.04 CI passed; native installed-app acceptance remains open. D2 local
 projects, drafts and credentials passed Windows/Ubuntu CI. D3 read-only MQTT
-is implemented with its new platform CI pending; D4–D7 remain planned.
+passed Windows/Ubuntu CI. D4 local editing is implemented with new platform CI
+pending; D5–D7 remain planned. See [D4](D4.md).
 See [D1](D1.md), [D2](D2.md) and [D3](D3.md) for verification limits.
 Importing this plan did not change any Symcon or Z2M installation.
 
@@ -314,9 +315,11 @@ renderer/layout/capture checks and designer archives; see [D1 evidence](D1.md).
 Native installed-app acceptance remains open. **D2 implementation/CI complete:**
 run 42481799451 passed Windows and Ubuntu 24.04; native Linux keyring and
 file-dialog acceptance remains separate. See [D2 evidence](D2.md). **D3
-implemented, new platform CI pending:** explicit MQTT/TLS connections, correlated
+implementation/CI complete:** explicit MQTT/TLS connections, correlated
 read-only status/editor requests, catalogs and separate stored snapshots. See
-[D3 evidence](D3.md). D4 then adds complete local editing.
+[D3 evidence](D3.md). D3 run 42491457811 passed both platforms.
+D4 now implements local editing and private draft exchange with new platform CI
+pending; see [D4 evidence](D4.md). D5 follows with validation/storage.
 
 During designer extraction, both repositories must clearly reference the source
 ownership transition and pinned designer package. The imported original plan

@@ -29,5 +29,5 @@ child.on('exit', async code => {
   clearTimeout(timeout); cleanup();
   const readOnly = peer.publications.every(value => /\/symcon\/automations\/request\/(status|editor)$/.test(value.topic) && !value.retain && value.qos === 0);
   await peer.close();
-  process.exitCode = !timedOut && readOnly && peer.publications.length >= 3 && code === 0 && output.includes('DESKTOP_SMOKE_OK') && output.includes('DESKTOP_PROJECTS_OK') && output.includes('DESKTOP_MQTT_OK') && output.includes('DESKTOP_LAYOUT_OK') ? 0 : 1;
+  process.exitCode = !timedOut && readOnly && peer.publications.length >= 3 && code === 0 && output.includes('DESKTOP_SMOKE_OK') && output.includes('DESKTOP_PROJECTS_OK') && output.includes('DESKTOP_MQTT_OK') && output.includes('DESKTOP_DRAFTS_OK') && output.includes('DESKTOP_LAYOUT_OK') ? 0 : 1;
 });

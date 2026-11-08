@@ -15,6 +15,9 @@ import {MqttReader, parseTLS, type NetworkCommand} from './mqtt-reader.js';
 import {boundedRead} from './project-files.js';
 import {connect} from 'mqtt';
 import {smokeNetwork} from './smoke-network.js';
+import {DraftEditor, type DesignerCommand} from './draft-editor.js';
+import {DraftExchange} from './draft-exchange.js';
+import {smokeDrafts} from './smoke-drafts.js';
 
 const smoke = process.argv.includes('--smoke-test');
 if (configureSmokeRendering(app, {smoke, platform: process.platform, ci: process.env['CI'] === 'true'})) console.log('DESKTOP_CI_SOFTWARE_RENDERING');
@@ -29,6 +32,8 @@ let window: BrowserWindow | null = null;
 let language: 'de' | 'en' = 'en';
 let projects: ProjectService;
 let reader: MqttReader;
+let drafts: DraftEditor;
+let exchange: DraftExchange;
 function message(key: string): string {
   const catalog = JSON.parse(readFileSync(join(assetsRoot, 'locales', language + '.json'), 'utf8')) as Record<string, string>;
   return catalog['project.' + key] ?? key;
@@ -41,12 +46,13 @@ function snapshot(): unknown {
   const remote = system ? reader.current(system.id) : null;
   const source = system ? reader.source(system.id) : 'draft';
   const configuration = source === 'stored' ? remote?.configuration ?? system?.stored?.configuration : system?.configuration;
-  return {...base, desktop: {...base.desktop, project: true, source, systemName: system?.name ?? ''}, module: {...base.module, name: project.name, baseTopic: system?.baseTopic ?? ''}, devices: remote?.devices ?? [], scenes: remote?.scenes ?? [],
+  return {...base, desktop: {...base.desktop, project: true, projectId: project.id, epoch: projects.generation(), source, systemName: system?.name ?? ''}, module: {...base.module, name: project.name, baseTopic: system?.baseTopic ?? ''}, devices: remote?.devices ?? [], scenes: remote?.scenes ?? [],
     status: {...base.status, mqttConnected: system ? reader.connected(system.brokerId) : false, confirmed: remote?.fresh ?? false,
       executing: remote?.fresh ? remote.status.executing : false, activeRevision: remote?.fresh && remote.status.executing ? remote.status.revision : null},
     catalogAvailable: Boolean(remote), configuration: configuration ?? {schema_version: 1, revision: 1, automations: [], sequences: [], mesh_peers: []},
     workspace: {fingerprint: project.id, systems: project.systems.map(system => ({name: system.name, binding: {systemId: system.id, generation: 1, baseTopic: system.baseTopic}}))},
-    workspaceContext: {systemId: system?.id ?? '', generation: 1, fingerprint: project.id}};
+    workspaceContext: {systemId: system?.id ?? '', generation: projects.generation() + 1, fingerprint: project.id},
+    ...(system ? drafts.view(system) : {})};
 }
 
 function handle(channel: Channel, payload: unknown): unknown {
@@ -63,8 +69,17 @@ function handle(channel: Channel, payload: unknown): unknown {
     case 'project': return projects.command(payload as ProjectCommand).then(state => { reader.reconcile(projects.active ? projects.data() : null, projects.generation()); return state; });
     case 'credential': return projects.credential(payload as CredentialCommand).then(state => { reader.disconnect((payload as CredentialCommand).brokerId); return state; });
     case 'network': return network(payload as NetworkCommand);
+    case 'designer': return designer(payload as DesignerCommand);
   }
   throw new Error('Invalid desktop request.');
+}
+async function designer(command: DesignerCommand): Promise<unknown> {
+  const context = {operation: 'draft' as const, ...(typeof command.payload['requestId'] === 'string' ? {transaction: command.payload['requestId']} : {})};
+  debug.record('draftRequest', command.systemId, undefined, context);
+  try {
+    const result = await (['import', 'export', 'adopt'].includes(command.route) ? exchange.command(command) : drafts.command(command));
+    debug.record('draftCompleted', command.systemId, undefined, context); return result;
+  } catch (error) { debug.record('draftRejected', command.systemId, undefined, context); throw error; }
 }
 async function network(command: NetworkCommand): Promise<unknown> {
   switch (command.action) {
@@ -145,6 +160,24 @@ async function open(): Promise<void> {
     if (options.host !== '127.0.0.1' || options.port !== Number(process.env['Z2MA_SMOKE_MQTT_PORT'])) throw new Error('smokeNetworkDisabled');
     return connect(options);
   } : undefined);
+  drafts = new DraftEditor(projects, reader);
+  const chooseDraft = async (key: string, extension: string, open: boolean): Promise<string | null> => {
+    if (!window || smoke) return null;
+    const filters = [{name: extension === 'z2ma' ? 'Z2M-Automations' : 'YAML / JSON', extensions: extension === 'z2ma' ? ['z2ma'] : ['yaml', 'yml', 'json']}];
+    if (open) { const result = await dialog.showOpenDialog(window, {title: message(key), properties: ['openFile'], filters}); return result.canceled ? null : result.filePaths[0] ?? null; }
+    const result = await dialog.showSaveDialog(window, {title: message(key), defaultPath: 'draft.' + extension, filters}); return result.canceled ? null : result.filePath ?? null;
+  };
+  exchange = new DraftExchange(projects, drafts, {
+    chooseImport: () => chooseDraft('importDraft', 'yaml', true), chooseExport: () => chooseDraft('exportDraft', 'yaml', false),
+    chooseBackup: () => chooseDraft('backupDraft', 'z2ma', false),
+    confirm: async summary => {
+      if (!window || smoke) return false;
+      const result = await dialog.showMessageBox(window, {type: 'warning', message: message('replaceDraft'),
+        detail: message('importSummary').replace('{{oldRules}}', String(summary.oldRules)).replace('{{rules}}', String(summary.rules))
+          .replace('{{sequences}}', String(summary.sequences)).replace('{{peers}}', String(summary.peers)),
+        buttons: [message('cancel'), message('continue')], defaultId: 0, cancelId: 0, noLink: true}); return result.response === 1;
+    }
+  });
   let closing = false;
   window.on('close', event => {
     if (closing || !projects.isDirty()) return;
@@ -159,14 +192,14 @@ async function open(): Promise<void> {
     if (!window || !trustedSender(view.id, event.sender.id, event.senderFrame === view.mainFrame, event.senderFrame?.url ?? '') || args.length > 1) {
       debug.record('rejected'); throw new Error('Unauthorized desktop request.');
     }
-    if (channel !== 'project' && channel !== 'credential' && channel !== 'network') return handle(channel, args[0]);
+    if (channel !== 'project' && channel !== 'credential' && channel !== 'network' && channel !== 'designer') return handle(channel, args[0]);
     // No paths, file contents, secrets or raw exception messages leave these operations.
     return projects.serialize(async () => {
       try { return {ok: true, state: await handle(channel, args[0])}; }
       catch (error) {
         debug.record('projectFailed');
         const key = error instanceof Error ? error.message : '';
-        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored'].includes(key) ? key : 'failed'};
+        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale'].includes(key) ? key : 'failed'};
       }
     });
   });
@@ -179,7 +212,7 @@ async function open(): Promise<void> {
       await wait(() => document.querySelector('#designer-system')?.options.length === 2);
       const bridge = window.z2maDesktop;
       if (typeof require !== 'undefined' || typeof process !== 'undefined') throw new Error('Node exposed');
-      if (Object.keys(bridge).sort().join(',') !== 'credential,diagnostics,language,network,project,recording,selectSystem,snapshot') throw new Error('Unexpected bridge');
+      if (Object.keys(bridge).sort().join(',') !== 'credential,designer,diagnostics,language,network,project,recording,selectSystem,snapshot') throw new Error('Unexpected bridge');
       const first = await bridge.snapshot();
       const before = JSON.stringify(first.configuration);
       await bridge.recording('start');
@@ -212,6 +245,7 @@ async function open(): Promise<void> {
     console.log('DESKTOP_SMOKE_OK ' + JSON.stringify(result));
     await smokeProjects(view);
     await smokeNetwork(view, Number(process.env['Z2MA_SMOKE_MQTT_PORT']));
+    await smokeDrafts(view);
     for (const width of [360, 1920, 3840]) {
       window.setContentSize(width, 900);
       for (const theme of ['light', 'dark'] as const) {

@@ -2,8 +2,15 @@ import {installTransport} from './transport.js';
 import {t, bindText, onLanguageChange, formatDate} from './localization.js';
 import {installProjects} from './projects.js';
 import {installNetwork} from './network.js';
+import {installDraftExchange} from './drafts.js';
 
 const bridge = window.z2maDesktop;
+document.addEventListener('z2ma-editor-pending', async event => {
+    const view = await bridge.snapshot(); const context = view.workspaceContext;
+    if (!view.desktop.project || !context?.systemId) return;
+    await bridge.designer({route: 'editor-state', systemId: context.systemId, generation: context.generation,
+        fingerprint: context.fingerprint, payload: {pending: event.detail === true}});
+});
 installTransport({kind: 'desktop', request: async (input, init = {}) => {
     const url = new URL(input, location.href);
     if (url.origin !== location.origin) throw new Error('Unsupported desktop request.');
@@ -13,6 +20,14 @@ installTransport({kind: 'desktop', request: async (input, init = {}) => {
     if (route === '/data' && method === 'GET') value = await bridge.snapshot();
     else if (route === '/select-system' && method === 'POST') value = await bridge.selectSystem(JSON.parse(init.body).systemId);
     else if (route === '/language' && method === 'POST') value = await bridge.language(JSON.parse(init.body));
+    else if (['/create', '/edit', '/sequence', '/manage', '/permissions', '/permissions-status'].includes(route) && method === (route === '/permissions-status' ? 'GET' : 'POST')) {
+        const headers = new Headers(init.headers);
+        const result = await bridge.designer({route: route.slice(1), systemId: headers.get('X-Z2MA-System-ID'),
+            generation: Number(headers.get('X-Z2MA-Generation')), fingerprint: headers.get('X-Z2MA-Fingerprint'), payload: method === 'POST' ? JSON.parse(init.body) : {}});
+        if (!result.ok) return new Response(JSON.stringify({ok: false, message: t('project.' + result.error)}), {status: 409});
+        value = result.state;
+        document.dispatchEvent(new Event('z2ma-project-changed'));
+    }
     else throw new Error('Unsupported desktop operation.');
     return new Response(JSON.stringify(value), {status: 200, headers: {'Content-Type': 'application/json'}});
 }});
@@ -42,6 +57,7 @@ onLanguageChange(paint); paint();
 try {
     await installProjects(bridge);
     await installNetwork(bridge);
+    installDraftExchange(bridge);
     await import('./reader.js');
     const view = await bridge.snapshot();
     const caption = document.querySelector('.brand-copy strong') ?? document.querySelector('.brand strong');

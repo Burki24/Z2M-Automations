@@ -1,4 +1,4 @@
-import {designerRequest as fetch} from './transport.js';
+import {designerRequest as fetch, isDesktop} from './transport.js';
 import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse} from './localization.js';
 /* Shared rule editor: complete creation and cloned, field-scoped editing stay local to the draft. */
 import {creationDevices, creationProperties, creationValue, requestIdentity} from './creator.js';
@@ -38,6 +38,19 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
     document.body.append(dialog);
     const $ = name => dialog.querySelector('#edit-' + name);
     let original; let working; let context; let requestId; let busy = false; let serial = 0; let sequenceMode = false; let creatingSequence = false; let creatingRule = false; let boundHeaders = {}; let sorting;
+    let pendingKey = ''; const recovered = new Set();
+    const editorKey = () => getData()?.desktop?.project ? 'z2ma.desktop.editor.' + getData().desktop.projectId + '.' + getData().workspaceContext.systemId : '';
+    function remember() {
+        if (!pendingKey || !dialog.open) return;
+        const value = JSON.stringify({epoch: getData().desktop.epoch, original, working, context, requestId, sequenceMode, creatingSequence, creatingRule, boundHeaders});
+        if (value.length <= 131072) { try { sessionStorage.setItem(pendingKey, value); } catch {} }
+    }
+    for (const event of ['input', 'change', 'click']) $('form').addEventListener(event, () => queueMicrotask(remember));
+    dialog.addEventListener('close', () => {
+        if (!isDesktop()) return;
+        try { if (pendingKey) sessionStorage.removeItem(pendingKey); } catch {}
+        pendingKey = ''; document.dispatchEvent(new CustomEvent('z2ma-editor-pending', {detail: false}));
+    });
     const hint = text => { bindText($('message'), () => text); };
     const node = (tag, text, className) => { const element = document.createElement(tag); if (text !== undefined) bindText(element, () => text); if (className) element.className = className; return element; };
     function field(parent, label, value, set, options = {}) {
@@ -236,6 +249,7 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
         const next = moveAction(working.actions, from, to);
         if (next === working.actions) return;
         working.actions = next; renderFields();
+        remember();
         hint(() => (t("ui.action.step.moved.to.position.4a6180c0", {p1: from + 1, p2: to + 1})));
         dialog.querySelector(`[data-action-index="${to}"] [data-order-handle]`)?.focus({preventScroll: true});
     }
@@ -249,7 +263,7 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
         context = getData().createContext; requestId = requestIdentity();
         boundHeaders = systemHeaders(getData());
         bindText($('title'), () => sequenceMode ? (creatingSequence ? t("ui.new.action.sequence.cc6b663e") : t("ui.edit.action.sequence.2e8a0548")) : creatingRule ? t("ui.new.automation.40e06b5f") : t("ui.edit.automation.ac46d0d5"));
-        bindText(dialog.querySelector('.eyebrow'), () => sequenceMode ? 'WIEDERVERWENDBARE AKTIONSFOLGE' : creatingRule ? 'NEUE AUTOMATION' : t("ui.existing.automation.3d70df71"));
+        bindText(dialog.querySelector('.eyebrow'), () => sequenceMode ? t('editor.sequenceEyebrow') : creatingRule ? t('editor.newEyebrow') : t("ui.existing.automation.3d70df71"));
         $('usage').hidden = !sequenceMode;
         const usage = (getData().configuration?.automations ?? []).filter(rule => rule.actions.some(action => action.type === 'sequence' && action.sequence_id === original.id)).length;
         bindText($('usage'), () => usage ? t("ui.this.sequence.after.transfer.changes.5c27add8", {p1: usage === 1 ? t("ui.one.automation.uses.ad76d112") : t("ui.automations.use.cd669568", {p1: usage}), p2: usage === 1 ? t("ui.this.rule.262ca3e4") : t("ui.all.these.rules.d3b36f4c")})
@@ -260,6 +274,7 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
         bindText($('submit'), () => creatingRule ? t("ui.add.to.draft.disabled.aea3e1b7") : creatingSequence ? t("ui.apply.action.sequence.to.draft.e6ecbfcd") : t("ui.apply.changes.to.draft.1e42a9b6"));
         $('submit').disabled = !canSave();
         if (!dialog.open) dialog.showModal(); $('fields').querySelector('input')?.focus();
+        if (isDesktop()) { pendingKey = editorKey(); remember(); document.dispatchEvent(new CustomEvent('z2ma-editor-pending', {detail: true})); }
     }
     editButton.addEventListener('click', () => { const entry = getRule(); if (entry?.triggers || entry?.kind === 'sequence') open(entry); });
     const newRule = () => open({id: '', name: '', enabled: false, retrigger: 'ignore', restart_policy: 'abort', triggers: [], conditions: [], actions: []}, false, true);
@@ -293,6 +308,23 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
         finally { clearTimeout(timer); busy = false; for (const [element, disabled] of controls) element.disabled = disabled; }
     });
     return {refresh() {
+        if (isDesktop() && getData()?.desktop?.project) {
+            const key = editorKey();
+            if (!dialog.open && !recovered.has(key)) {
+                recovered.add(key);
+                try {
+                    const raw = sessionStorage.getItem(key);
+                    if (raw && raw.length <= 131072) {
+                        const saved = JSON.parse(raw);
+                        if (saved.epoch === getData().desktop.epoch && saved.original && saved.working && typeof saved.requestId === 'string') {
+                            open(saved.original, saved.sequenceMode, saved.creatingSequence || saved.creatingRule);
+                            original = saved.original; working = saved.working; context = saved.context; requestId = saved.requestId; boundHeaders = saved.boundHeaders;
+                            renderFields(); remember();
+                        } else sessionStorage.removeItem(key);
+                    }
+                } catch { /* Invalid temporary editor state is never applied to a project. */ }
+            }
+        }
         createButton.disabled = !getData()?.createAllowed;
         createButton.title = getData()?.createNotice || t("ui.create.a.complete.automation.as.dfe84ce2");
         const sequence = getRule()?.kind === 'sequence';

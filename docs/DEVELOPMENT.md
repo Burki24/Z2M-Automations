@@ -91,7 +91,12 @@ existing renderer settings. Screenshot capture remains mandatory. CI run
 completed D1 scope and remaining native installed-app verification limits.
 
 No real broker, Symcon system, private project or device command is part of the
-D1/D2/D3 checks. D2 exercises temporary persistence and credentials; D3 adds
+D1/D2/D3/D4 checks. D2 exercises temporary persistence and credentials; D3 adds
 synthetic MQTT/TLS protocol and recovery checks. D2 CI run 42481799451 passed
-Windows and Ubuntu 24.04. D3 requires a new platform run after the user pushes.
-See docs/D1.md, docs/D2.md and docs/D3.md for current scope.
+Windows and Ubuntu 24.04. D3 CI run 42491457811 also passed both platforms;
+D4 requires a new platform run after the user pushes.
+D4 adds local editor/permission/schema/sequence/exchange tests and actual
+Electron input recovery after renderer reload. Build verifies the pinned schema
+artifact before staging it. AJV 8.20.0 and YAML 2.9.1 are main-only production
+dependencies; no validation/translation runtime enters the shared browser UI.
+See docs/D1.md through docs/D4.md for current scope.

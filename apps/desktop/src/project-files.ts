@@ -67,6 +67,13 @@ export class ProjectFile {
     if (await this.isCurrentPath(destination)) throw new Error('fileConflict');
     await new ProjectFile().save(project, destination);
   }
+  async exportBytes(destination: string, bytes: Buffer): Promise<void> {
+    if (await this.isCurrentPath(destination)) throw new Error('fileConflict');
+    let previous: Buffer | null = null;
+    try { previous = await boundedRead(destination); } catch (error) { if (!missing(error)) throw error; }
+    if (previous) await atomicWrite(destination + '.bak', previous);
+    await atomicWrite(destination, bytes);
+  }
   async restore(): Promise<Project> {
     if (!this.path) throw new Error('chooseFile');
     const bytes = await boundedRead(this.path + '.bak');

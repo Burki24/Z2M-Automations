@@ -4,11 +4,11 @@ A standalone Zigbee2MQTT automation designer for **Windows and Ubuntu Linux**.
 The shared designer will manage up to eight systems on one or more MQTT brokers.
 Automations will run in our own Z2M extension, independently of the application.
 
-**Current state:** D3 adds explicitly connected, read-only MQTT with TLS,
-per-system status, device/scene catalogs and stored Z2M configuration alongside
-local drafts. No upload or device commands are available. D2 Windows/Ubuntu CI
-passed; new D3 platform CI and native acceptance remain open. See
-[D3](docs/D3.md) and [local projects/credentials](docs/D2.md).
+**Current state:** D4 adds local rule/sequence editing, typed device/scene
+actions, directed draft permissions and private YAML draft import/export with
+replacement backups. MQTT remains read-only; no upload or device commands are
+available. D3 Windows/Ubuntu CI passed; D4 platform CI remains open. See
+[D4](docs/D4.md), [MQTT](docs/D3.md) and [projects/credentials](docs/D2.md).
 
 ## Run the development application
 

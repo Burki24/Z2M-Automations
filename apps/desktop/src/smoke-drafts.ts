@@ -1,0 +1,55 @@
+import type {WebContents} from 'electron';
+
+export async function smokeDrafts(view: WebContents): Promise<void> {
+  await view.executeJavaScript(`(async () => {
+    const bridge = window.z2maDesktop;
+    const wait = async predicate => { for (let n = 0; n < 160; n++) { if (await predicate()) return; await new Promise(resolve => setTimeout(resolve, 30)); } throw new Error('Draft UI timeout'); };
+    const assert = (value, message) => { if (!value) throw new Error('Draft smoke: ' + message); };
+    const project = (await bridge.project({action: 'status'})).state.project;
+    const systemId = project.systems[0].id;
+    await bridge.selectSystem(systemId);
+    await bridge.network({action: 'connect', id: project.systems[0].brokerId});
+    await wait(async () => (await bridge.network({action: 'status', id: ''})).state.systems[0].fresh);
+    const data = await bridge.snapshot(); const ctx = data.workspaceContext;
+    const command = (route, payload) => bridge.designer({route, systemId, generation: ctx.generation, fingerprint: ctx.fingerprint,
+      payload: {requestId: crypto.randomUUID(), context: data.createContext, ...payload}});
+    const result = await command('create', {rule: {name: 'D4 smoke rule', retrigger: 'ignore', restart_policy: 'abort',
+      triggers: [{type: 'time', at: '18:00:00', timezone: 'Europe/Berlin'}], conditions: [],
+      actions: [{type: 'set', target: {type: 'device', id: '0x0000000000000002'}, values: {state: 'ON'}}]}});
+    assert(result.ok, JSON.stringify(result));
+    const after = await bridge.snapshot(); const created = after.configuration.automations.find(rule => rule.id === result.state.ruleId);
+    assert(created && !created.enabled && !after.configuration.automations.some(rule => rule.name === 'Synthetic remote rule'), 'new draft replaced source or enabled rule');
+    assert(!(await command('create', {rule: {}})).ok, 'stale/invalid editor accepted');
+    document.dispatchEvent(new Event('z2ma-project-changed'));
+    await wait(() => [...document.querySelectorAll('#entry-list .entry')].some(element => element.textContent.includes('D4 smoke rule')));
+    [...document.querySelectorAll('#entry-list .entry')].find(element => element.textContent.includes('D4 smoke rule')).click();
+    await wait(() => document.querySelector('#entry-title').textContent === 'D4 smoke rule');
+    document.querySelector('#edit-automation-button').click();
+    await wait(() => document.querySelector('#edit-dialog').open);
+    const name = document.querySelector('#edit-fields input'); name.value = 'D4 preserved input'; name.dispatchEvent(new Event('input', {bubbles: true}));
+    const picker = document.querySelector('#designer-language'); picker.value = 'de'; picker.dispatchEvent(new Event('change', {bubbles: true}));
+    await wait(() => document.documentElement.lang === 'de');
+    assert(name.value === 'D4 preserved input', 'language lost draft');
+    await wait(() => Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.') && sessionStorage.getItem(key).includes('D4 preserved input')));
+  })()`);
+  const loaded = new Promise<void>(resolve => view.once('did-finish-load', resolve)); view.reload(); await loaded;
+  await view.executeJavaScript(`(async () => {
+    const bridge = window.z2maDesktop;
+    const wait = async predicate => { for (let n = 0; n < 160; n++) { if (await predicate()) return; await new Promise(resolve => setTimeout(resolve, 30)); } throw new Error('Recovered draft timeout'); };
+    await wait(() => document.querySelector('#edit-dialog')?.open && document.querySelector('#edit-fields input')?.value === 'D4 preserved input');
+    if ((await bridge.project({action: 'save'})).ok) throw new Error('Open editor was silently omitted from save');
+    document.querySelector('#edit-form').requestSubmit();
+    await wait(async () => (await bridge.snapshot()).configuration.automations.some(rule => rule.name === 'D4 preserved input'));
+    await wait(() => !document.querySelector('#edit-dialog').open);
+    await wait(() => !Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.')));
+    const data = await bridge.snapshot(); const context = data.workspaceContext;
+    const result = await bridge.designer({route: 'sequence', systemId: context.systemId, generation: context.generation, fingerprint: context.fingerprint,
+      payload: {requestId: crypto.randomUUID(), context: data.createContext, sequenceId: '', changes: {name: 'D4 sequence', actions: [
+        {type: 'scene', target: {type: 'device', id: '0x0000000000000002'}, endpoint: 1, scene_id: 1, delay_seconds: 1}]}}});
+    if (!result.ok) throw new Error('Sequence not saved: ' + JSON.stringify(result));
+    const stored = (await bridge.project({action: 'status'})).state.project.systems[0].stored;
+    if (stored.configuration.automations[0].name !== 'Synthetic remote rule') throw new Error('Local edit changed stored state');
+    document.dispatchEvent(new Event('z2ma-project-changed'));
+  })()`);
+  console.log('DESKTOP_DRAFTS_OK local/editor/reload/language/sequence/isolated');
+}

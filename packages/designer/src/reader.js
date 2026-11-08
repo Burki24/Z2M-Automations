@@ -250,7 +250,7 @@ import {installNativeEmbedding} from './embedding.js';
         if (!data) return;
         if (isDesktop()) {
             document.title = 'Z2M-Automations';
-            bindText($('.preview-label'), () => t('desktop.readOnly'));
+            bindText($('.preview-label'), () => t(data.desktop?.project && data.desktop.source === 'draft' ? 'ui.draft.90845583' : 'desktop.readOnly'));
             if (data.desktop?.project) {
                 bindText($('.preview-notice strong'), () => t('mqtt.title'));
                 bindText($('.preview-notice > span:last-child'), () => t('mqtt.draftsSeparate'));
@@ -309,7 +309,8 @@ import {installNativeEmbedding} from './embedding.js';
                 if (response.ok) text = await response.text();
             } finally { clearTimeout(timeout); }
             if (!response.ok) throw new Error(response.status === 403 ? 'access' : 'transport');
-            if (text.length > 2097152) throw new Error('invalid');
+            // Desktop combines at most eight independently bounded peer catalogs.
+            if (text.length > (isDesktop() ? 67108864 : 2097152)) throw new Error('invalid');
             const next = localizeResponse(JSON.parse(text));
             if (next.contractVersion !== 1 || next.mode !== 'read' || !Array.isArray(next.devices) || !next.module || !next.status) throw new Error('invalid');
             await loadSystemDevices(next, {token, signal: controller.signal, onProgress: (loaded, total) => message(() => (t("ui.reading.device.data.of.drafts.6ef5f0ac", {p1: loaded, p2: total})))});
@@ -323,6 +324,7 @@ import {installNativeEmbedding} from './embedding.js';
                 $('#search').value = view?.search ?? '';
             }
             data = next; systemId = nextSystem; updateSystems(data);
+            if (isDesktop()) document.body.classList.toggle('desktop-editable', !!data.desktop?.project && data.desktop.source === 'draft');
             paintStatus();
             if (typeof preferredRule === 'string' && data.configuration?.automations.some(rule => rule.id === preferredRule)) {
                 category = entries().find(entry => entry.id === preferredRule && entry.kind !== 'sequence').kind; selected = 'rule:' + preferredRule; selectedPart = null; $('#search').value = '';

@@ -12,6 +12,9 @@ portable local projects, per-system drafts, backup/restore, conflict detection,
 native file-dialog integration and a separate OS-protected/session credential
 vault. D3 adds explicit main-process MQTT/TLS connections, correlated read-only
 status/editor requests, device/scene catalogs and separately stored snapshots.
+D4 now connects the shared rule/sequence editor to local project drafts, adds
+main-process schema/capability checks, directed draft permissions and private
+YAML/JSON import/export with mandatory replacement backups.
 No upload, extension installation or device execution is available.
 The complete desktop application uses PolyForm Noncommercial 1.0.0 by explicit
 owner decision; existing designer notices are preserved.
@@ -35,7 +38,10 @@ No Live system was contacted or changed.
 
 D2 CI run 42481799451 passed Windows and Ubuntu 24.04 for source
 29005ae875a502b834423eaeb7dc7fee21a724a0, including package builds and smoke.
-D3 is implemented with local Windows checks; its new platform CI is pending.
+D3 CI run 42491457811 passed Windows and Ubuntu 24.04 for source 1ebaead.
+The NSIS directory-selection change passed both platforms in run 42494004402.
+The owner reports the updated Windows setup works; installed Ubuntu remains
+unverified. D4 is implemented with new platform CI pending.
 Native Linux keyring/dialog evidence remains open. See docs/D2.md and docs/D3.md.
 
 ## Versioning and next work
@@ -44,11 +50,12 @@ The automatic metadata action on Symcon_ModuleCI/main is operational. Run
 42367039704 passed; bot commit 744fc251503047068bed507a6f84cd4457cf6cb8 set
 version.json to 0.2.0. The subsequent D1 source push produced metadata commit
 1d4f284274bc1f67dd7e24c788026f1eec6438b1 with version 0.3.0. Current metadata
-commit 1b9f632 sets version 0.10.0 after the D2 implementation.
+commit aa24d37 sets version 0.13.0 after the installer improvements.
 Builds read that canonical metadata; do not manually bump it.
 
 The operational agenda is docs/DESKTOP_PLAN.md. D1 platform CI evidence is
 recorded in docs/D1.md. D2 implementation and CI are complete; D3 read-only
-MQTT awaits its new Windows/Ubuntu CI run. D4 adds complete local editing. Preserve input and
+MQTT passed its Windows/Ubuntu CI run. D4 local editing is implemented and
+awaits new platform evidence; see docs/D4.md. Preserve input and
 separate systems throughout. Existing Symcon practice tests do not establish
 desktop acceptance. The user commits/pushes through GitHub Desktop only.

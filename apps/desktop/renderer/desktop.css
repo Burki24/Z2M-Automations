@@ -1,10 +1,10 @@
 /* D1 exposes only implemented offline capabilities. The shared layout stays canonical. */
-.desktop-foundation #new-automation-button,
-.desktop-foundation #new-sequence-button,
-.desktop-foundation #edit-automation-button,
-.desktop-foundation .entry-tools,
-.desktop-foundation .inspector-edit,
-.desktop-foundation .designer-menu,
+.desktop-foundation:not(.desktop-editable) #new-automation-button,
+.desktop-foundation:not(.desktop-editable) #new-sequence-button,
+.desktop-foundation:not(.desktop-editable) #edit-automation-button,
+.desktop-foundation:not(.desktop-editable) .entry-tools,
+.desktop-foundation:not(.desktop-editable) .inspector-edit,
+.desktop-foundation:not(.desktop-editable) .designer-menu,
 .desktop-foundation .designer-controls { display: none !important; }
 .desktop-debug { margin: 1rem; padding: 1rem; border: 1px solid var(--border, #8293a8); border-radius: .75rem; }
 .desktop-debug summary { cursor: pointer; font-weight: 600; }
