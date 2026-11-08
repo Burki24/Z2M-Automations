@@ -4,12 +4,18 @@ import {createUUID} from './identity.js';
 import {systemHeaders} from './workspace.js';
 
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const releaseVersion = value => typeof value === 'string' && /^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})(?![\s\S])/.test(value);
+export function extensionReleaseText(version, build) {
+    return version === null ? (build === null ? t("ui.not.confirmed.yet.3a06df81") : `Build ${build}`)
+        : build === null ? version : `${version} (Build ${build})`;
+}
 export function checkedInstallation(v, ctx) {
     return v?.systemId === ctx?.systemId && v?.generation === ctx?.generation && digest(v.fingerprint) && digest(v.context)
         && ['idle', 'checking', 'prepared', 'pending', 'refreshing', 'installed', 'error', 'interrupted'].includes(v.status)
         && ['pending', 'canInstall', 'mayHaveUploaded'].every(key => typeof v[key] === 'boolean')
         && ['message', 'blocked', 'runtimeMessage', 'notice'].every(key => typeof v[key] === 'string')
         && [v.bundledBuild, v.installedBuild].every(value => value === null || digest(value))
+        && [v.bundledVersion, v.installedVersion].every(value => value === null || releaseVersion(value))
         && (v.executing === null || typeof v.executing === 'boolean')
         && (['none', 'waiting', 'loading', 'loaded', 'error', 'interrupted'].includes(v.devices?.phase)
             && typeof v.devices.pending === 'boolean' && typeof v.devices.message === 'string'
@@ -67,7 +73,7 @@ export function installExtensionControl({container, getData, getResult, isBusy, 
         const row = result.diagnostics;
         bindText($('.installation-target'), () => t("ui.base.topic.z2m.connection.mqtt.9e533542", {p1: row.name, p2: row.baseTopic, p3: row.connection, p4: row.mqttParent}));
         const builds = $('.installation-builds'); builds.replaceChildren();
-        for (const [label, value] of [[t("ui.installed.build.8f543ac4"), v.installedBuild], [t("ui.bundled.build.74eb47b1"), v.bundledBuild]]) {
+        for (const [label, value] of [[t("ui.installed.build.8f543ac4"), extensionReleaseText(v.installedVersion, v.installedBuild)], [t("ui.bundled.build.74eb47b1"), extensionReleaseText(v.bundledVersion, v.bundledBuild)]]) {
             const term = document.createElement('dt'); bindText(term, () => label); const description = document.createElement('dd'); bindText(description, () => value ?? t("ui.not.confirmed.yet.3a06df81")); builds.append(term, description);
         }
         bindText($('.installation-notice'), () => v.notice);
