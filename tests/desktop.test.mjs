@@ -60,6 +60,9 @@ test('Windows installer offers a per-user directory wizard and packages the cano
   assert.equal(options.config.nsis.perMachine, false);
   assert.equal(options.config.nsis.allowElevation, false);
   assert.equal(options.config.nsis.deleteAppDataOnUninstall, false);
+  assert.equal(options.config.nsis.runAfterFinish, true);
+  assert.equal(options.config.nsis.createStartMenuShortcut, true);
+  assert.equal(options.config.nsis.shortcutName, 'Z2M-Automations');
   assert.deepEqual(options.config.nsis.installerLanguages, ['de_DE', 'en_US']);
   assert.equal(options.config.extraMetadata.version, JSON.parse(readFileSync(new URL('../version.json', import.meta.url))).version);
   assert.equal(options.config.executableName, 'Z2M-Automations');

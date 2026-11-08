@@ -23,8 +23,10 @@ module.exports = {
   }},
   makers: [
     new WindowsMaker({oneClick: false, perMachine: false, allowElevation: false,
+      include: path.join(__dirname, 'installer.nsh'),
       allowToChangeInstallationDirectory: true, installerLanguages: ['de_DE', 'en_US'],
-      displayLanguageSelector: true, runAfterFinish: false, deleteAppDataOnUninstall: false,
+      displayLanguageSelector: true, runAfterFinish: true, deleteAppDataOnUninstall: false,
+      createStartMenuShortcut: true, shortcutName: 'Z2M-Automations', menuCategory: false,
       artifactName: 'Z2M-Automations-${version}-Windows-x64-Setup.${ext}'}, ['win32']),
     {name: '@electron-forge/maker-deb', platforms: ['linux'], config: {options: {name: 'z2m-automations', bin: 'Z2M-Automations', productName: 'Z2M-Automations', maintainer: 'Burkhard Kneiseler', homepage: 'https://github.com/Burki24/Z2M-Automations', categories: ['Utility']}}}
   ]

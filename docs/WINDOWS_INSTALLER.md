@@ -7,8 +7,10 @@ Ubuntu continues using the existing Forge Debian maker.
 
 Run `Z2M-Automations-<version>-Windows-x64-Setup.exe`, select German or English,
 then choose a dedicated installation directory, for example
-`E:\Programs\Z2M-Automations`. The installer runs per user without elevation and
-does not start the application automatically. Windows lists the installed app
+`E:\Programs\Z2M-Automations`. The installer runs per user without elevation.
+Its completion page offers a localized checkbox to start the application when
+finishing; clear it to finish without launching. Setup creates a per-user Start
+menu entry named `Z2M-Automations`. Windows lists the installed app
 for uninstallation. Uninstall preserves application user data and credentials.
 
 The chosen directory contains application binaries and the uninstaller.
@@ -51,6 +53,11 @@ uninstall registration. These tests used process-local TEMP/TMP on E: and no
 real broker or private project. Manual directory-dialog and localized
 wizard acceptance remain separate. The new Windows/Ubuntu CI run is pending.
 The installer is unsigned development material, not a published release.
+
+The German completion title needs three lines at the standard wizard width.
+Our small `installer.nsh` include reserves that title height for installation
+and uninstallation, using NSIS Modern UI's supported three-line setting. The
+stock localized text and the content area below it are preserved.
 
 Primary references: [official Forge integration](https://www.electron.build/v26/docs/features/electron-forge/)
 and [NSIS options](https://www.electron.build/nsis/). This decision supersedes the
