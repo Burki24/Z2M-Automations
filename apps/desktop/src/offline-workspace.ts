@@ -9,7 +9,7 @@ export class OfflineWorkspace {
     this.debug.record('systemSelected', id);
     return {ok: true};
   }
-  snapshot(): unknown {
+  snapshot() {
     this.debug.record('snapshotRead', this.selected);
     const a = this.selected === 'example-a';
     const sensor = a ? '0x0000000000000001' : '0x0000000000000011';

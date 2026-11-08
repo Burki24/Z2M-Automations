@@ -14,3 +14,14 @@
 
 .desktop-foundation .preview-notice { display: flex; flex-wrap: wrap; }
 .desktop-foundation .system-selector > span { display: none; }
+.desktop-project { margin: 1rem; padding: 1rem; border: 1px solid var(--border, #8293a8); border-radius: .75rem; }
+.desktop-project summary { cursor: pointer; font-weight: 600; }
+.project-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.project-form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; margin-block: 1rem; padding-block: .75rem; border-top: 1px solid var(--border, #8293a8); }
+.project-form[hidden] { display: none; }
+.project-form h3, .project-form p { flex-basis: 100%; margin: .25rem 0; overflow-wrap: anywhere; }
+.project-form label { display: flex; flex-direction: column; gap: .3rem; min-width: 0; flex: 1 1 12rem; }
+.project-form input, .project-form select { min-width: 0; width: 100%; max-width: 100%; padding: .5rem; font: inherit; color: inherit; background: var(--panel, Canvas); border: 1px solid var(--border, #8293a8); border-radius: .3rem; }
+.project-form input[type=checkbox] { width: 1.5rem; height: 1.5rem; }
+.desktop-project button { padding: .5rem .75rem; font: inherit; cursor: pointer; }
+.desktop-project :focus-visible { outline: 3px solid Highlight; outline-offset: 2px; }

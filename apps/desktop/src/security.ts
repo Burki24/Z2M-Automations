@@ -1,5 +1,6 @@
 import {posix} from 'node:path';
 import {channels, type Channel, type LanguageChange} from './contracts.js';
+import {exact, validId, validBroker, text} from './project.js';
 
 export const entryURL = 'z2ma://app/index.html';
 export const csp = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
@@ -30,9 +31,25 @@ export function languageChange(value: unknown): value is LanguageChange {
 export function validPayload(channel: Channel, value: unknown): boolean {
   switch (channel) {
     case 'snapshot': case 'diagnostics': return value === undefined;
-    case 'select-system': return typeof value === 'string' && /^example-[ab]$/.test(value);
+    case 'select-system': return validId(value);
     case 'language': return languageChange(value);
     case 'recording': return value === 'start' || value === 'stop';
+    case 'project': return validProjectCommand(value);
+    case 'credential': return exact(value, ['brokerId', 'mode']) && validId(value['brokerId'])
+      && ['remove', 'protected', 'session'].includes(String(value['mode']));
   }
+}
+export function validProjectCommand(value: unknown): boolean {
+  if (exact(value, ['action'])) return ['status', 'new', 'open', 'save', 'saveAs', 'export', 'restore', 'editing', 'edited'].includes(String(value['action']));
+  if (exact(value, ['action', 'name'])) return value['action'] === 'rename' && text(value['name']);
+  if (exact(value, ['action', 'broker'])) return value['action'] === 'broker' && validBroker(value['broker']);
+  if (exact(value, ['action', 'system']) && value['action'] === 'system') {
+    const system = value['system'];
+    return exact(system, ['id', 'name', 'brokerId', 'baseTopic']) && validId(system['id']) && validId(system['brokerId']) && text(system['name'])
+      && text(system['baseTopic'], 256) && !/[#+]/.test(system['baseTopic']);
+  }
+  return exact(value, ['action', 'systemId', 'operation', 'ruleId', 'name']) && value['action'] === 'draft' && validId(value['systemId'])
+    && ['new', 'rename', 'copy', 'delete'].includes(String(value['operation'])) && typeof value['ruleId'] === 'string' && value['ruleId'].length <= 128
+    && text(value['name']);
 }
 export function isChannel(value: string): value is Channel { return channels.some(channel => channel === value); }

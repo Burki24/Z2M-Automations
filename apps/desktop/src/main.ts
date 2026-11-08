@@ -1,4 +1,4 @@
-import {app, BrowserWindow, ipcMain, protocol, session, Menu, nativeTheme} from 'electron';
+import {app, BrowserWindow, ipcMain, protocol, session, Menu, nativeTheme, dialog, safeStorage} from 'electron';
 import {readFileSync, mkdtempSync, readdirSync, rmSync, mkdirSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, extname} from 'node:path';
@@ -7,6 +7,10 @@ import {assetPath, csp, entryURL, languageChange, rendererPreferences, trustedSe
 import {Diagnostics} from './diagnostics.js';
 import {OfflineWorkspace} from './offline-workspace.js';
 import {configureSmokeRendering} from './smoke-rendering.js';
+import {ProjectService, type ProjectCommand} from './project-service.js';
+import {Credentials, readCredentialFile, type CredentialCommand} from './credentials.js';
+import {smokeProjects} from './smoke-projects.js';
+import {osProtection} from './os-protection.js';
 
 const smoke = process.argv.includes('--smoke-test');
 if (configureSmokeRendering(app, {smoke, platform: process.platform, ci: process.env['CI'] === 'true'})) console.log('DESKTOP_CI_SOFTWARE_RENDERING');
@@ -18,15 +22,36 @@ const metadata: {version: string} = JSON.parse(readFileSync(join(__dirname, 'ver
 const debug = new Diagnostics();
 const workspace = new OfflineWorkspace(debug, process.platform, metadata.version);
 let window: BrowserWindow | null = null;
+let language: 'de' | 'en' = 'en';
+let projects: ProjectService;
+function message(key: string): string {
+  const catalog = JSON.parse(readFileSync(join(assetsRoot, 'locales', language + '.json'), 'utf8')) as Record<string, string>;
+  return catalog['project.' + key] ?? key;
+}
+function snapshot(): unknown {
+  const base = workspace.snapshot();
+  if (!projects.active) return base;
+  const project = projects.data();
+  const system = project.systems.find(system => system.id === projects.selected);
+  return {...base, module: {...base.module, name: project.name, baseTopic: system?.baseTopic ?? ''}, devices: [],
+    catalogAvailable: false, configuration: system?.configuration ?? {schema_version: 1, revision: 1, automations: [], sequences: [], mesh_peers: []},
+    workspace: {fingerprint: project.id, systems: project.systems.map(system => ({name: system.name, binding: {systemId: system.id, generation: 1, baseTopic: system.baseTopic}}))},
+    workspaceContext: {systemId: system?.id ?? '', generation: 1, fingerprint: project.id}};
+}
 
 function handle(channel: Channel, payload: unknown): unknown {
   if (!validPayload(channel, payload)) { debug.record('rejected'); throw new Error('Invalid desktop request.'); }
   switch (channel) {
-    case 'snapshot': return workspace.snapshot();
-    case 'select-system': if (typeof payload === 'string') return workspace.select(payload); break;
-    case 'language': if (languageChange(payload)) { debug.record('languageChanged', undefined, payload.language); return {ok: true}; } break;
+    case 'snapshot': return snapshot();
+    case 'select-system': if (typeof payload === 'string') {
+      if (!projects.active) return workspace.select(payload);
+      projects.select(payload); debug.record('systemSelected', payload); return {ok: true};
+    } break;
+    case 'language': if (languageChange(payload)) { language = payload.language; debug.record('languageChanged', undefined, payload.language); return {ok: true}; } break;
     case 'diagnostics': return debug.read();
     case 'recording': if (payload === 'start' || payload === 'stop') return debug.control(payload); break;
+    case 'project': return projects.command(payload as ProjectCommand);
+    case 'credential': return projects.credential(payload as CredentialCommand);
   }
   throw new Error('Invalid desktop request.');
 }
@@ -50,15 +75,64 @@ async function open(): Promise<void> {
     title: 'Z2M-Automations ' + (process.platform === 'win32' ? 'for Windows' : 'for Linux'),
     webPreferences: {...rendererPreferences, preload: join(__dirname, 'preload.js')}});
   const view = window.webContents;
+  language = app.getLocale().startsWith('de') ? 'de' : 'en';
+  const vault = new Credentials(join(app.getPath('userData'), 'credentials'), osProtection(safeStorage, process.platform), process.platform);
+  const confirm = async (key: string): Promise<boolean> => {
+    if (smoke) return true;
+    if (!window) return false;
+    const result = await dialog.showMessageBox(window, {type: 'warning', message: message(key), buttons: [message('cancel'), message('continue')], defaultId: 0, cancelId: 0, noLink: true});
+    return result.response === 1;
+  };
+  projects = new ProjectService(vault, {
+    chooseOpen: async () => {
+      if (smoke) return join(app.getPath('userData'), 'synthetic.z2ma');
+      if (!window) return null;
+      const result = await dialog.showOpenDialog(window, {title: message('open'), properties: ['openFile'], filters: [{name: 'Z2M-Automations', extensions: ['z2ma', 'bak']}]});
+      return result.canceled ? null : result.filePaths[0] ?? null;
+    },
+    chooseSave: async () => {
+      if (smoke) return join(app.getPath('userData'), 'synthetic.z2ma');
+      if (!window) return null;
+      const result = await dialog.showSaveDialog(window, {title: message('save'), defaultPath: 'project.z2ma', filters: [{name: 'Z2M-Automations', extensions: ['z2ma']}]});
+      return result.canceled ? null : result.filePath ?? null;
+    },
+    confirmDiscard: () => confirm('discard'), confirmRestore: () => confirm('restoreConfirm'), confirmDelete: () => confirm('deleteConfirm'),
+    chooseCredentials: async () => {
+      if (smoke) {
+        const path = join(app.getPath('userData'), 'synthetic-credentials.json');
+        writeFileSync(path, JSON.stringify({username: 'SYNTHETIC_USER', password: 'SYNTHETIC_SECRET'}), {mode: 0o600});
+        return readCredentialFile(path);
+      }
+      if (!window) return null;
+      const result = await dialog.showOpenDialog(window, {title: message('chooseCredentials'), properties: ['openFile'], filters: [{name: 'JSON', extensions: ['json']}]});
+      if (result.canceled || !result.filePaths[0]) return null;
+      return readCredentialFile(result.filePaths[0]);
+    }
+  }, debug);
+  let closing = false;
+  window.on('close', event => {
+    if (closing || !projects.isDirty()) return;
+    event.preventDefault();
+    void projects.serialize(async () => { if (await confirm('discard')) { closing = true; window?.close(); } });
+  });
   view.setWindowOpenHandler(() => ({action: 'deny'}));
   view.on('will-navigate', event => event.preventDefault());
   view.on('will-redirect', event => event.preventDefault());
   view.on('will-attach-webview', event => event.preventDefault());
-  for (const channel of channels) ipcMain.handle('z2ma:' + channel, (event, ...args: unknown[]) => {
+  for (const channel of channels) ipcMain.handle('z2ma:' + channel, async (event, ...args: unknown[]) => {
     if (!window || !trustedSender(view.id, event.sender.id, event.senderFrame === view.mainFrame, event.senderFrame?.url ?? '') || args.length > 1) {
       debug.record('rejected'); throw new Error('Unauthorized desktop request.');
     }
-    return handle(channel, args[0]);
+    if (channel !== 'project' && channel !== 'credential') return handle(channel, args[0]);
+    // No paths, file contents, secrets or raw exception messages leave these operations.
+    return projects.serialize(async () => {
+      try { return {ok: true, state: await handle(channel, args[0])}; }
+      catch (error) {
+        debug.record('projectFailed');
+        const key = error instanceof Error ? error.message : '';
+        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'applyFirst'].includes(key) ? key : 'failed'};
+      }
+    });
   });
   await window.loadURL(entryURL);
   debug.record('ready');
@@ -69,7 +143,7 @@ async function open(): Promise<void> {
       await wait(() => document.querySelector('#designer-system')?.options.length === 2);
       const bridge = window.z2maDesktop;
       if (typeof require !== 'undefined' || typeof process !== 'undefined') throw new Error('Node exposed');
-      if (Object.keys(bridge).sort().join(',') !== 'diagnostics,language,recording,selectSystem,snapshot') throw new Error('Unexpected bridge');
+      if (Object.keys(bridge).sort().join(',') !== 'credential,diagnostics,language,project,recording,selectSystem,snapshot') throw new Error('Unexpected bridge');
       const first = await bridge.snapshot();
       const before = JSON.stringify(first.configuration);
       await bridge.recording('start');
@@ -100,6 +174,7 @@ async function open(): Promise<void> {
       return {systems: 2, languages: ['en','de'], preserved: true, isolated: true, debug: true};
     })()`);
     console.log('DESKTOP_SMOKE_OK ' + JSON.stringify(result));
+    await smokeProjects(view);
     for (const width of [360, 1920, 3840]) {
       window.setContentSize(width, 900);
       for (const theme of ['light', 'dark'] as const) {

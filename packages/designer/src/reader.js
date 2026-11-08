@@ -29,6 +29,7 @@ import {installNativeEmbedding} from './embedding.js';
     let selected = null;
     let selectedPart = null;
     let busy = false;
+    let projectReloadPending = false;
     let editing = null;
     let systemId = '';
     let stateFilter = 'all';
@@ -331,7 +332,10 @@ import {installNativeEmbedding} from './embedding.js';
             message(text); $('#feedback').dataset.tone = 'error';
             $('#issues').hidden = false; bindText($('#issues'), () => text);
             return false;
-        } finally { busy = false; $('#validate-button').disabled = false; updateTransfers(); updateRuntime(); updateCatalog(); updateDiagnostics(); updatePermissions(); management?.refresh(category, stateFilter); eventImport?.refresh(); updateLayout(); }
+        } finally {
+            busy = false; $('#validate-button').disabled = false; updateTransfers(); updateRuntime(); updateCatalog(); updateDiagnostics(); updatePermissions(); management?.refresh(category, stateFilter); eventImport?.refresh(); updateLayout();
+            if (projectReloadPending) { projectReloadPending = false; queueMicrotask(() => { void load(); }); }
+        }
     }
     editing = installEditing({getData: () => data, getRule: current, reload: () => load(), summaries: {triggers: triggerSummary, conditions: conditionSummary, actions: actionSummary}, onCreated: async ruleId => {
         const refreshed = await load(ruleId);
@@ -353,5 +357,6 @@ import {installNativeEmbedding} from './embedding.js';
     updateLayout = installLayout({getData: () => data});
     onLanguageChange(() => { paintStatus(); render(); updateTransfers(); updateRuntime(); updateCatalog(); updateLayout(); });
     render();
+    if (isDesktop()) document.addEventListener('z2ma-project-changed', () => { if (busy) projectReloadPending = true; else void load(); });
     embedding.ready.then(load);
 })();

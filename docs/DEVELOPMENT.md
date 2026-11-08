@@ -32,6 +32,14 @@ on Windows; on Linux it is mapped onto the CI Xvfb display for image capture
 preload/renderer, system switching, language/input preservation, diagnostics and
 light/dark layouts. Its local screenshot is apps/desktop/out/smoke.png.
 
+D2 adds real temporary project save/reopen/backup/restore, draft lifecycle,
+main-only credential file import, OS-protected storage when available and keyboard/
+wheel checks to smoke. Test dialogs choose only synthetic files in the temporary
+profile; production uses native dialogs. `tests/projects.test.mjs` also exercises
+an actual exclusive Windows file lock. Run the same checks on Ubuntu; simulated
+missing/locked keyrings do not establish native secret-service acceptance.
+See [D2](D2.md) for the format, persistence and credential boundaries.
+
 ~~~sh
 npm run package
 npm run make
@@ -67,5 +75,6 @@ existing renderer settings. Screenshot capture remains mandatory. CI run
 completed D1 scope and remaining native installed-app verification limits.
 
 No real broker, Symcon system, private project or device command is part of the
-D1 checks. Later features must add synthetic protocol, persistence, credential
-and recovery checks at their actual boundaries. See docs/D1.md for current scope.
+D1/D2 checks. D2 exercises temporary persistence and credentials; later features
+must add synthetic protocol and recovery checks at their actual boundaries.
+See docs/D1.md and docs/D2.md for current scope.

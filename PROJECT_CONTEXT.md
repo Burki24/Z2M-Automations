@@ -7,8 +7,10 @@ primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 D0 localization is implemented. D1 now provides a shared TypeScript/Electron/
 Forge foundation: offline renderer, two synthetic systems, strict preload IPC,
-local assets, DE/EN switching and bounded opt-in diagnostics. It contains no
-MQTT connection, project persistence, credentials or device execution yet.
+local assets, DE/EN switching and bounded opt-in diagnostics. D2 now implements
+portable local projects, per-system drafts, backup/restore, conflict detection,
+native file-dialog integration and a separate OS-protected/session credential
+vault. No MQTT connection or device execution exists yet.
 The complete desktop application uses PolyForm Noncommercial 1.0.0 by explicit
 owner decision; existing designer notices are preserved.
 
@@ -29,17 +31,20 @@ rendering resolved the previously observed CI failures in this run.
 Native Ubuntu acceptance, 26.04 and installed-app tests remain open. See docs/D1.md.
 No Live system was contacted or changed.
 
+D2 Windows verification is local; new Windows/Ubuntu CI and native Linux
+keyring/dialog evidence remain open. See docs/D2.md and ADR 0002.
+
 ## Versioning and next work
 
 The automatic metadata action on Symcon_ModuleCI/main is operational. Run
 42367039704 passed; bot commit 744fc251503047068bed507a6f84cd4457cf6cb8 set
 version.json to 0.2.0. The subsequent D1 source push produced metadata commit
 1d4f284274bc1f67dd7e24c788026f1eec6438b1 with version 0.3.0. Current metadata
-commit f2c369ce7952d6feb5b53f4a5a49058061e6dfdd sets version 0.8.0.
+commit 6b807c6 sets version 0.9.0 after the D1 completion documentation.
 Builds read that canonical metadata; do not manually bump it.
 
 The operational agenda is docs/DESKTOP_PLAN.md. D1 platform CI evidence is
-recorded in docs/D1.md. Next, D2 adds versioned local projects
-and draft management; D3 adds explicit MQTT connections. Preserve input and
+recorded in docs/D1.md. D2 implementation awaits platform CI verification;
+D3 then adds explicit MQTT connections. Preserve input and
 separate systems throughout. Existing Symcon practice tests do not establish
 desktop acceptance. The user commits/pushes through GitHub Desktop only.

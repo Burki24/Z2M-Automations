@@ -5,8 +5,9 @@ As of 2026-11-08. This is the operational desktop agenda for the new repository
 Windows and Linux will be developed in parallel; **Ubuntu LTS x64** is the
 confirmed first Linux platform. The repository and development guidelines are
 prepared. D0 and D1 are complete for the shared offline foundation. Windows and
-Ubuntu 24.04 CI passed; native installed-app acceptance remains open. D2–D7
-remain planned. See [D1](D1.md) for implemented behavior and verification limits.
+Ubuntu 24.04 CI passed; native installed-app acceptance remains open. D2 local
+projects, drafts and credentials are implemented with platform CI pending;
+D3–D7 remain planned. See [D1](D1.md) and [D2](D2.md) for verification limits.
 Importing this plan did not change any Symcon or Z2M installation.
 
 Imported from the [original plan in the Symcon repository](https://github.com/Burki24/Symcon_Z2MAutomations/blob/01f444d91d5c664177a5d2a60a5d644c72840523/docs/DESKTOP_PLAN.md)
@@ -307,8 +308,11 @@ separate. No installed desktop application has been tested.
 **D1 complete for the offline foundation:** CI run 42472007945 passed Windows
 and Ubuntu 24.04 from the same source, including package builds, all 13 tests,
 renderer/layout/capture checks and designer archives; see [D1 evidence](D1.md).
-Native installed-app acceptance remains open. **D2 is next:** local projects,
-drafts and protected credentials. No real MQTT is part of D1.
+Native installed-app acceptance remains open. **D2 is implemented, platform
+evidence open:** local projects, per-system drafts, backup/restore, conflict
+checks and protected/session credentials. Verify Windows/Ubuntu CI after user
+push; native Linux keyring and file-dialog acceptance remains separate. See
+[D2 evidence](D2.md). D3 then adds explicit read-only MQTT connections.
 
 During designer extraction, both repositories must clearly reference the source
 ownership transition and pinned designer package. The imported original plan

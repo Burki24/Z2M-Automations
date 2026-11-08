@@ -1,8 +1,8 @@
 # Architecture
 
-Status: D1 offline foundation complete with Windows/Ubuntu CI evidence;
-native installed-app acceptance remains open.
-Current behavior is described in [D1](D1.md). Decisions and complete
+Status: D1 complete with Windows/Ubuntu CI evidence; D2 local project/vault
+implementation is available with platform CI and native acceptance still open.
+Current behavior is described in [D1](D1.md) and [D2](D2.md). Decisions and complete
 milestones are described in [ADR 0001](adr/0001-parallel-desktop-platforms.md)
 and the [desktop plan](DESKTOP_PLAN.md).
 
@@ -12,7 +12,8 @@ Windows and Ubuntu use the same designer and business logic. Platform-specific
 concerns are file paths, dialogs, protected secret storage, desktop integration
 and packages. Do not maintain different feature sets per operating system.
 
-Responsibilities (core, mqtt and platform packages are later milestones):
+Responsibilities (local D2 services currently live in `apps/desktop/src`;
+core, mqtt and platform packages are not empty placeholders):
 
 | Area | Responsibility |
 | --- | --- |
@@ -34,7 +35,7 @@ has no Node access, broker secrets or MQTT clients.
 | Designer | `packages/designer/src` | Versioned archive with provenance, license and hashes; pinned in Symcon |
 | Z2M extension and schema | `Symcon_Z2MAutomations/libs/z2m` | Remains canonical there; desktop bundles a verified artifact with provenance and build identity |
 | Symcon helpers | `Symcon_ModuleHelper` and its unchanged consumer package | Continue using them in the Symcon adapter; no PHP copies or new desktop PHP runtime |
-| Desktop business logic | Not implemented | Our own TypeScript implementation with shared synthetic contract cases |
+| Local projects and credentials | `apps/desktop/src/project*.ts`, `credentials.ts`, `os-protection.ts` | Validated main-process commands; portable drafts and an independent secret vault |
 
 The extraction preserves the PolyForm notice, native presentation templates
 and Symcon endpoint behavior. Its fixed asset allowlist includes transport.js. Do not silently use a sibling

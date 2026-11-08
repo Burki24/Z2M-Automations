@@ -6,6 +6,8 @@ const bridge: DesktopBridge = Object.freeze({
   selectSystem: (systemId: string) => ipcRenderer.invoke('z2ma:select-system', systemId),
   language: (change: Parameters<DesktopBridge['language']>[0]) => ipcRenderer.invoke('z2ma:language', change),
   diagnostics: () => ipcRenderer.invoke('z2ma:diagnostics'),
-  recording: (action: 'start' | 'stop') => ipcRenderer.invoke('z2ma:recording', action)
+  recording: (action: 'start' | 'stop') => ipcRenderer.invoke('z2ma:recording', action),
+  project: (command: Parameters<DesktopBridge['project']>[0]) => ipcRenderer.invoke('z2ma:project', command),
+  credential: (input: Parameters<DesktopBridge['credential']>[0]) => ipcRenderer.invoke('z2ma:credential', input)
 });
 contextBridge.exposeInMainWorld('z2maDesktop', bridge);

@@ -4,11 +4,12 @@ A standalone Zigbee2MQTT automation designer for **Windows and Ubuntu Linux**.
 The shared designer will manage up to eight systems on one or more MQTT brokers.
 Automations will run in our own Z2M extension, independently of the application.
 
-**Current state:** D1 provides a runnable offline desktop foundation with two
-synthetic example systems, local German/English translations and bounded debug.
-It does not connect to brokers or save user projects yet. Windows build and
-runtime checks and Ubuntu 24.04 CI have passed. D1 is complete for its offline
-foundation; native installed-app verification remains open.
+**Current state:** D2 adds portable local projects, per-system drafts,
+backup/restore and separate protected or session-only broker credentials.
+Expand **Local project** to create/open a project, add brokers/systems and manage
+disabled drafts. No MQTT connection is made. German/English and bounded debug
+remain available. D1 Windows/Ubuntu CI passed; D2 platform CI and native Linux
+keyring/dialog acceptance remain open. See [D2](docs/D2.md).
 
 ## Run the development application
 
@@ -49,6 +50,7 @@ fakeroot/dpkg and a display (Xvfb for CI). See the platform limitations in
 - [Project context](PROJECT_CONTEXT.md) and [development rules](AGENTS.md)
 - [Architecture](docs/ARCHITECTURE.md) and [development commands](docs/DEVELOPMENT.md)
 - [Automatic versioning](docs/VERSIONING.md) and [localization](docs/LOCALIZATION.md)
+- [Local projects and credential storage](docs/D2.md)
 - [Shared designer package](packages/designer/README.md)
 
 The [Symcon product](https://github.com/Burki24/Symcon_Z2MAutomations) consumes

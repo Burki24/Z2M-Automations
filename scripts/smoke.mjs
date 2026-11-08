@@ -24,5 +24,5 @@ function cleanup() {
 child.on('error', error => { clearTimeout(timeout); console.error(error.message); cleanup(); process.exitCode = 1; });
 child.on('exit', code => {
   clearTimeout(timeout); cleanup();
-  process.exitCode = !timedOut && code === 0 && output.includes('DESKTOP_SMOKE_OK') && output.includes('DESKTOP_LAYOUT_OK') ? 0 : 1;
+  process.exitCode = !timedOut && code === 0 && output.includes('DESKTOP_SMOKE_OK') && output.includes('DESKTOP_PROJECTS_OK') && output.includes('DESKTOP_LAYOUT_OK') ? 0 : 1;
 });

@@ -1,4 +1,6 @@
-export const channels = ['snapshot', 'select-system', 'language', 'diagnostics', 'recording'] as const;
+import type {ProjectCommand} from './project-service.js';
+import type {CredentialCommand} from './credentials.js';
+export const channels = ['snapshot', 'select-system', 'language', 'diagnostics', 'recording', 'project', 'credential'] as const;
 export type Channel = typeof channels[number];
 export type Language = 'de' | 'en';
 export interface LanguageChange { language: Language; previousLanguage: Language; openEditor: boolean }
@@ -8,4 +10,6 @@ export interface DesktopBridge {
   language(change: LanguageChange): Promise<{ok: true}>;
   diagnostics(): Promise<unknown>;
   recording(action: 'start' | 'stop'): Promise<unknown>;
+  project(command: ProjectCommand): Promise<unknown>;
+  credential(input: CredentialCommand): Promise<unknown>;
 }
