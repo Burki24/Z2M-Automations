@@ -8,9 +8,9 @@ import {moveAction, installActionSorting} from './action-order.js';
 const copy = value => structuredClone(value);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const changedFields = (original, working, fields) => Object.fromEntries(fields.filter(key => !same(original[key], working[key])).map(key => [key, copy(working[key])]));
-export const ruleChanges = (original, working) => changedFields(original, working, ['name', 'enabled', 'retrigger', 'triggers', 'conditions', 'actions']);
+export const ruleChanges = (original, working) => changedFields(original, working, ['name', 'enabled', 'retrigger', 'restart_policy', 'triggers', 'conditions', 'actions']);
 export const sequenceChanges = (original, working) => changedFields(original, working, ['name', 'actions']);
-export const creationRule = working => Object.fromEntries(['name', 'retrigger', 'triggers', 'conditions', 'actions'].map(key => [key, copy(working[key])]));
+export const creationRule = working => Object.fromEntries(['name', 'retrigger', 'restart_policy', 'triggers', 'conditions', 'actions'].map(key => [key, copy(working[key])]));
 export function targetDevice(data, target) {
     return data.devices.find(device => device.target.type === target?.type && device.target.id === target?.id && (device.target.system ?? '') === (target?.system ?? ''));
 }
@@ -43,6 +43,7 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
     function field(parent, label, value, set, options = {}) {
         const wrap = node('label', undefined, 'field'); wrap.append(node('span', label));
         const input = document.createElement(options.choices ? 'select' : 'input'); input.id = 'edit-field-' + (++serial);
+        bindAttribute(input, 'aria-label', label);
         if (options.choices) {
             const choices = () => options.choices();
             choices().forEach(([key], index) => input.add(localizedOption(() => choices()[index][1], key)));
@@ -174,6 +175,8 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
             if (creatingRule) root.append(node('p', () => (t("ui.the.new.rule.is.added.ed2d46e3")), 'field-help'));
             else check(root, () => (t("ui.rule.enabled.in.draft.does.12ebbfe4")), working, 'enabled');
             field(root, () => (t("ui.on.retrigger.7588befa")), working.retrigger ?? 'ignore', value => { working.retrigger = value; }, {choices: () => Object.entries({ignore: t("ui.ignore.0e54a990"), restart: t("ui.restart.from.the.beginning.f723ba35"), extend: t("ui.reset.current.delay.2561f6e5")})});
+            field(root, () => t('restart.label'), working.restart_policy ?? 'abort', value => { working.restart_policy = value; }, {choices: () => [['abort', t('restart.abort')], ['resume', t('restart.resume')], ['resume_expired', t('restart.expired')]]});
+            root.append(node('p', () => t('restart.help'), 'field-help'));
         }
         const sections = () => sequenceMode ? [['actions', t("ui.1.actions.in.this.order.91604b88")]] : [['triggers', t("ui.1.when.triggers.or.be4b17f7")], ['conditions', t("ui.2.only.if.conditions.and.cf758b2a")], ['actions', t("ui.3.then.actions.in.this.6409acb6")]];
         for (const [section, title] of sections()) {
@@ -259,7 +262,7 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
         if (!dialog.open) dialog.showModal(); $('fields').querySelector('input')?.focus();
     }
     editButton.addEventListener('click', () => { const entry = getRule(); if (entry?.triggers || entry?.kind === 'sequence') open(entry); });
-    const newRule = () => open({id: '', name: '', enabled: false, retrigger: 'ignore', triggers: [], conditions: [], actions: []}, false, true);
+    const newRule = () => open({id: '', name: '', enabled: false, retrigger: 'ignore', restart_policy: 'abort', triggers: [], conditions: [], actions: []}, false, true);
     createButton.addEventListener('click', () => { if (getData()?.createAllowed) newRule(); });
     sequenceButton.addEventListener('click', () => { if (getData()?.sequenceCreateAllowed) open({id: '', name: '', actions: []}, true, true); });
     $('cancel').addEventListener('click', () => { if (!busy) dialog.close(); });

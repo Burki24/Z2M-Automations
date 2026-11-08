@@ -1,5 +1,9 @@
 # Shared designer
 
+The shared rule editor includes restart_policy (abort, resume, resume_expired)
+with German/English labels and lossless prefill. It edits only the local draft;
+execution and durable waiting-run recovery remain owned by the Z2M extension.
+
 Canonical HTML, CSS, JavaScript and local German/English JSON catalogs for the
 Symcon and desktop products. The initial source was extracted from
 Burki24/Symcon_Z2MAutomations at cd5cfc33c921365c69814078238444c3ea7d5ac5.

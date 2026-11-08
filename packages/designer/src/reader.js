@@ -196,6 +196,7 @@ import {installNativeEmbedding} from './embedding.js';
             const item = entry[kind]?.[Number(position)];
             title = item ? ({triggers: t("ui.trigger.9137c3bf"), conditions: t("ui.condition.c1d1da5a"), actions: t("ui.action.a4ad259e")}[kind]) + ' ' + (Number(position) + 1) : entry.kind === 'sequence' ? t("ui.action.sequence.35690788") : t("ui.automation.d909750b");
             html = field(t("ui.name.dcd1d522"), entry.name) + field(t("ui.rule.id.0dd56b69"), entry.id);
+            if (!item && entry.kind !== 'sequence') html += field(t('restart.label'), t({abort: 'restart.abort', resume: 'restart.resume', resume_expired: 'restart.expired'}[entry.restart_policy ?? 'abort'])) ;
             if (!item && entry.kind !== 'sequence') html += field(t("ui.in.local.draft.706365af"), entry.enabled ? t("ui.enabled.58279f72") : t("ui.disabled.a21a5188")) + field(t("ui.on.retrigger.7588befa"), {ignore: t("ui.ignore.new.trigger.0724102c"), restart: t("ui.restart.from.the.beginning.f723ba35"), extend: t("ui.reset.current.delay.2561f6e5")}[entry.retrigger ?? 'ignore']);
             if (item) {
                 html += field(t("ui.description.e9262f00"), kind === 'triggers' ? triggerSummary(item) : kind === 'conditions' ? conditionSummary(item) : actionSummary(item));

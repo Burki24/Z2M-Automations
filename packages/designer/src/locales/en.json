@@ -1287,5 +1287,17 @@
     "desktop.ready": "Desktop ready",
     "desktop.windows": "for Windows",
     "desktop.linux": "for Linux",
-    "desktop.failed": "The desktop view could not be loaded. Close the application and try again."
+    "desktop.failed": "The desktop view could not be loaded. Close the application and try again.",
+    "restart.label": "After a Zigbee2MQTT restart",
+    "restart.abort": "End the interrupted run",
+    "restart.resume": "Continue; end the run if its waiting time has expired",
+    "restart.expired": "Continue; execute the pending action if its waiting time has expired",
+    "restart.help": "For waiting automatic runs only. Also enable automatic operation after restart. Downtime counts toward the waiting time. Completed actions are never repeated; one-shot runs are not resumed.",
+    "restart.invalid": "Please select an available behavior after a Z2M restart.",
+    "server.bcb3b268309ed38a": "After a Zigbee2MQTT restart",
+    "server.b890ecb77e3166e4": "End the interrupted run",
+    "server.9fcad32c47cef58a": "Continue; end the run if its waiting time has expired",
+    "server.0eb307faa5b2eac9": "Continue; execute the pending action if its waiting time has expired",
+    "server.98d839b8a3bb4756": "For waiting automatic runs only. Enable automatic operation after restart as well. Downtime counts toward the waiting time. Completed actions are never repeated; one-shot runs are not resumed.",
+    "server.df783393ff03fec4": "Choose what happens to a waiting automation after a Z2M restart."
 }
