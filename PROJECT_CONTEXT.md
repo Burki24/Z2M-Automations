@@ -21,9 +21,10 @@ Windows compilation, real Electron smoke and packaged-app smoke have passed;
 the Windows setup has been generated unsigned. Shared checks cover strict types,
 invalid IPC/origins, read-only isolation, debug expiry and responsive themes.
 The first CI run passed Windows. Ubuntu 24.04 passed checks, `.deb` generation
-and functional renderer assertions, then failed with UnknownVizError before
-the final layout marker. A mapped Linux smoke window, explicit Xvfb dimensions
-and phase markers are prepared; their Ubuntu execution remains pending push.
+and functional renderer assertions, then failed with UnknownVizError at capture.
+Later jobs failed with HTTP 504 during Electron setup or packaging. Bounded
+download retries, a shared cache with pinned checksums and Linux-CI-only software
+rendering are implemented. Their Ubuntu execution remains pending user push.
 Native Ubuntu acceptance, 26.04 and installed-app tests remain open. See docs/D1.md.
 No Live system was contacted or changed.
 

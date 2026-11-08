@@ -6,8 +6,10 @@ import {channels, type Channel} from './contracts.js';
 import {assetPath, csp, entryURL, languageChange, rendererPreferences, trustedSender, validPayload} from './security.js';
 import {Diagnostics} from './diagnostics.js';
 import {OfflineWorkspace} from './offline-workspace.js';
+import {configureSmokeRendering} from './smoke-rendering.js';
 
 const smoke = process.argv.includes('--smoke-test');
+if (configureSmokeRendering(app, {smoke, platform: process.platform, ci: process.env['CI'] === 'true'})) console.log('DESKTOP_CI_SOFTWARE_RENDERING');
 const profile = smoke ? process.env['Z2MA_SMOKE_PROFILE'] || mkdtempSync(join(tmpdir(), 'z2ma-smoke-')) : null;
 if (profile) app.setPath('userData', profile);
 protocol.registerSchemesAsPrivileged([{scheme: 'z2ma', privileges: {standard: true, secure: true, supportFetchAPI: true, corsEnabled: true}}]);

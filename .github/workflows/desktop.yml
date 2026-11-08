@@ -17,6 +17,9 @@ jobs:
       matrix:
         os: [windows-2025, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      electron_config_cache: ${{ github.workspace }}/.cache/electron
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -25,6 +28,11 @@ jobs:
           cache: npm
       - name: Install pinned tools without implicit lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Cache verified Electron downloads for setup and packaging
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.electron_config_cache }}
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
       - name: Prepare reviewed Electron and installer tools
         run: npm run setup:tools
       - name: Install Linux build and display tools

@@ -7,6 +7,7 @@ module.exports = {
     executableName: 'Z2M-Automations',
     appVersion: metadata.version,
     buildVersion: String(metadata.build),
+    download: {cacheRoot: process.env.electron_config_cache, checksums: require('electron/checksums.json')},
     ignore: file => !!file && !/^\/(?:\.build(?:\/|$)|package\.json$|node_modules(?:\/|$))/.test(file.replaceAll('\\', '/'))
   },
   hooks: {readPackageJson: async (_config, pkg) => ({...pkg, version: metadata.version}),

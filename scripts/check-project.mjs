@@ -9,7 +9,7 @@ if (!/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(metadata.version
     || !Number.isSafeInteger(metadata.date) || metadata.date < 0) {
   throw new Error('Invalid application version metadata.');
 }
-const excluded = new Set(['.git', 'node_modules', 'vendor', 'private', 'local-data', 'backups', 'out', 'dist', 'coverage', '.build', 'artifacts', 'test-results']);
+const excluded = new Set(['.git', '.cache', 'node_modules', 'vendor', 'private', 'local-data', 'backups', 'out', 'dist', 'coverage', '.build', 'artifacts', 'test-results']);
 const extensions = new Set(['.md', '.json', '.yml', '.yaml', '.js', '.mjs', '.ts', '.cjs', '.css', '.html']);
 let checked = 0;
 function scan(directory) {

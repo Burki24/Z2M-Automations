@@ -2,10 +2,41 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
 const require = createRequire(import.meta.url);
 const {assetPath, entryURL, trustedSender, rendererPreferences, validPayload} = require('../apps/desktop/.build/security.js');
 const {Diagnostics} = require('../apps/desktop/.build/diagnostics.js');
 const {OfflineWorkspace} = require('../apps/desktop/.build/offline-workspace.js');
+const {configureSmokeRendering} = require('../apps/desktop/.build/smoke-rendering.js');
+
+test('software rendering is confined to explicit Linux CI smoke and never normal launches', () => {
+  for (const platform of ['linux', 'win32', 'darwin']) for (const smoke of [false, true]) for (const ci of [false, true]) {
+    let calls = 0;
+    const configured = configureSmokeRendering({disableHardwareAcceleration: () => calls++}, {platform, smoke, ci});
+    const expected = platform === 'linux' && smoke && ci;
+    assert.equal(configured, expected);
+    assert.equal(calls, expected ? 1 : 0);
+  }
+});
+
+test('Forge reuses the same explicit Electron download cache as tool setup', () => {
+  const original = process.env.electron_config_cache;
+  const config = require.resolve('../apps/desktop/forge.config.cjs');
+  try {
+    process.env.electron_config_cache = join(tmpdir(), 'z2ma-synthetic-download-cache');
+    delete require.cache[config];
+    const forge = require(config);
+    assert.equal(forge.packagerConfig.download.cacheRoot, process.env.electron_config_cache);
+    assert.deepEqual(forge.packagerConfig.download.checksums, require('electron/checksums.json'));
+    assert.equal(forge.packagerConfig.download.unsafelyDisableChecksums, undefined);
+    assert.equal(forge.packagerConfig.download.mirrorOptions, undefined);
+  } finally {
+    if (original === undefined) delete process.env.electron_config_cache;
+    else process.env.electron_config_cache = original;
+    delete require.cache[config];
+  }
+});
 
 test('Forge uses canonical application metadata for every maker without editing source manifests', async () => {
   const forge = require('../apps/desktop/forge.config.cjs');
