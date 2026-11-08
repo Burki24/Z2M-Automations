@@ -1299,5 +1299,7 @@
     "server.9fcad32c47cef58a": "Continue; end the run if its waiting time has expired",
     "server.0eb307faa5b2eac9": "Continue; execute the pending action if its waiting time has expired",
     "server.98d839b8a3bb4756": "For waiting automatic runs only. Enable automatic operation after restart as well. Downtime counts toward the waiting time. Completed actions are never repeated; one-shot runs are not resumed.",
-    "server.df783393ff03fec4": "Choose what happens to a waiting automation after a Z2M restart."
+    "server.df783393ff03fec4": "Choose what happens to a waiting automation after a Z2M restart.",
+    "server.413cb6bc4ad0c022": "Automation center",
+    "server.cbaa827876381c0c": "This connection is managed by {{value1}} (instance {{value2}}). Install or update the Z2M extension in that automation center, using its configuration form or browser designer."
 }

@@ -2506,5 +2506,13 @@
     "server.df783393ff03fec4": [
         "Bitte wählen, was mit einem wartenden Lauf nach einem Z2M-Neustart geschieht.",
         "Choose what happens to a waiting automation after a Z2M restart."
+    ],
+    "server.413cb6bc4ad0c022": [
+        "Automationszentrale",
+        "Automation center"
+    ],
+    "server.cbaa827876381c0c": [
+        "Diese Verbindung wird von %s (Instanz %d) verwaltet. Die Z2M-Erweiterung bitte in dieser Automationszentrale installieren oder aktualisieren: im Konfigurationsformular der Zentrale oder im Webdesigner.",
+        "This connection is managed by %s (instance %d). Install or update the Z2M extension in that automation center, using its configuration form or browser designer."
     ]
 }

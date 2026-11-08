@@ -1299,5 +1299,7 @@
     "server.9fcad32c47cef58a": "Fortsetzen; bei abgelaufener Wartezeit den Lauf beenden",
     "server.0eb307faa5b2eac9": "Fortsetzen; bei abgelaufener Wartezeit die ausstehende Aktion nachholen",
     "server.98d839b8a3bb4756": "Gilt nur für wartende Automatikläufe. Zusätzlich den Automatikbetrieb nach Neustart einschalten. Die Ausfallzeit zählt zur Wartezeit. Erledigte Aktionen werden nicht wiederholt; Einzelstarts werden nicht fortgesetzt.",
-    "server.df783393ff03fec4": "Bitte wählen, was mit einem wartenden Lauf nach einem Z2M-Neustart geschieht."
+    "server.df783393ff03fec4": "Bitte wählen, was mit einem wartenden Lauf nach einem Z2M-Neustart geschieht.",
+    "server.413cb6bc4ad0c022": "Automationszentrale",
+    "server.cbaa827876381c0c": "Diese Verbindung wird von {{value1}} (Instanz {{value2}}) verwaltet. Die Z2M-Erweiterung bitte in dieser Automationszentrale installieren oder aktualisieren: im Konfigurationsformular der Zentrale oder im Webdesigner."
 }
