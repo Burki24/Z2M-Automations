@@ -7,7 +7,8 @@ Automations will run in our own Z2M extension, independently of the application.
 **Current state:** D1 provides a runnable offline desktop foundation with two
 synthetic example systems, local German/English translations and bounded debug.
 It does not connect to brokers or save user projects yet. Windows build and
-runtime checks are available; native Ubuntu verification remains open.
+runtime checks and Ubuntu 24.04 CI have passed. D1 is complete for its offline
+foundation; native installed-app verification remains open.
 
 ## Run the development application
 

@@ -1,11 +1,11 @@
 # Z2M-Automations – Implementation plan
 
-As of 2026-11-07. This is the operational desktop agenda for the new repository
+As of 2026-11-08. This is the operational desktop agenda for the new repository
 `Burki24/Z2M-Automations`, located locally at `E:\git\Z2M-Automations`.
 Windows and Linux will be developed in parallel; **Ubuntu LTS x64** is the
 confirmed first Linux platform. The repository and development guidelines are
-prepared. D0 is implemented; D1 now has an offline application and shared designer
-package. Windows checks passed; Ubuntu CI/native acceptance remains open. D2–D7
+prepared. D0 and D1 are complete for the shared offline foundation. Windows and
+Ubuntu 24.04 CI passed; native installed-app acceptance remains open. D2–D7
 remain planned. See [D1](D1.md) for implemented behavior and verification limits.
 Importing this plan did not change any Symcon or Z2M installation.
 
@@ -304,13 +304,11 @@ checks cover open input, typed values, order, preferences and protected debug;
 see [LOCALIZATION.md](LOCALIZATION.md). A real module/tile update check remains
 separate. No installed desktop application has been tested.
 
-**D1 implemented, platform evidence open:** restricted desktop adapter, shared
-designer extraction, Windows executable/setup and synthetic tests are available.
-The first CI run passed Windows; Ubuntu passed shared checks and package build
-but failed after functional renderer assertions with UnknownVizError. Verify
-the prepared Linux rendering/capture correction in a fresh CI run after user
-push; see [D1 evidence](D1.md). Native Ubuntu acceptance remains open. D2 then
-adds local projects and drafts. No real MQTT is part of D1.
+**D1 complete for the offline foundation:** CI run 42472007945 passed Windows
+and Ubuntu 24.04 from the same source, including package builds, all 13 tests,
+renderer/layout/capture checks and designer archives; see [D1 evidence](D1.md).
+Native installed-app acceptance remains open. **D2 is next:** local projects,
+drafts and protected credentials. No real MQTT is part of D1.
 
 During designer extraction, both repositories must clearly reference the source
 ownership transition and pinned designer package. The imported original plan

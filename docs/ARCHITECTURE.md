@@ -1,6 +1,7 @@
 # Architecture
 
-Status: D1 offline foundation implemented; native Ubuntu evidence remains open.
+Status: D1 offline foundation complete with Windows/Ubuntu CI evidence;
+native installed-app acceptance remains open.
 Current behavior is described in [D1](D1.md). Decisions and complete
 milestones are described in [ADR 0001](adr/0001-parallel-desktop-platforms.md)
 and the [desktop plan](DESKTOP_PLAN.md).

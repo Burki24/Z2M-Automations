@@ -62,8 +62,9 @@ sandbox enabled. Local Windows success is not Ubuntu acceptance. Actual Ubuntu
 and uninstallation remain separate milestone evidence. No local Ubuntu or WSL
 installation was available during D1. Explicit Linux CI smoke uses software
 rendering before Electron startup, while normal launches and Windows keep their
-existing renderer settings. Screenshot capture remains mandatory. The corrected
-workflow still requires a fresh user push; see docs/D1.md for evidence and limits.
+existing renderer settings. Screenshot capture remains mandatory. CI run
+42472007945 passed both platforms, including capture; see docs/D1.md for the
+completed D1 scope and remaining native installed-app verification limits.
 
 No real broker, Symcon system, private project or device command is part of the
 D1 checks. Later features must add synthetic protocol, persistence, credential

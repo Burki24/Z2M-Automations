@@ -1,8 +1,8 @@
 # ADR 0001: Shared desktop application for Windows and Linux
 
 - Date: 2026-11-07
-- Status: Goals, product name and parallel platform development confirmed;
-  application implementation and platform acceptance remain open.
+- Status: Confirmed; D1 offline foundation and Windows/Ubuntu CI complete on
+  2026-11-08. Later milestones and native installed-app acceptance remain open.
 - Derived from [Symcon ADR 0034](https://github.com/Burki24/Symcon_Z2MAutomations/blob/01f444d91d5c664177a5d2a60a5d644c72840523/docs/adr/0034-desktop-windows-linux-and-localization.md).
 
 ## Decision
@@ -51,6 +51,7 @@ applications. Conflict detection requires fresh Z2M state.
   structures, PHP tools and Store requirements do not apply here.
 - The operational agenda is [DESKTOP_PLAN.md](../DESKTOP_PLAN.md). Repository
   and guidelines are prepared. D0 and the D1 offline foundation are implemented;
-  Ubuntu CI/native acceptance and later milestones remain open. See ../D1.md.
+  D1 Windows/Ubuntu CI passed; native installed-app acceptance and later
+  milestones remain open. See [D1 evidence](../D1.md).
 - Installation, broker connections, live changes and publication are outside
   the scope of this initial setup.
