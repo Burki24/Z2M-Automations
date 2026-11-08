@@ -34,17 +34,9 @@ test('permanent, integrity and spawn failures are never retried or ignored', asy
   }
 });
 
-test('Windows prepares the reviewed installer helper only after Electron succeeds', async () => {
+test('Windows tool setup invokes only the reviewed Electron lifecycle', async () => {
   const scripts = [];
   await prepareTools({platform: 'win32', report: () => {}, run: (_command, args) => { scripts.push(args[0].replaceAll('\\', '/')); return {status: 0}; }});
-  assert.equal(scripts.length, 2);
+  assert.equal(scripts.length, 1);
   assert.ok(scripts[0].endsWith('/electron/install.js'));
-  assert.ok(scripts[1].endsWith('/electron-winstaller/script/select-7z-arch.js'));
-});
-
-test('local Windows installer helper failures do not trigger download retries', async () => {
-  let calls = 0;
-  await assert.rejects(prepareTools({platform: 'win32', report: () => {}, wait: async () => assert.fail('Unexpected local helper retry'),
-    run: () => (++calls === 1 ? {status: 0} : {status: 1, stderr: 'HTTPError: Response code 504'})}), /Windows installer helper.*failed/);
-  assert.equal(calls, 2);
 });

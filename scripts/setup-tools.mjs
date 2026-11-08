@@ -7,8 +7,7 @@ import {setTimeout as waitFor} from 'node:timers/promises';
 const root = fileURLToPath(new URL('../', import.meta.url));
 export async function prepareTools({platform = process.platform, run = spawnSync, wait = waitFor, report = console.log} = {}) {
   for (const [directory, script, label, attempts] of [
-    ['electron', 'install.js', 'Electron', 3],
-    ...(platform === 'win32' ? [['electron-winstaller', 'script/select-7z-arch.js', 'Windows installer helper', 1]] : [])
+    ['electron', 'install.js', 'Electron', 3]
   ]) {
     const cwd = join(root, 'node_modules', directory);
     for (let attempt = 1; attempt <= attempts; attempt++) {

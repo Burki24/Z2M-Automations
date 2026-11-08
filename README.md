@@ -32,6 +32,8 @@ npm run smoke:packaged
 ~~~
 
 make builds a Windows setup EXE on Windows or an Ubuntu .deb on Linux. The output
+for Windows offers German/English setup and an installation-directory chooser;
+see [Windows installation](docs/WINDOWS_INSTALLER.md). The output
 is unsigned development material, not a release. Linux additionally needs
 fakeroot/dpkg and a display (Xvfb for CI). See the platform limitations in
 [the D1 implementation note](docs/D1.md).

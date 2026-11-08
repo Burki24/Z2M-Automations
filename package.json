@@ -29,8 +29,8 @@
   "devDependencies": {
     "@electron-forge/cli": "8.0.1",
     "@electron-forge/maker-deb": "8.0.1",
-    "@electron-forge/maker-squirrel": "8.0.1",
     "@types/node": "24.19.2",
+    "electron-forge-maker-nsis": "26.18.0",
     "mqtt-packet": "9.0.2",
     "typescript": "7.0.2"
   }

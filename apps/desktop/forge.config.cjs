@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {stageRuntimeDependencies} = require('./runtime-dependencies.cjs');
+const WindowsMaker = require('./windows-maker.cjs');
 const metadata = JSON.parse(fs.readFileSync(path.join(__dirname, '../../version.json'), 'utf8'));
 module.exports = {
   packagerConfig: {
@@ -21,7 +22,10 @@ module.exports = {
     stageRuntimeDependencies(directory);
   }},
   makers: [
-    {name: '@electron-forge/maker-squirrel', platforms: ['win32'], config: {name: 'Z2MAutomations', authors: 'Burkhard Kneiseler', description: 'Zigbee2MQTT automation designer', setupExe: 'Z2M-Automations-Setup.exe'}},
+    new WindowsMaker({oneClick: false, perMachine: false, allowElevation: false,
+      allowToChangeInstallationDirectory: true, installerLanguages: ['de_DE', 'en_US'],
+      displayLanguageSelector: true, runAfterFinish: false, deleteAppDataOnUninstall: false,
+      artifactName: 'Z2M-Automations-${version}-Windows-x64-Setup.${ext}'}, ['win32']),
     {name: '@electron-forge/maker-deb', platforms: ['linux'], config: {options: {name: 'z2m-automations', bin: 'Z2M-Automations', productName: 'Z2M-Automations', maintainer: 'Burkhard Kneiseler', homepage: 'https://github.com/Burki24/Z2M-Automations', categories: ['Utility']}}}
   ]
 };

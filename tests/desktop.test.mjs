@@ -50,6 +50,22 @@ test('Forge uses canonical application metadata for every maker without editing 
   assert.equal(deb.config.options.bin, forge.packagerConfig.executableName, 'Linux binary path is case-sensitive');
 });
 
+test('Windows installer offers a per-user directory wizard and packages the canonical version', async () => {
+  const forge = require('../apps/desktop/forge.config.cjs');
+  const maker = forge.makers.find(maker => maker.name === 'nsis');
+  await maker.prepareConfig('x64');
+  const options = maker.getBuildOptions({dir: join(tmpdir(), 'synthetic-app'), targetArch: 'x64', appName: 'Z2M-Automations', forgeConfig: forge});
+  assert.equal(options.config.nsis.oneClick, false);
+  assert.equal(options.config.nsis.allowToChangeInstallationDirectory, true);
+  assert.equal(options.config.nsis.perMachine, false);
+  assert.equal(options.config.nsis.allowElevation, false);
+  assert.equal(options.config.nsis.deleteAppDataOnUninstall, false);
+  assert.deepEqual(options.config.nsis.installerLanguages, ['de_DE', 'en_US']);
+  assert.equal(options.config.extraMetadata.version, JSON.parse(readFileSync(new URL('../version.json', import.meta.url))).version);
+  assert.equal(options.config.executableName, 'Z2M-Automations');
+  assert.equal(options.config.publish, null);
+});
+
 test('IPC accepts only the owned window main frame at its exact local entry', () => {
   assert.equal(trustedSender(1, 1, true, entryURL), true);
   for (const args of [[1, 2, true, entryURL], [1, 1, false, entryURL], [1, 1, true, entryURL + '#foreign'], [1, 1, true, 'https://app/index.html']]) assert.equal(trustedSender(...args), false);

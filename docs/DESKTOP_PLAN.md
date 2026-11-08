@@ -277,7 +277,9 @@ desktop support.
 
 ## 10. Packages, CI and release
 
-- Initially provide a Windows setup EXE through Electron Forge/Squirrel.Windows.
+- Provide a Windows setup EXE through Electron Forge/NSIS with an installation
+  directory wizard; see [Windows installer](WINDOWS_INSTALLER.md). This replaces
+  the initial fixed-path Squirrel.Windows choice at the owner's request.
 - Initially provide an Ubuntu `.deb` through Electron Forge. AppImage, Snap and
   Flatpak are later package targets, not prerequisites for the first shared beta.
 - Both platforms receive the same application version from the same source state;

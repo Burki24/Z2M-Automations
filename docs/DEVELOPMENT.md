@@ -14,8 +14,7 @@ npm run smoke
 npm start
 ~~~
 
-setup:tools explicitly invokes only the reviewed pinned Electron download and,
-on Windows, electron-winstaller's selection of its shipped 7-Zip binary. Do not
+setup:tools explicitly invokes only the reviewed pinned Electron download. Do not
 enable all dependency lifecycle scripts to work around missing tools.
 Transient Electron download errors are retried at most three times, with
 one- and three-second delays and a three-minute limit per attempt. Integrity,
@@ -52,6 +51,13 @@ or Ubuntu .deb. Both read version.json, including the copied application package
 version. Do not hand-bump tracked package versions or version.json. Signing,
 installed-app acceptance and publication belong to D7. Never publish from these
 local commands. Forge dependencies are development tooling, not renderer APIs.
+
+The Windows maker is now NSIS with a German/English directory-selection wizard;
+see [Windows installer](WINDOWS_INSTALLER.md). It wraps Forge's prepackaged
+application and reads canonical version metadata. Its build-only downloads use
+`ELECTRON_BUILDER_CACHE` when set; local builds may point that and process-local
+TEMP/TMP to an ignored directory on a drive with sufficient space. Production
+dependencies and the Ubuntu maker are unchanged.
 
 D3 tests use an independent ephemeral loopback MQTT peer, never a real broker.
 Install OpenSSL on development/CI hosts for temporary CA and mutual-TLS test
