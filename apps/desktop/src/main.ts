@@ -233,7 +233,7 @@ async function open(): Promise<void> {
     closeReview = true;
     void projects.serialize(async () => {
       try {
-        if (projects.isDirty() && !smoke && window) {
+        if (projects.isDirty() && window) {
           const pending = projects.hasPendingInput();
           const choice = await showConfirmationChoice(window, {language, question: message('closeUnsaved'),
             cancel: message('cancel'), accept: message('discardAndClose'), save: message('save'),
@@ -383,7 +383,26 @@ async function open(): Promise<void> {
       console.log('DESKTOP_CAPTURE_OK');
     }
     console.log('DESKTOP_LAYOUT_OK 360/1920/3840 light/dark');
-    app.exit(0);
+    await projects.serialize(async () => {
+      if (projects.hasPendingInput() || !projects.isDirty()) throw new Error('Close smoke requires an applied unsaved draft');
+      await projects.command({action: 'rename', name: 'Saved from the close dialog'});
+    });
+    if (!profile || readFileSync(join(profile, 'synthetic.z2ma'), 'utf8').includes('Saved from the close dialog')) {
+      throw new Error('Close smoke project was already saved');
+    }
+    window.close();
+    for (let i = 0; i < 100 && !window.getChildWindows().length; i++) await new Promise(resolve => setTimeout(resolve, 20));
+    const dialog = window.getChildWindows()[0];
+    if (!dialog) throw new Error('Closing the dirty project did not open a dialog');
+    if (dialog.webContents.isLoadingMainFrame()) await new Promise<void>(resolve => dialog.webContents.once('did-finish-load', () => resolve()));
+    const ready = await dialog.webContents.executeJavaScript(`(async () => {
+      const save = document.querySelector('#save');
+      for (let i = 0; i < 100 && !save.textContent; i++) await new Promise(resolve => setTimeout(resolve, 20));
+      return Boolean(save.textContent) && !save.hidden && !save.disabled;
+    })()`);
+    if (!ready) throw new Error('Save was unavailable in the close dialog');
+    // The external smoke runner verifies the resulting file after the process exits.
+    void dialog.webContents.executeJavaScript("document.querySelector('#save').click()").catch(() => {});
   }
 }
 
@@ -396,5 +415,5 @@ else {
   });
   app.on('window-all-closed', () => app.quit());
   app.on('before-quit', () => reader?.close());
-  app.on('will-quit', () => { if (profile) { try { rmSync(profile, {recursive: true, force: true}); } catch { /* OS locks may outlive shutdown. */ } } });
+  app.on('will-quit', () => { if (profile && !process.env['Z2MA_SMOKE_PROFILE']) { try { rmSync(profile, {recursive: true, force: true}); } catch { /* OS locks may outlive shutdown. */ } } });
 }

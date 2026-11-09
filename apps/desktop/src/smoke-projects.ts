@@ -109,6 +109,14 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     scrolled = await view.executeJavaScript('window.scrollY > 0');
   }
   if (!scrolled) throw new Error('Project wheel scrolling failed: ' + await view.executeJavaScript("JSON.stringify({received: window.projectWheelReceived, y: scrollY, height: document.documentElement.scrollHeight, viewport: innerHeight})"));
-  await view.executeJavaScript('window.scrollTo(0,0);');
+  await view.executeJavaScript(`(async () => {
+    document.querySelector('#project-applyName').click();
+    for (let i = 0; i < 100 && document.querySelector('#local-project').hasAttribute('aria-busy'); i++) {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    const result = await window.z2maDesktop.project({action: 'status'});
+    if (result.state.project.name !== 'Keyboard draft') throw new Error('Keyboard draft was not applied');
+    window.scrollTo(0,0);
+  })()`);
   console.log('DESKTOP_PROJECTS_OK portable/drafts/backup/credentials/offline');
 }

@@ -1,7 +1,7 @@
 import {spawn} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-import {mkdtempSync, rmSync} from 'node:fs';
+import {mkdtempSync, readFileSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, resolve, sep} from 'node:path';
 import {startPeer} from '../tests/support/mqtt-peer.mjs';
@@ -26,8 +26,19 @@ function cleanup() {
 }
 child.on('error', async error => { clearTimeout(timeout); console.error(error.message); await peer.close(); cleanup(); process.exitCode = 1; });
 child.on('exit', async code => {
-  clearTimeout(timeout); cleanup();
+  clearTimeout(timeout);
+  let saved = false;
+  if (code === 0 && !timedOut) {
+    try {
+      const project = JSON.parse(readFileSync(join(profile, 'synthetic.z2ma'), 'utf8'));
+      saved = project.format === 'z2m-automations-project' && project.name === 'Saved from the close dialog'
+        && project.systems.some(system => system.configuration.automations.some(rule => rule.name === 'D4 preserved input' && rule.enabled === false));
+    } catch { /* The missing or invalid file fails the smoke test. */ }
+    if (saved) console.log('DESKTOP_CLOSE_SAVE_OK project persisted and application exited');
+    else console.error('The application exited without saving the expected project changes.');
+  }
+  cleanup();
   const readOnly = peer.publications.every(value => /\/symcon\/automations\/request\/(status|editor)$/.test(value.topic) && !value.retain && value.qos === 0);
   await peer.close();
-  process.exitCode = !timedOut && readOnly && peer.publications.length >= 3 && code === 0 && output.includes('DESKTOP_SMOKE_OK') && output.includes('DESKTOP_PROJECTS_OK') && output.includes('DESKTOP_MQTT_OK') && output.includes('DESKTOP_DRAFTS_OK') && output.includes('DESKTOP_LAYOUT_OK') ? 0 : 1;
+  process.exitCode = !timedOut && saved && readOnly && peer.publications.length >= 3 && code === 0 && output.includes('DESKTOP_SMOKE_OK') && output.includes('DESKTOP_PROJECTS_OK') && output.includes('DESKTOP_MQTT_OK') && output.includes('DESKTOP_DRAFTS_OK') && output.includes('DESKTOP_LAYOUT_OK') ? 0 : 1;
 });
