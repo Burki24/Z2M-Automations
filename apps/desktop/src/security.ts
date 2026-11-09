@@ -39,8 +39,10 @@ export function validPayload(channel: Channel, value: unknown): boolean {
     case 'network': return validNetworkCommand(value);
     case 'designer': return validDesignerCommand(value);
     case 'project': return validProjectCommand(value);
-    case 'credential': return exact(value, ['brokerId', 'mode']) && validId(value['brokerId'])
-      && ['remove', 'protected', 'session'].includes(String(value['mode']));
+    case 'credential': return (exact(value, ['brokerId', 'mode']) && validId(value['brokerId'])
+      && ['remove', 'protected', 'session'].includes(String(value['mode']))
+      || exact(value, ['brokerId', 'mode', 'source']) && validId(value['brokerId']) && value['source'] === 'manual'
+      && (value['mode'] === 'protected' || value['mode'] === 'session'));
   }
 }
 export function validProjectCommand(value: unknown): boolean {

@@ -58,6 +58,9 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     assert((await bridge.project({action: 'open'})).ok, 'reopen');
     assert((await state()).project.name === 'Later draft', 'restore wrote disk');
     assert((await state()).credentials[brokerId] === 'none', 'session retained after reopen');
+    const manual = await bridge.credential({brokerId, mode: 'session', source: 'manual'});
+    assert(manual.ok && manual.state.credentials[brokerId] === 'session', 'manual session credential');
+    assert(!JSON.stringify(manual).includes('SYNTHETIC_SECRET'), 'manual secret returned');
     if ((await state()).protectedAvailable) {
       const stored = await bridge.credential({brokerId, mode: 'protected'});
       assert(stored.ok && stored.state.credentials[brokerId] === 'protected', 'OS-protected credential round trip');

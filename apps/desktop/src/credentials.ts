@@ -12,15 +12,18 @@ export interface Protector {
   decryptStringAsync(value: Buffer): Promise<{result: string; shouldReEncrypt: boolean}>;
 }
 export interface CredentialInput {brokerId: string; username: string; password: string; mode: 'protected' | 'session'}
-export interface CredentialCommand {brokerId: string; mode: 'protected' | 'session' | 'remove'}
+export interface CredentialCommand {brokerId: string; mode: 'protected' | 'session' | 'remove'; source?: 'manual'}
 export async function readCredentialFile(path: string): Promise<{username: string; password: string}> {
   try {
     const bytes = await boundedRead(path, 16384);
     const value: unknown = JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(bytes));
-    if (!exact(value, ['username', 'password']) || typeof value['username'] !== 'string' || value['username'].length > 256
-      || /[\u0000-\u001f]/.test(value['username']) || typeof value['password'] !== 'string' || value['password'].length < 1 || value['password'].length > 4096) throw new Error();
-    return {username: value['username'], password: value['password']};
+    return parseCredentials(value);
   } catch { throw new Error('invalidCredentials'); }
+}
+export function parseCredentials(value: unknown): {username: string; password: string} {
+  if (!exact(value, ['username', 'password']) || typeof value['username'] !== 'string' || value['username'].length > 256
+    || /[\u0000-\u001f]/.test(value['username']) || typeof value['password'] !== 'string' || value['password'].length < 1 || value['password'].length > 4096) throw new Error('invalidCredentials');
+  return {username: value['username'], password: value['password']};
 }
 interface Secret {binding: string; username: string; password: string}
 export class Credentials {

@@ -169,11 +169,12 @@ export async function installProjects(bridge) {
   const mode = select(credentialForm, 'credentialMode');
   const secretState = document.createElement('p'); credentialForm.append(secretState);
   const secretHelp = document.createElement('p'); bindText(secretHelp, () => t('project.secretHelp')); credentialForm.append(secretHelp);
-  async function credential(remove = false) {
+  async function credential(source) {
+    const remove = source === 'remove';
     if (busy || !credentialBroker.value || (!remove && !credentialForm.reportValidity())) return;
     busy = true;
     try {
-      const input = {brokerId: credentialBroker.value, mode: remove ? 'remove' : mode.value};
+      const input = {brokerId: credentialBroker.value, mode: remove ? 'remove' : mode.value, ...(source === 'manual' ? {source} : {})};
       const result = await bridge.credential(input);
       if (!result.ok) { show(result.error); return; }
       pending.delete(credentialForm); state = result.state;
@@ -182,8 +183,9 @@ export async function installProjects(bridge) {
     } catch { show('failed'); }
     finally { busy = false; }
   }
+  button(credentialForm, 'enterCredentials', () => credential('manual'));
   button(credentialForm, 'storeCredentials', () => credential());
-  button(credentialForm, 'removeCredentials', () => credential(true));
+  button(credentialForm, 'removeCredentials', () => credential('remove'));
   credentialBroker.addEventListener('change', () => {
     if (pending.has(credentialForm)) { credentialBroker.value = credentialForm.dataset.selected ?? ''; show('applyFirst'); return; }
     credentialForm.dataset.selected = credentialBroker.value;

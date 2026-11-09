@@ -20,8 +20,11 @@ acceptance target. Development packages are unsigned.
 
 1. Create or open a local project. Save the project to a location you control.
 2. Add a broker and a Z2M system with its own base topic. Choose session-only
-   credentials or protected storage. If the Linux keyring is unavailable,
-   unlock it or choose session-only storage explicitly.
+   credentials or protected storage. Use **Enter credentials** for direct entry
+   or **Import credentials** to select a private JSON file. Direct entry opens
+   a native dialog outside the project renderer and uses Zenity on Ubuntu.
+   If the Linux keyring is unavailable, unlock it or choose session-only
+   storage explicitly.
 3. Connect to the broker and read the system. The draft and the stored Z2M
    revision are separate. Local edits need to be applied and the project saved.
 4. Install the bundled extension only on the intended system when needed.

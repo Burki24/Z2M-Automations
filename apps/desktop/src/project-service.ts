@@ -16,7 +16,7 @@ export interface ProjectDialogs {
   confirmDiscard(): Promise<boolean>;
   confirmRestore(): Promise<boolean>;
   confirmDelete(): Promise<boolean>;
-  chooseCredentials(): Promise<{username: string; password: string} | null>;
+  chooseCredentials(source?: CredentialCommand['source']): Promise<{username: string; password: string} | null>;
 }
 export class ProjectService {
   private project: Project = newProject('');
@@ -154,7 +154,7 @@ export class ProjectService {
     this.debug.record('credentialRequest', undefined, undefined, {operation: input.mode === 'remove' ? 'removeCredentials' : 'storeCredentials'});
     if (input.mode === 'remove') await this.vault.remove(this.project.id, broker);
     else {
-      const secret = await this.dialogs.chooseCredentials();
+      const secret = await this.dialogs.chooseCredentials(input.source);
       if (!secret) return this.state();
       await this.vault.store(this.project.id, broker, {...secret, brokerId: broker.id, mode: input.mode});
     }

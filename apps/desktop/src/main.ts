@@ -9,6 +9,7 @@ import {Diagnostics} from './diagnostics.js';
 import {OfflineWorkspace} from './offline-workspace.js';
 import {configureSmokeRendering} from './smoke-rendering.js';
 import {ProjectService, type ProjectCommand} from './project-service.js';
+import {promptCredentials} from './credential-prompt.js';
 import {Credentials, readCredentialFile, type CredentialCommand} from './credentials.js';
 import {smokeProjects} from './smoke-projects.js';
 import {osProtection} from './os-protection.js';
@@ -161,13 +162,16 @@ async function open(): Promise<void> {
       return result.canceled ? null : result.filePath ?? null;
     },
     confirmDiscard: () => confirm('discard'), confirmRestore: () => confirm('restoreConfirm'), confirmDelete: () => confirm('deleteConfirm'),
-    chooseCredentials: async () => {
+    chooseCredentials: async source => {
       if (smoke) {
+        if (source === 'manual') return {username: 'SYNTHETIC_USER', password: 'SYNTHETIC_SECRET'};
         const path = join(app.getPath('userData'), 'synthetic-credentials.json');
         writeFileSync(path, JSON.stringify({username: 'SYNTHETIC_USER', password: 'SYNTHETIC_SECRET'}), {mode: 0o600});
         return readCredentialFile(path);
       }
       if (!window) return null;
+      if (source === 'manual') return promptCredentials({title: message('enterCredentials'), username: message('username'),
+        password: message('password'), ok: message('save'), cancel: message('cancel')});
       const result = await dialog.showOpenDialog(window, {title: message('chooseCredentials'), properties: ['openFile'], filters: [{name: 'JSON', extensions: ['json']}]});
       if (result.canceled || !result.filePaths[0]) return null;
       return readCredentialFile(result.filePaths[0]);
@@ -243,7 +247,7 @@ async function open(): Promise<void> {
       catch (error) {
         debug.record('projectFailed');
         const key = error instanceof Error ? error.message : '';
-        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferUncertain', 'transferBridge', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly'].includes(key) ? key : 'failed'};
+        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'credentialPromptUnavailable', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferUncertain', 'transferBridge', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly'].includes(key) ? key : 'failed'};
       }
     });
   });

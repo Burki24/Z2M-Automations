@@ -168,6 +168,9 @@ test('IPC rejects paths, credential reads, unknown fields and unsupported operat
   for (const payload of [{brokerId: randomUUID(), mode: 'read'}, {brokerId: randomUUID(), mode: 'session', username: 'user', password: 'PRIVATE', path: '/private'}]) assert.equal(validPayload('credential', payload), false);
   assert.equal(validPayload('credential', {brokerId: randomUUID(), mode: 'protected', username: 'user', password: 'PRIVATE'}), false);
   assert.equal(validPayload('credential', {brokerId: randomUUID(), mode: 'protected'}), true);
+  assert.equal(validPayload('credential', {brokerId: randomUUID(), mode: 'session', source: 'manual'}), true);
+  assert.equal(validPayload('credential', {brokerId: randomUUID(), mode: 'remove', source: 'manual'}), false);
+  assert.equal(validPayload('credential', {brokerId: randomUUID(), mode: 'session', source: 'manual', password: 'PRIVATE'}), false);
 });
 test('credential files are bounded and parsed only by the main service, with generic errors', async t => {
   const dir = await directory(t); const path = join(dir, 'synthetic-credentials.json');
