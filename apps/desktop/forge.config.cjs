@@ -3,9 +3,11 @@ const path = require('node:path');
 const {stageRuntimeDependencies} = require('./runtime-dependencies.cjs');
 const WindowsMaker = require('./windows-maker.cjs');
 const metadata = JSON.parse(fs.readFileSync(path.join(__dirname, '../../version.json'), 'utf8'));
+const windowsIcon = path.join(__dirname, 'app.ico');
 module.exports = {
   packagerConfig: {
     asar: true,
+    ...(process.platform === 'win32' ? {icon: windowsIcon} : {}),
     prune: false,
     executableName: 'Z2M-Automations',
     appVersion: metadata.version,
@@ -23,6 +25,7 @@ module.exports = {
   }},
   makers: [
     new WindowsMaker({oneClick: false, perMachine: false, allowElevation: true,
+      installerIcon: windowsIcon, uninstallerIcon: windowsIcon,
       include: path.join(__dirname, 'installer.nsh'),
       allowToChangeInstallationDirectory: true, installerLanguages: ['de_DE', 'en_US'],
       displayLanguageSelector: true, runAfterFinish: true, deleteAppDataOnUninstall: false,

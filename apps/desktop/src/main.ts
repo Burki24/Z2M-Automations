@@ -126,7 +126,7 @@ async function network(command: NetworkCommand): Promise<unknown> {
 async function open(): Promise<void> {
   Menu.setApplicationMenu(null);
   const assets = new Set(readdirSync(assetsRoot, {recursive: true}).filter((name): name is string => typeof name === 'string').map(name => name.replaceAll('\\', '/')));
-  const mime: Record<string, string> = {'.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json'};
+  const mime: Record<string, string> = {'.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json'};
   protocol.handle('z2ma', request => {
     const name = assetPath(request.url, request.method, assets);
     if (!name || !mime[extname(name)]) return new Response(null, {status: 404});
@@ -280,6 +280,7 @@ async function open(): Promise<void> {
       await wait(() => document.querySelector('#designer-system')?.options.length === 2);
       const bridge = window.z2maDesktop;
       const header = document.querySelector('.app-header');
+      await wait(() => header.querySelector('.brand-mark img')?.naturalWidth > 0);
       if (!(header.compareDocumentPosition(document.querySelector('#local-project')) & Node.DOCUMENT_POSITION_FOLLOWING)) throw new Error('Desktop header is below project controls');
       const theme = document.querySelector('#desktop-theme');
       for (const value of ['dark', 'light', 'system']) {

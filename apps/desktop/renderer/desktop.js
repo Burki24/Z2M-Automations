@@ -73,6 +73,9 @@ async function installTheme() {
     } catch { /* The session still supports changing the theme. */ }
     await bridge.theme(preference);
     const label = document.createElement('label'); label.className = 'designer-language';
+    const mark = document.querySelector('.app-header .brand-mark');
+    const icon = document.createElement('img'); icon.src = 'app-mark.svg'; icon.alt = '';
+    mark.replaceChildren(icon);
     const caption = document.createElement('span'); bindText(caption, () => t('desktop.theme'));
     const select = document.createElement('select'); select.id = 'desktop-theme';
     for (const value of themeOptions) {
