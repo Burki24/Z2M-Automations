@@ -4,8 +4,8 @@ A standalone Zigbee2MQTT automation designer for **Windows and Ubuntu Linux**.
 The shared designer will manage up to eight systems on one or more MQTT brokers.
 Automations will run in our own Z2M extension, independently of the application.
 
-**Current state:** D6 operation passed Windows and Ubuntu CI. D7 prepares the
-installed beta workflow and native desktop acceptance. See the
+**Current state:** D6 operation passed Windows and Ubuntu CI. D7 installed beta acceptance
+is complete for Windows and Ubuntu Desktop 24.04 under Hyper-V. See the
 [beta user guide](docs/USER_GUIDE.md) and [D7 acceptance](docs/D7.md).
 
 ## Run the development application

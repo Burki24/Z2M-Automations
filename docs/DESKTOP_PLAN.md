@@ -5,12 +5,11 @@ As of 2026-11-09. This is the operational desktop agenda for the new repository
 Windows and Linux will be developed in parallel; **Ubuntu LTS x64** is the
 confirmed first Linux platform. The repository and development guidelines are
 prepared. D0 and D1 are complete for the shared offline foundation. Windows and
-Ubuntu 24.04 CI passed; native installed-app acceptance remains open. D2 local
+Ubuntu 24.04 CI passed. D2 local
 projects, drafts and credentials passed Windows/Ubuntu CI. D3 read-only MQTT
 passed Windows/Ubuntu CI. D4 local editing passed both platform jobs. D5
-installation and storage and D6 operation passed both platform jobs. D7 adds
-a beta user guide and installed-package CI checks. Native acceptance remains
-open. See [D6](D6.md) and [D7](D7.md).
+installation and storage and D6 operation passed both platform jobs. D7 is complete
+for Windows and Ubuntu Desktop 24.04 under Hyper-V. See [D6](D6.md) and [D7](D7.md).
 See [D1](D1.md), [D2](D2.md) and [D3](D3.md) for verification limits.
 Importing this plan did not change any Symcon or Z2M installation.
 
