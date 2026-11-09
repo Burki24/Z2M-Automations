@@ -266,12 +266,19 @@ async function open(): Promise<void> {
         for (let i = 0; i < 100 && !document.querySelector('#question').textContent; i++) await new Promise(resolve => setTimeout(resolve, 20));
         if (window.z2maDesktop || document.activeElement.id !== 'cancel' || document.querySelector('#detail b')
           || document.querySelector('#detail').textContent !== '<b>Synthetic detail</b>') return false;
-        if ('${action}' === 'escape') document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));
-        if ('${action}' === 'accept') document.querySelector('#accept').click();
         return true;
       })()`);
+      if (!verified) throw new Error('Confirmation view did not initialize: ' + action);
       if (action === 'close') child.close();
-      if (!verified || await response !== (action === 'accept')) throw new Error('Confirmation interaction failed: ' + action);
+      else {
+        const interaction = action === 'escape'
+          ? "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))"
+          : "document.querySelector('#accept').click()";
+        // The interaction resolves the dialog and may destroy the frame before
+        // Electron acknowledges the evaluation. The dialog result is authoritative.
+        void child.webContents.executeJavaScript(interaction).catch(() => {});
+      }
+      if (await response !== (action === 'accept')) throw new Error('Confirmation interaction failed: ' + action);
     }
     console.log('DESKTOP_CONFIRMATION_OK cancel-focus/escape/close/confirm');
     // Fixed, offline assertions only; no evaluation or control endpoint is exposed.
