@@ -1312,6 +1312,7 @@
     "project.saveAs": "Speichern unter",
     "project.export": "Exportieren",
     "project.restore": "Sicherung wiederherstellen",
+    "project.closeDialog": "Schließen",
     "project.cancel": "Abbrechen",
     "project.continue": "Fortfahren",
     "project.discard": "Ungespeicherte Änderungen verwerfen?",

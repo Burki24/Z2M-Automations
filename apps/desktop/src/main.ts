@@ -1,3 +1,4 @@
+import {showConfirmation} from './confirmation.js';
 import {RuntimeControl} from './runtime-control.js';
 import {app, BrowserWindow, ipcMain, protocol, session, Menu, nativeTheme, dialog, safeStorage} from 'electron';
 import {readFileSync, mkdtempSync, readdirSync, rmSync, mkdirSync, writeFileSync} from 'node:fs';
@@ -142,12 +143,11 @@ async function open(): Promise<void> {
   const view = window.webContents;
   language = app.getLocale().startsWith('de') ? 'de' : 'en';
   const vault = new Credentials(join(app.getPath('userData'), 'credentials'), osProtection(safeStorage, process.platform), process.platform);
-  const confirm = async (key: string): Promise<boolean> => {
-    if (smoke) return true;
-    if (!window) return false;
-    const result = await dialog.showMessageBox(window, {type: 'warning', message: message(key), buttons: [message('cancel'), message('continue')], defaultId: 0, cancelId: 0, noLink: true});
-    return result.response === 1;
-  };
+  const reviewDialog = (key: string, detail?: string, notice = false): Promise<boolean> => window
+    ? showConfirmation(window, {language, question: message(key), ...(detail === undefined ? {} : {detail}),
+      cancel: message(notice ? 'closeDialog' : 'cancel'), ...(notice ? {} : {accept: message('continue')})})
+    : Promise.resolve(false);
+  const confirm = (key: string): Promise<boolean> => smoke ? Promise.resolve(true) : reviewDialog(key);
   projects = new ProjectService(vault, {
     chooseOpen: async () => {
       if (smoke) return join(app.getPath('userData'), 'synthetic.z2ma');
@@ -194,43 +194,44 @@ async function open(): Promise<void> {
   };
   transfers = new ExtensionTransfer(projects, reader, {
     backup: async (conflict, review) => {
-      if (conflict && review && window) await dialog.showMessageBox(window, {type: 'warning', message: message('transferConflict'),
-        detail: message('transferConflictDetail').replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? ''))});
+      if (conflict && review) await reviewDialog('transferConflict',
+        message('transferConflictDetail').replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? '')), true);
       return chooseDraft(conflict ? 'transferConflictBackup' : 'transferBackup', 'z2ma', false);
     },
     confirm: async (action, review) => {
       if (!window || smoke) return false;
       const detail = message(action === 'store' ? 'transferStoreDetail' : 'transferInstallDetail')
         .replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? ''));
-      const result = await dialog.showMessageBox(window, {type: 'warning', message: message(action === 'store' ? 'transferStoreConfirm' : 'transferInstallConfirm'), detail,
-        buttons: [message('cancel'), message('continue')], defaultId: 0, cancelId: 0, noLink: true});
-      return result.response === 1;
+      return reviewDialog(action === 'store' ? 'transferStoreConfirm' : 'transferInstallConfirm', detail);
     }
   });
   runtime = new RuntimeControl(projects, reader, async (action, review) => {
     if (!window || smoke) return false;
     const detail = message('runtimeTarget').replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? ''))
       + (action === 'activate' ? '\n' + message(review.recovery ? 'runtimeRecoveryOn' : 'runtimeRecoveryOff').replace('{{enabled}}', String(review.enabled)) : '');
-    const result = await dialog.showMessageBox(window, {type: 'warning', message: message('runtime_' + action), detail,
-      buttons: [message('cancel'), message('continue')], defaultId: 0, cancelId: 0, noLink: true});
-    return result.response === 1;
+    return reviewDialog('runtime_' + action, detail);
   });
   exchange = new DraftExchange(projects, drafts, {
     chooseImport: () => chooseDraft('importDraft', 'yaml', true), chooseExport: () => chooseDraft('exportDraft', 'yaml', false),
     chooseBackup: () => chooseDraft('backupDraft', 'z2ma', false),
     confirm: async summary => {
       if (!window || smoke) return false;
-      const result = await dialog.showMessageBox(window, {type: 'warning', message: message('replaceDraft'),
-        detail: message('importSummary').replace('{{oldRules}}', String(summary.oldRules)).replace('{{rules}}', String(summary.rules))
-          .replace('{{sequences}}', String(summary.sequences)).replace('{{peers}}', String(summary.peers)),
-        buttons: [message('cancel'), message('continue')], defaultId: 0, cancelId: 0, noLink: true}); return result.response === 1;
+      return reviewDialog('replaceDraft', message('importSummary').replace('{{oldRules}}', String(summary.oldRules))
+        .replace('{{rules}}', String(summary.rules)).replace('{{sequences}}', String(summary.sequences)).replace('{{peers}}', String(summary.peers)));
     }
   });
   let closing = false;
+  let closeReview = false;
   window.on('close', event => {
     if (closing || !projects.isDirty()) return;
     event.preventDefault();
-    void projects.serialize(async () => { if (await confirm('discard')) { closing = true; window?.close(); } });
+    if (closeReview) return;
+    closeReview = true;
+    void projects.serialize(async () => {
+      try {
+        if (!projects.isDirty() || await confirm('discard')) { closing = true; window?.close(); }
+      } finally { closeReview = false; }
+    });
   });
   view.setWindowOpenHandler(() => ({action: 'deny'}));
   view.on('will-navigate', event => event.preventDefault());
@@ -254,6 +255,24 @@ async function open(): Promise<void> {
   await window.loadURL(entryURL);
   debug.record('ready');
   if (smoke) {
+    for (const action of ['escape', 'close', 'accept']) {
+      const response = showConfirmation(window, {language: 'en', question: 'Synthetic confirmation', detail: '<b>Synthetic detail</b>',
+        cancel: 'Cancel', accept: 'Continue'});
+      const child = window.getChildWindows()[0];
+      if (!child) throw new Error('Confirmation is not attached to the application');
+      if (child.webContents.isLoadingMainFrame()) await new Promise<void>(resolve => child.webContents.once('did-finish-load', () => resolve()));
+      const verified = await child.webContents.executeJavaScript(`(async () => {
+        for (let i = 0; i < 100 && !document.querySelector('#question').textContent; i++) await new Promise(resolve => setTimeout(resolve, 20));
+        if (window.z2maDesktop || document.activeElement.id !== 'cancel' || document.querySelector('#detail b')
+          || document.querySelector('#detail').textContent !== '<b>Synthetic detail</b>') return false;
+        if ('${action}' === 'escape') document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));
+        if ('${action}' === 'accept') document.querySelector('#accept').click();
+        return true;
+      })()`);
+      if (action === 'close') child.close();
+      if (!verified || await response !== (action === 'accept')) throw new Error('Confirmation interaction failed: ' + action);
+    }
+    console.log('DESKTOP_CONFIRMATION_OK cancel-focus/escape/close/confirm');
     // Fixed, offline assertions only; no evaluation or control endpoint is exposed.
     const result: unknown = await view.executeJavaScript(`(async () => {
       const wait = async test => { for (let n = 0; n < 100; n++) { if (test()) return; await new Promise(r => setTimeout(r, 50)); } throw new Error('View timeout: ' + document.body.textContent.slice(-500)); };

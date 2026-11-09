@@ -1312,6 +1312,7 @@
     "project.saveAs": "Save as",
     "project.export": "Export",
     "project.restore": "Restore backup",
+    "project.closeDialog": "Close",
     "project.cancel": "Cancel",
     "project.continue": "Continue",
     "project.discard": "Discard unsaved changes?",
