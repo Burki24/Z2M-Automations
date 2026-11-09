@@ -171,12 +171,15 @@ export async function installProjects(bridge) {
   });
   const credentialForm = form('credentials'); brokerForm.after(credentialForm);
   const mode = select(credentialForm, 'credentialMode');
+  const modeHint = document.createElement('p'); modeHint.id = 'project-credential-mode-hint';
+  bindText(modeHint, () => t('project.chooseCredentialStorageFirst')); credentialForm.append(modeHint);
+  mode.setAttribute('aria-describedby', modeHint.id);
   const secretState = document.createElement('p'); credentialForm.append(secretState);
   const secretHelp = document.createElement('p'); bindText(secretHelp, () => t('project.secretHelp')); credentialForm.append(secretHelp);
   async function credential(source) {
     const remove = source === 'remove';
     const brokerId = brokerChoice.value;
-    if (busy || !brokerId || pending.has(brokerForm)) return;
+    if (busy || !brokerId || pending.has(brokerForm) || (!remove && !mode.value)) return;
     busy = true;
     try {
       const input = {brokerId, mode: remove ? 'remove' : mode.value, ...(source === 'manual' ? {source} : {})};
@@ -187,15 +190,15 @@ export async function installProjects(bridge) {
     } catch { show('failed'); }
     finally { busy = false; }
   }
-  const credentialButtons = [
-    button(credentialForm, 'enterCredentials', () => credential('manual')),
-    button(credentialForm, 'storeCredentials', () => credential()),
-    button(credentialForm, 'removeCredentials', () => credential('remove'))
-  ];
+  const enterCredentials = button(credentialForm, 'enterCredentials', () => credential('manual'));
+  const importCredentials = button(credentialForm, 'storeCredentials', () => credential());
+  const removeCredentials = button(credentialForm, 'removeCredentials', () => credential('remove'));
+  mode.addEventListener('input', paintSecretState);
   function paintSecretState() {
     const available = Boolean(brokerChoice.value) && !pending.has(brokerForm);
     mode.disabled = !available;
-    for (const action of credentialButtons) action.disabled = !available;
+    enterCredentials.disabled = importCredentials.disabled = !available || !mode.value;
+    removeCredentials.disabled = !available;
     bindText(secretState, () => available ? t('project.secret.' + (state?.credentials[brokerChoice.value] ?? 'none'))
       : t('project.applyBrokerForCredentials'));
   }

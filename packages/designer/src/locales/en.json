@@ -1365,6 +1365,7 @@
     "project.credentialPromptUnavailable": "The entry dialog is unavailable. On Ubuntu it requires Zenity. You can still import a JSON file.",
     "project.storeCredentials": "Import credentials",
     "project.removeCredentials": "Remove credentials",
+    "project.chooseCredentialStorageFirst": "Choose a storage option first. This enables manual entry and the JSON file picker.",
     "project.secretHelp": "Enter a username and password directly or import a private JSON file. Without OS protection, only session storage is available. An imported file is retained.",
     "project.secret.none": "No credentials stored",
     "project.secret.session": "Available only for this session",

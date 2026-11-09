@@ -1365,6 +1365,7 @@
     "project.credentialPromptUnavailable": "Der Eingabedialog ist nicht verfügbar. Unter Ubuntu benötigt er Zenity. Du kannst weiterhin eine JSON-Datei importieren.",
     "project.storeCredentials": "Zugangsdaten importieren",
     "project.removeCredentials": "Zugangsdaten entfernen",
+    "project.chooseCredentialStorageFirst": "Wähle zuerst eine Ablage. Erst dann lassen sich die Eingabemaske und der JSON-Dateidialog öffnen.",
     "project.secretHelp": "Benutzername und Passwort direkt eingeben oder aus einer privaten JSON-Datei importieren. Ohne Betriebssystemschutz ist nur die Sitzungsablage möglich. Eine importierte Datei bleibt erhalten.",
     "project.secret.none": "Keine Zugangsdaten hinterlegt",
     "project.secret.session": "Nur in dieser Sitzung verfügbar",
