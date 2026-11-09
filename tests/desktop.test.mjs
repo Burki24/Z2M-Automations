@@ -50,7 +50,7 @@ test('Forge uses canonical application metadata for every maker without editing 
   assert.equal(deb.config.options.bin, forge.packagerConfig.executableName, 'Linux binary path is case-sensitive');
 });
 
-test('Windows installer offers a per-user directory wizard and packages the canonical version', async () => {
+test('Windows installer offers a choice of installation scope and directory and packages the canonical version', async () => {
   const forge = require('../apps/desktop/forge.config.cjs');
   const maker = forge.makers.find(maker => maker.name === 'nsis');
   await maker.prepareConfig('x64');
@@ -58,7 +58,7 @@ test('Windows installer offers a per-user directory wizard and packages the cano
   assert.equal(options.config.nsis.oneClick, false);
   assert.equal(options.config.nsis.allowToChangeInstallationDirectory, true);
   assert.equal(options.config.nsis.perMachine, false);
-  assert.equal(options.config.nsis.allowElevation, false);
+  assert.equal(options.config.nsis.allowElevation, true);
   assert.equal(options.config.nsis.deleteAppDataOnUninstall, false);
   assert.equal(options.config.nsis.runAfterFinish, true);
   assert.equal(options.config.nsis.createStartMenuShortcut, true);

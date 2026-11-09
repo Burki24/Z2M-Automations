@@ -280,6 +280,16 @@ async function open(): Promise<void> {
       if (diagnostics.end !== until || !diagnostics.events.some(e => e.code === 'systemSelected')) throw new Error('Debug missing');
       await bridge.recording('stop');
       if ((await bridge.diagnostics()).active) throw new Error('Recording not stopped');
+      const openRecording = document.querySelector('#desktop-open-recording');
+      const recordingEvents = document.querySelector('#desktop-recording-events');
+      openRecording.closest('details').open = true;
+      await wait(() => !openRecording.disabled);
+      if (!recordingEvents.hidden) throw new Error('Recording expanded by default');
+      openRecording.click();
+      if (recordingEvents.hidden || !recordingEvents.children.length || openRecording.getAttribute('aria-expanded') !== 'true') throw new Error('Recording did not open');
+      openRecording.click();
+      if (!recordingEvents.hidden || (await bridge.diagnostics()).active) throw new Error('Closing the recording changed its state');
+      openRecording.closest('details').open = false;
       let rejected = false; try { await bridge.selectSystem('untrusted'); } catch { rejected = true; }
       if (!rejected) throw new Error('Invalid system accepted');
       const hidden = [...document.querySelectorAll('.designer-menu,.designer-controls,#new-automation-button')].every(e => getComputedStyle(e).display === 'none' || e.hidden);

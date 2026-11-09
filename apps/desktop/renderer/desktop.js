@@ -37,13 +37,22 @@ const summary = document.createElement('summary'); bindText(summary, () => t('de
 const controls = document.createElement('div'); controls.className = 'desktop-debug-controls';
 const start = document.createElement('button'); start.type = 'button'; bindText(start, () => t('desktop.record'));
 const stop = document.createElement('button'); stop.type = 'button'; bindText(stop, () => t('desktop.stop'));
+const open = document.createElement('button'); open.type = 'button'; open.id = 'desktop-open-recording';
+open.setAttribute('aria-controls', 'desktop-recording-events');
 const status = document.createElement('span'); status.setAttribute('role', 'status');
-const events = document.createElement('ol');
-controls.append(start, stop, status); panel.append(summary, controls, events); document.body.append(panel);
+const events = document.createElement('ol'); events.id = 'desktop-recording-events'; events.hidden = true;
+function paintRecordingToggle() {
+    open.setAttribute('aria-expanded', String(!events.hidden));
+    bindText(open, () => t(events.hidden ? 'desktop.openRecording' : 'desktop.closeRecording'));
+}
+open.addEventListener('click', () => { events.hidden = !events.hidden; paintRecordingToggle(); });
+paintRecordingToggle();
+controls.append(start, stop, open, status); panel.append(summary, controls, events); document.body.append(panel);
 let recording = {active: false, end: 0, expired: false, events: []};
 function paint() {
     bindText(status, () => recording.active ? t('desktop.recording', {time: formatDate(recording.end)}) : t(recording.expired ? 'desktop.expired' : 'desktop.idle'));
     start.disabled = recording.active; stop.disabled = !recording.active;
+    open.disabled = events.hidden && recording.events.length === 0;
     events.replaceChildren(...recording.events.map(event => {
         const row = document.createElement('li');
         bindText(row, () => formatDate(event.time) + ' · ' + t('desktop.' + event.code) + ' · #' + event.request + (event.operation ? ' · ' + t('project.' + event.operation) : '') + (event.reason ? ' · ' + t('mqtt.error.' + event.reason) : '') + (event.system ? ' · ' + event.system : '') + (event.broker ? ' · ' + event.broker : '') + (event.transaction ? ' · ' + event.transaction : '') + (event.language ? ' · ' + event.language : '') + (event.run ? ' · ' + event.rule + ' · ' + event.run + ' · ' + t('mqtt.runStep', {state: t('mqtt.run.' + event.state), step: event.step}) : ''));

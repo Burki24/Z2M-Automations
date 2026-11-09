@@ -22,7 +22,7 @@ module.exports = {
     stageRuntimeDependencies(directory);
   }},
   makers: [
-    new WindowsMaker({oneClick: false, perMachine: false, allowElevation: false,
+    new WindowsMaker({oneClick: false, perMachine: false, allowElevation: true,
       include: path.join(__dirname, 'installer.nsh'),
       allowToChangeInstallationDirectory: true, installerLanguages: ['de_DE', 'en_US'],
       displayLanguageSelector: true, runAfterFinish: true, deleteAppDataOnUninstall: false,

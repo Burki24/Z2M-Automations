@@ -1277,6 +1277,8 @@
     "desktop.diagnostics": "Desktop diagnostics",
     "desktop.record": "Record for one minute",
     "desktop.stop": "Stop recording",
+    "desktop.openRecording": "Open recording",
+    "desktop.closeRecording": "Close recording",
     "desktop.idle": "Recording stopped",
     "desktop.recording": "Recording active until {{time}}",
     "desktop.expired": "Recording ended automatically",

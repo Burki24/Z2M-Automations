@@ -6,11 +6,12 @@ per-user installation path did not meet the requested directory selection.
 Ubuntu continues using the existing Forge Debian maker.
 
 Run `Z2M-Automations-<version>-Windows-x64-Setup.exe`, select German or English,
-then choose a dedicated installation directory, for example
-`E:\Programs\Z2M-Automations`. The installer runs per user without elevation.
+then choose whether to install for the current user or all users. Windows
+requests administrator approval for the all-users option. Choose a dedicated
+installation directory, for example
+`E:\Programs\Z2M-Automations`. The current-user option runs without elevation.
 Its completion page offers a localized checkbox to start the application when
-finishing; clear it to finish without launching. Setup creates a per-user Start
-menu entry named `Z2M-Automations`. Windows lists the installed app
+finishing; clear it to finish without launching. Setup creates a Start menu entry in the selected scope named `Z2M-Automations`. Windows lists the installed app
 for uninstallation. Uninstall preserves application user data and credentials.
 
 The chosen directory contains application binaries and the uninstaller.
@@ -42,7 +43,7 @@ through the lockfile; their integrity-checked NSIS/7-Zip downloads happen at bui
 time. `setup:tools` now invokes only the reviewed Electron download lifecycle.
 No installer or application auto-update/publishing is enabled.
 
-The configuration test checks directory selection, per-user/no-elevation mode,
+The configuration test checks directory selection, selection of installation scope and elevation for all users,
 both languages, preserved user data and canonical version propagation. Local
 Windows `npm run verify` (45 tests), NSIS `npm run make` and packaged Electron/MQTT smoke passed. GUI
 automation was unavailable in this session. A real silent per-user installation
