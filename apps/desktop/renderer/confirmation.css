@@ -5,4 +5,5 @@ p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 footer { display: flex; flex-wrap: wrap; justify-content: end; gap: .5rem; margin-top: auto; }
 button { padding: .5rem .8rem; border-radius: .5rem; border: 1px solid var(--line-strong); background: var(--surface-soft); color: var(--ink); }
 button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-#accept { background: var(--primary); color: var(--on-primary); }
+button[hidden] { display: none; }
+#save, #accept { background: var(--primary); color: var(--on-primary); }

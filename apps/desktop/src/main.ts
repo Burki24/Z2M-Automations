@@ -1,4 +1,4 @@
-import {showConfirmation} from './confirmation.js';
+import {showConfirmation, showConfirmationChoice} from './confirmation.js';
 import {RuntimeControl} from './runtime-control.js';
 import {app, BrowserWindow, ipcMain, protocol, session, Menu, nativeTheme, dialog, safeStorage} from 'electron';
 import {readFileSync, mkdtempSync, readdirSync, rmSync, mkdirSync, writeFileSync} from 'node:fs';
@@ -233,7 +233,24 @@ async function open(): Promise<void> {
     closeReview = true;
     void projects.serialize(async () => {
       try {
-        if (!projects.isDirty() || await confirm('discard')) { closing = true; window?.close(); }
+        if (projects.isDirty() && !smoke && window) {
+          const pending = projects.hasPendingInput();
+          const choice = await showConfirmationChoice(window, {language, question: message('closeUnsaved'),
+            cancel: message('cancel'), accept: message('discardAndClose'), save: message('save'),
+            ...(pending ? {saveDisabled: true, detail: message('applyFirst')} : {})});
+          if (choice === false) return;
+          if (choice === 'save') {
+            try { await projects.command({action: 'save'}); }
+            catch (error) {
+              const key = error instanceof Error && ['applyFirst', 'fileConflict'].includes(error.message) ? error.message : 'failed';
+              await reviewDialog(key, undefined, true);
+              return;
+            }
+            if (projects.isDirty()) return;
+          }
+        }
+        closing = true;
+        window?.close();
       } finally { closeReview = false; }
     });
   });
@@ -259,9 +276,9 @@ async function open(): Promise<void> {
   await window.loadURL(entryURL);
   debug.record('ready');
   if (smoke) {
-    for (const action of ['escape', 'close', 'accept']) {
-      const response = showConfirmation(window, {language: 'en', question: 'Synthetic confirmation', detail: '<b>Synthetic detail</b>',
-        cancel: 'Cancel', accept: 'Continue'});
+    for (const action of ['escape', 'close', 'accept', 'save']) {
+      const response = showConfirmationChoice(window, {language: 'en', question: 'Synthetic confirmation', detail: '<b>Synthetic detail</b>',
+        cancel: 'Cancel', accept: 'Continue', ...(action === 'save' ? {save: 'Save'} : {})});
       const child = window.getChildWindows()[0];
       if (!child) throw new Error('Confirmation is not attached to the application');
       if (child.webContents.isLoadingMainFrame()) await new Promise<void>(resolve => child.webContents.once('did-finish-load', () => resolve()));
@@ -276,12 +293,12 @@ async function open(): Promise<void> {
       else {
         const interaction = action === 'escape'
           ? "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))"
-          : "document.querySelector('#accept').click()";
+          : action === 'save' ? "document.querySelector('#save').click()" : "document.querySelector('#accept').click()";
         // The interaction resolves the dialog and may destroy the frame before
         // Electron acknowledges the evaluation. The dialog result is authoritative.
         void child.webContents.executeJavaScript(interaction).catch(() => {});
       }
-      if (await response !== (action === 'accept')) throw new Error('Confirmation interaction failed: ' + action);
+      if (await response !== (action === 'save' ? 'save' : action === 'accept')) throw new Error('Confirmation interaction failed: ' + action);
     }
     console.log('DESKTOP_CONFIRMATION_OK cancel-focus/escape/close/confirm');
     // Fixed, offline assertions only; no evaluation or control endpoint is exposed.

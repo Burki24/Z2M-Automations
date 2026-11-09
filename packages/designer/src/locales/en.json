@@ -1319,6 +1319,8 @@
     "project.closeDialog": "Close",
     "project.cancel": "Cancel",
     "project.continue": "Continue",
+    "project.closeUnsaved": "Save unsaved changes before closing?",
+    "project.discardAndClose": "Close without saving",
     "project.discard": "Discard unsaved changes?",
     "project.restoreConfirm": "Replace the local draft with the last file backup? Z2M is unchanged.",
     "project.deleteConfirm": "Delete this local draft?",

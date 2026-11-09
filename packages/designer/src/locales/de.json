@@ -1319,6 +1319,8 @@
     "project.closeDialog": "Schließen",
     "project.cancel": "Abbrechen",
     "project.continue": "Fortfahren",
+    "project.closeUnsaved": "Ungespeicherte Änderungen vor dem Schließen speichern?",
+    "project.discardAndClose": "Ohne Speichern schließen",
     "project.discard": "Ungespeicherte Änderungen verwerfen?",
     "project.restoreConfirm": "Den lokalen Entwurf durch die letzte Dateisicherung ersetzen? Z2M bleibt unverändert.",
     "project.deleteConfirm": "Diesen lokalen Entwurf löschen?",
