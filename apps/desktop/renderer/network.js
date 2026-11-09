@@ -1,4 +1,4 @@
-import {t, bindText, onLanguageChange} from './localization.js';
+import {t, bindText, onLanguageChange, language} from './localization.js';
 
 export async function installNetwork(bridge, openBrokerSetup) {
   const panel = document.createElement('details'); panel.className = 'desktop-project'; panel.id = 'mqtt-panel';
@@ -96,10 +96,12 @@ export async function installNetwork(bridge, openBrokerSetup) {
       if (action === 'view' || action === 'catalog') await bridge.selectSystem(id);
       if (action === 'catalog') {
         const data = await bridge.snapshot();
-        const devices = data.devices.map(device => {
+        const {compare} = new Intl.Collator(language(), {numeric: true, sensitivity: 'base'});
+        const byName = (a, b) => compare(a.name, b.name);
+        const devices = data.devices.toSorted(byName).map(device => {
           const row = document.createElement('li'); row.textContent = device.name + ' · ' + device.properties.map(property => property.label).join(', '); return row;
         });
-        const scenes = (data.scenes ?? []).map(scene => {
+        const scenes = (data.scenes ?? []).toSorted(byName).map(scene => {
           const row = document.createElement('li'); const target = data.devices.find(device => device.target.type === scene.target.type && device.target.id === scene.target.id);
           bindText(row, () => scene.name + ' · ' + (target?.name ?? '') + ' · #' + scene.id + (scene.endpoint ? ' · ' + t('mqtt.channel', {channel: scene.endpoint}) : '')); return row;
         });
@@ -128,6 +130,21 @@ export async function installNetwork(bridge, openBrokerSetup) {
   bindText(setupBroker, () => t('mqtt.setupBroker'));
   setupBroker.addEventListener('click', openBrokerSetup);
   brokers.closest('label').after(setupBroker);
+  const draftShortcut = document.createElement('button'); draftShortcut.type = 'button'; draftShortcut.id = 'desktop-switch-to-draft';
+  bindText(draftShortcut, () => t('mqtt.switchToDraft'));
+  draftShortcut.addEventListener('click', async () => {
+    if (draftShortcut.disabled) return;
+    draftShortcut.disabled = true;
+    try {
+      const view = await bridge.snapshot();
+      if (view.desktop.source !== 'stored' || !view.workspaceContext?.systemId) return;
+      const result = await bridge.network({action: 'view', id: view.workspaceContext.systemId, source: 'draft'});
+      if (!result.ok) throw new Error();
+      changed();
+    } catch { bindText(document.querySelector('#feedback'), () => t('project.failed')); }
+    finally { draftShortcut.disabled = false; }
+  });
+  document.querySelector('#draft-status').after(draftShortcut);
   const caution = document.createElement('p'); bindText(caution, () => t('mqtt.tlsHelp')); panel.append(caution);
   document.querySelector('#local-project').after(panel);
   document.addEventListener('z2ma-project-changed', () => { if (!emitting) void refresh(); });

@@ -1396,6 +1396,7 @@
     "project.invalidCredentials": "Gib einen gültigen Benutzernamen und ein nicht leeres Passwort ein oder prüfe die JSON-Datei.",
     "mqtt.title": "MQTT-Verbindungen und Übertragung",
     "mqtt.help": "Ein Broker kann mehrere Systeme bedienen. Erst Verbinden baut eine Verbindung auf. Entwürfe bleiben getrennt vom gelesenen Z2M-Stand.",
+    "mqtt.switchToDraft": "Zum lokalen Entwurf wechseln",
     "mqtt.broker": "Broker",
     "mqtt.setupBroker": "Broker einrichten",
     "mqtt.system": "System",

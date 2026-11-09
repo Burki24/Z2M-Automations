@@ -21,6 +21,7 @@
 .desktop-debug ol { max-height: 14rem; overflow: auto; padding-inline-start: 2rem; }
 .desktop-debug li { padding: .3rem 0; overflow-wrap: anywhere; }
 
+.desktop-foundation:not(.desktop-stored-view) #desktop-switch-to-draft { display: none; }
 .desktop-foundation .preview-notice { display: flex; flex-wrap: wrap; }
 .desktop-foundation .system-selector > span { display: none; }
 .desktop-project { margin: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: .75rem; }

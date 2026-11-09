@@ -30,8 +30,11 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     document.querySelector('#mqtt-catalog').click();
     await wait(() => document.querySelector('#mqtt-catalog-view').textContent.includes('Synthetic scene'));
     await wait(() => !document.querySelector('#mqtt-panel').hasAttribute('aria-busy'));
-    document.querySelector('#mqtt-draft').click();
+    const draftShortcut = document.querySelector('#desktop-switch-to-draft');
+    assert(getComputedStyle(draftShortcut).display !== 'none', 'draft shortcut hidden in stored view');
+    draftShortcut.click();
     await wait(async () => (await state()).systems[0].source === 'draft');
+    await wait(() => getComputedStyle(draftShortcut).display === 'none');
     assert(JSON.stringify((await bridge.snapshot()).configuration) === draft, 'draft view changed');
     assert(!(await bridge.network({action: 'store', id})).ok, 'smoke profile permitted a transfer');
     assert(!(await bridge.network({action: 'publish', id, topic: 'synthetic/device/set', payload: 'ON'})).ok, 'raw publish accepted');

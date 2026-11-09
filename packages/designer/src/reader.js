@@ -324,7 +324,10 @@ import {installNativeEmbedding} from './embedding.js';
                 $('#search').value = view?.search ?? '';
             }
             data = next; systemId = nextSystem; updateSystems(data);
-            if (isDesktop()) document.body.classList.toggle('desktop-editable', !!data.desktop?.project && data.desktop.source === 'draft');
+            if (isDesktop()) {
+                document.body.classList.toggle('desktop-editable', !!data.desktop?.project && data.desktop.source === 'draft');
+                document.body.classList.toggle('desktop-stored-view', data.desktop?.source === 'stored');
+            }
             paintStatus();
             if (typeof preferredRule === 'string' && data.configuration?.automations.some(rule => rule.id === preferredRule)) {
                 category = entries().find(entry => entry.id === preferredRule && entry.kind !== 'sequence').kind; selected = 'rule:' + preferredRule; selectedPart = null; $('#search').value = '';

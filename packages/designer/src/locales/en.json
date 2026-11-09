@@ -1396,6 +1396,7 @@
     "project.invalidCredentials": "Enter a valid username and a non-empty password or check the JSON file.",
     "mqtt.title": "MQTT connections and transfer",
     "mqtt.help": "One broker can serve multiple systems. Only Connect establishes a connection. Drafts stay separate from the stored Z2M state.",
+    "mqtt.switchToDraft": "Switch to local draft",
     "mqtt.broker": "Broker",
     "mqtt.setupBroker": "Set up broker",
     "mqtt.system": "System",
