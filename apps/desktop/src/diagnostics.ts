@@ -1,9 +1,10 @@
+import {ruleId, uuid, type Execution} from './mqtt-protocol.js';
 import {validId} from './project.js';
-export type EventCode = 'ready' | 'snapshotRead' | 'systemSelected' | 'languageChanged' | 'rejected' | 'projectRequest' | 'projectChanged' | 'credentialRequest' | 'projectFailed' | 'mqttConnect' | 'mqttConnected' | 'mqttDisconnected' | 'mqttFailure' | 'mqttRead' | 'mqttReadComplete' | 'mqttTransfer' | 'mqttReply' | 'draftRequest' | 'draftCompleted' | 'draftRejected';
-const operations = ['status', 'new', 'open', 'save', 'saveAs', 'export', 'restore', 'editing', 'edited', 'rename', 'broker', 'system', 'draft', 'storeCredentials', 'removeCredentials', 'read', 'connect', 'disconnect', 'validate', 'store', 'install'] as const;
+export type EventCode = 'ready' | 'snapshotRead' | 'systemSelected' | 'languageChanged' | 'rejected' | 'projectRequest' | 'projectChanged' | 'credentialRequest' | 'projectFailed' | 'mqttConnect' | 'mqttConnected' | 'mqttDisconnected' | 'mqttFailure' | 'mqttRead' | 'mqttReadComplete' | 'mqttTransfer' | 'mqttReply' | 'draftRequest' | 'draftCompleted' | 'draftRejected' | 'execution';
+const operations = ['status', 'new', 'open', 'save', 'saveAs', 'export', 'restore', 'editing', 'edited', 'rename', 'broker', 'system', 'draft', 'storeCredentials', 'removeCredentials', 'read', 'connect', 'disconnect', 'validate', 'store', 'install', 'activate', 'deactivate', 'run_once', 'stop_rule'] as const;
 type Operation = typeof operations[number];
 const reasons = ['timeout', 'protocol', 'stale', 'disconnected', 'remoteError', 'readError', 'connectionError', 'tlsError', 'authentication', 'permission'] as const;
-export interface DebugEvent { time: number; code: EventCode; request: number; system?: string; language?: string; operation?: Operation; transaction?: string; broker?: string; reason?: string }
+export interface DebugEvent { time: number; code: EventCode; request: number; system?: string; language?: string; operation?: Operation; transaction?: string; broker?: string; reason?: string; rule?: string; run?: string; state?: string; step?: number }
 export class Diagnostics {
   private events: DebugEvent[] = [];
   private end = 0;
@@ -24,6 +25,11 @@ export class Diagnostics {
     this.events.push(event);
     if (this.events.length > 200) this.events.shift();
     return event.request;
+  }
+  execution(system: string, run: Execution['runs'][number]): void {
+    if (!ruleId(run.rule) || !uuid(run.run) || !['running', 'stopped', 'completed', 'skipped', 'failed'].includes(run.state)
+      || !Number.isSafeInteger(run.step) || run.step < 0 || this.record('execution', system) === undefined) return;
+    Object.assign(this.events.at(-1)!, {rule: run.rule, run: run.run, state: run.state, step: run.step});
   }
   private active(): boolean {
     if (this.end && this.clock() >= this.end) { this.end = 0; this.expired = true; }

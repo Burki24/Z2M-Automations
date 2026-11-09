@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
+import {isDeepStrictEqual} from 'node:util';
 import {join} from 'node:path';
 import {exportDraft} from './draft-exchange.js';
 import {checkCapabilities, checkedDocument} from './draft-validation.js';
@@ -19,15 +20,16 @@ if (!/^[a-f0-9]{64}$/.test(manifest.build) || !/^\d+\.\d+\.\d+$/.test(manifest.v
 
 export const bundledExtension = {version: manifest.version, build: manifest.build};
 type Wire = ReturnType<MqttReader['transfer']>;
-type Action = 'validate' | 'store' | 'install' | 'checkTransfer';
-type Review = {system: string; topic: string; broker: string; revision: number; next: number; rules: number; changes: string; build: string};
+type Action = 'validateEnabled' | 'validate' | 'store' | 'install' | 'checkTransfer';
+type Review = {system: string; topic: string; broker: string; revision: number; next: number; rules: number; enabled: number; changes: string; build: string};
 interface Dialogs {
   confirm(action: 'store' | 'install', review: Review): Promise<boolean>;
   backup(conflict: boolean, review?: Review): Promise<string | null>;
 }
 interface Receipt {base: RemoteStatus; yaml: string; checksum: string; configuration: Configuration; draft: string; assertCurrent(): void}
+const running = (status: RemoteStatus) => status.executing || status.resumeEnabled || status.execution?.runs.some(run => run.state === 'running');
 const same = (a: RemoteStatus, b: RemoteStatus) => a.session === b.session && a.build === b.build
-  && a.revision === b.revision && a.checksum === b.checksum && a.executing === b.executing && a.resumeEnabled === b.resumeEnabled;
+  && a.revision === b.revision && a.checksum === b.checksum && a.executing === b.executing && a.resumeEnabled === b.resumeEnabled && Boolean(running(a)) === Boolean(running(b));
 const checksumOf = (config: Configuration) => sha(JSON.stringify(config));
 
 export class ExtensionTransfer {
@@ -50,7 +52,7 @@ export class ExtensionTransfer {
     const pending = this.uncertain.get(key);
     if (!pending) return;
     const current = await wire.status().catch(() => { throw new Error('transferUncertain'); });
-    if (pending.action === 'store' && current.checksum === pending.checksum && !current.executing && !current.resumeEnabled) {
+    if (pending.action === 'store' && current.checksum === pending.checksum && !running(current)) {
       const remote = await this.read(wire);
       if (!same(current, remote.status)) throw new Error('transferUncertain');
       this.observe(id, remote);
@@ -94,11 +96,17 @@ export class ExtensionTransfer {
       if (path) await this.projects.backup(path);
       throw new Error('transferConflict');
     }
-    if (action === 'validate') {
+    if (action === 'validate' || action === 'validateEnabled') {
       this.receipts.delete(id);
       const configuration = checkedDocument(structuredClone(system.configuration));
       configuration.revision = base.revision + 1;
-      for (const rule of configuration.automations) rule['enabled'] = false;
+      if (action === 'validateEnabled') {
+        const withoutFlags = (document: Configuration) => ({...document, revision: 0,
+          automations: document.automations.map(rule => ({...rule, enabled: false}))});
+        if (!base.revision || !isDeepStrictEqual(withoutFlags(configuration), withoutFlags(remote.configuration))) throw new Error('runtimeFlagsOnly');
+      } else {
+        for (const rule of configuration.automations) rule['enabled'] = false;
+      }
       await this.checkCatalog(project, system, configuration, remote);
       const yaml = exportDraft(configuration).toString('utf8'); const checksum = sha(yaml);
       if (Buffer.byteLength(yaml) > 131072) throw new Error('draftLimit');
@@ -112,7 +120,7 @@ export class ExtensionTransfer {
     this.receipts.delete(id);
     if (!receipt || !same(receipt.base, base) || receipt.draft !== checksumOf(system.configuration)) throw new Error('transferValidateFirst');
     receipt.assertCurrent();
-    if (base.executing || base.resumeEnabled) throw new Error('transferRunning');
+    if (running(base)) throw new Error('transferRunning');
     if (!await this.dialogs.confirm('store', this.review(system, base, receipt.configuration, remote.configuration))) return 'transferCanceled';
     if (base.revision) {
       this.observe(id, remote);
@@ -137,7 +145,7 @@ export class ExtensionTransfer {
         || result['automation_count'] !== receipt.configuration.automations.length || result['executing'] !== false || result['storage'] !== 'ok') throw new Error();
       const stored = await this.read(wire);
       if (stored.status.session !== base.session || stored.status.build !== base.build || stored.status.checksum !== receipt.checksum
-        || stored.status.revision !== receipt.configuration.revision || stored.status.executing || stored.status.resumeEnabled) throw new Error();
+        || stored.status.revision !== receipt.configuration.revision || running(stored.status)) throw new Error();
       this.observe(id, stored); this.projects.acceptStoredBase(id);
       this.uncertain.delete(uncertaintyKey);
       return 'transferStored';
@@ -175,7 +183,7 @@ export class ExtensionTransfer {
     const broker = this.projects.data().brokers.find(item => item.id === system.brokerId);
     return {system: system.name, topic: system.baseTopic, broker: broker ? broker.name + ' (' + broker.host + ':' + broker.port + ')' : '—',
       revision: base?.revision ?? 0, next: next?.revision ?? 0,
-      rules: next?.automations.length ?? 0, changes: changes.slice(0, 16).join(', ') + (changes.length > 16 ? ' …' : ''),
+      rules: next?.automations.length ?? 0, enabled: next?.automations.filter(rule => rule['enabled'] === true).length ?? 0, changes: changes.slice(0, 16).join(', ') + (changes.length > 16 ? ' …' : ''),
       build: (base?.build?.slice(0, 12) ?? '—') + ' → ' + manifest.build.slice(0, 12)};
   }
   private async install(key: string, system: ProjectSystem, wire: Wire): Promise<string> {
@@ -189,7 +197,7 @@ export class ExtensionTransfer {
     };
     const base = await probe();
     if (base?.build === manifest.build) return 'transferInstalled';
-    if (base?.executing || base?.resumeEnabled) throw new Error('transferRunning');
+    if (base && running(base)) throw new Error('transferRunning');
     if (!await this.dialogs.confirm('install', this.review(system, base))) return 'transferCanceled';
     if (base?.revision) {
       const remote = await this.read(wire);

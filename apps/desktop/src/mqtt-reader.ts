@@ -2,21 +2,23 @@ import {connect, type IClientOptions, type MqttClient} from 'mqtt';
 import {randomUUID} from 'node:crypto';
 import {createSecureContext} from 'node:tls';
 import type {Broker, Project, ProjectSystem, StoredConfiguration} from './project.js';
-import {exact} from './project.js';
+import {exact, validId} from './project.js';
 import type {Credentials} from './credentials.js';
 import type {Diagnostics} from './diagnostics.js';
-import {extensionPrefix, readOperations, statusData, editorData, record, type RemoteRead, type RemoteStatus} from './mqtt-protocol.js';
+import {extensionPrefix, readOperations, statusData, editorData, executionData, record, type Execution, type RemoteRead, type RemoteStatus} from './mqtt-protocol.js';
 
-const wireOperations = [...readOperations, 'validate', 'store', 'install'] as const;
+export const runtimeActions = ['activate', 'deactivate', 'run_once', 'stop_rule'] as const;
+export type RuntimeAction = typeof runtimeActions[number];
+const wireOperations = [...readOperations, 'validate', 'store', 'install', ...runtimeActions] as const;
 type WireOperation = typeof wireOperations[number];
 const wireTopic = (base: string, operation: WireOperation, direction: 'request' | 'response'): string =>
   operation === 'install' ? base + '/bridge/' + direction + '/extension/save' : base + extensionPrefix + direction + '/' + operation;
-const systemTopics = (base: string): string[] => [base + '/bridge/state', base + '/bridge/extensions', base + extensionPrefix + 'status',
+const systemTopics = (base: string): string[] => [base + '/bridge/state', base + '/bridge/extensions', base + extensionPrefix + 'status', base + extensionPrefix + 'runs',
   ...wireOperations.map(operation => wireTopic(base, operation, 'response'))];
 
-export interface NetworkCommand {action: 'status' | 'connect' | 'disconnect' | 'refresh' | 'certificates' | 'clearCertificates' | 'view' | 'validate' | 'store' | 'install' | 'checkTransfer'; id: string; source?: 'draft' | 'stored'}
+export interface NetworkCommand {action: 'status' | 'connect' | 'disconnect' | 'refresh' | 'certificates' | 'clearCertificates' | 'view' | 'validate' | 'store' | 'install' | 'checkTransfer' | 'validateEnabled' | 'runtimeStatus' | RuntimeAction; id: string; source?: 'draft' | 'stored'; rule?: string; run?: string; resume?: boolean}
 export interface TLSMaterial {ca?: string; cert?: string; key?: string; passphrase?: string}
-interface Pending {topic: string; generation: number; operation: 'read' | 'validate' | 'store' | 'install'; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>}
+interface Pending {topic: string; generation: number; operation: 'read' | 'validate' | 'store' | 'install' | RuntimeAction; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>}
 interface Connection {
   client: MqttClient; signature: string; generation: number; state: string; error: string; ready: boolean;
   pending: Map<string, Pending>; systems: ProjectSystem[]; reads: Map<string, Promise<void>>; closed: boolean;
@@ -165,12 +167,19 @@ export class MqttReader {
         if (record(value) && value['state'] === 'offline') { const old = this.remote.get(system.id); if (old) old.fresh = false; this.sequence++; }
         return;
       }
+      if (topic === system.baseTopic + extensionPrefix + 'runs') {
+        const current = this.remote.get(system.id);
+        if (!packet.retain && connection.ready && current?.fresh) {
+          try { this.updateExecution(system.id, current.status, executionData(value, current.status)); } catch { /* Ignore invalid or stale snapshots. */ }
+        }
+        return;
+      }
       if (topic === system.baseTopic + extensionPrefix + 'status') {
         // Retained status is never freshness evidence. A live restart invalidates the current read.
         if (!packet.retain) {
           try {
             const next = statusData(value); const old = this.remote.get(system.id);
-            if (old && (next.session !== old.status.session || next.revision !== old.status.revision || next.checksum !== old.status.checksum || next.executing !== old.status.executing)) {
+            if (old && (next.session !== old.status.session || next.revision !== old.status.revision || next.checksum !== old.status.checksum || next.executing !== old.status.executing || next.resumeEnabled !== old.status.resumeEnabled || next.recovery !== old.status.recovery)) {
               old.fresh = false; this.sequence++; void this.refresh(system.id).catch(() => {});
             }
           } catch { const old = this.remote.get(system.id); if (old) { old.fresh = false; this.sequence++; } }
@@ -201,6 +210,16 @@ export class MqttReader {
       });
     });
   }
+  private runtimeLocks = new Set<string>();
+  async runtime<T>(id: string, task: (wire: ReturnType<MqttReader['transfer']>) => Promise<T>): Promise<T> {
+    if (this.runtimeLocks.has(id)) throw new Error('runtimeChanged');
+    const wire = this.transfer(id);
+    this.runtimeLocks.add(id);
+    const system = this.project?.systems.find(item => item.id === id);
+    if (system) this.connections.get(system.brokerId)?.reads.delete(id);
+    try { return await task(wire); }
+    finally { this.runtimeLocks.delete(id); }
+  }
   transfer(id: string) {
     const system = this.project?.systems.find(item => item.id === id);
     const connection = system && this.connections.get(system.brokerId);
@@ -226,6 +245,11 @@ export class MqttReader {
     return {
       assertCurrent,
       status: async (): Promise<RemoteStatus> => statusData(await send('status')),
+      runtimeStatus: async () => {
+        const value = await send('status');
+        return {status: statusData(value), value};
+      },
+      runtime: (action: RuntimeAction, fields: Record<string, unknown>) => send(action, fields),
       editor: async (): Promise<RemoteRead> => editorData(await send('editor')),
       bridge: () => { assertCurrent(); return {...connection.bridges.get(id)}; },
       validate: (yaml: string) => send('validate', {yaml}),
@@ -234,6 +258,7 @@ export class MqttReader {
     };
   }
   async refresh(id: string): Promise<void> {
+    if (this.runtimeLocks.has(id)) return;
     const project = this.project; const epoch = this.epoch;
     const system = project?.systems.find(system => system.id === id);
     const connection = system ? this.connections.get(system.brokerId) : null;
@@ -243,8 +268,12 @@ export class MqttReader {
     const task: Promise<void> = Promise.resolve().then(async () => {
       this.errors.delete(id); const previous = this.remote.get(id); if (previous) previous.fresh = false; this.sequence++;
       try {
+        const assertReading = () => { if (connection.reads.get(id) !== task || generation !== connection.generation) throw new Error('stale'); };
+        assertReading();
         const before = statusData(await this.request(connection, system, 'status'));
+        assertReading();
         const remote = editorData(await this.request(connection, system, 'editor'));
+        assertReading();
         const after = statusData(await this.request(connection, system, 'status'));
         if ([remote.status, after].some(status => status.session !== before.session || status.revision !== before.revision || status.checksum !== before.checksum)
           || generation !== connection.generation || !connection.ready || this.project?.id !== project.id || this.epoch !== epoch) throw new Error('stale');
@@ -253,6 +282,14 @@ export class MqttReader {
           && this.project?.id === project.id && this.epoch === epoch && connection.reads.get(id) === task;
         await this.observed(project.id, epoch, id, {revision: after.revision, checksum: after.checksum, configuration: remote.configuration, yaml: remote.yaml}, current);
         if (!current()) throw new Error('stale');
+        const execution = after.execution;
+        if (execution) {
+          const previousStatus = previous?.status;
+          delete after.execution;
+          if (previousStatus?.session === after.session && previousStatus.revision === after.revision && previousStatus.checksum === after.checksum
+            && previousStatus.execution) after.execution = previousStatus.execution;
+          this.updateExecution(id, after, execution);
+        }
         this.remote.set(id, {...remote, fresh: true}); this.debug.record('mqttReadComplete', id);
       } catch (error) {
         const code = error instanceof Error && ['timeout', 'protocol', 'stale', 'disconnected', 'remoteError'].includes(error.message) ? error.message : 'readError';
@@ -261,6 +298,15 @@ export class MqttReader {
       } finally { if (connection.reads.get(id) === task) connection.reads.delete(id); this.sequence++; }
     });
     connection.reads.set(id, task); return task;
+  }
+  private updateExecution(id: string, status: RemoteStatus, execution: Execution): void {
+    if (status.execution && execution.sequence <= status.execution.sequence) return;
+    for (const run of execution.runs) {
+      const previous = status.execution?.runs.find(item => item.run === run.run);
+      if (!previous || previous.state !== run.state || previous.step !== run.step) this.debug.execution(id, run);
+    }
+    status.execution = execution;
+    this.sequence++;
   }
   disconnect(id: string): void {
     const connection = this.connections.get(id); if (!connection) return;
@@ -286,6 +332,12 @@ export class MqttReader {
         reading: this.connections.get(system.brokerId)?.reads.has(system.id) ?? false, error: this.errors.get(system.id) ?? '', source: this.source(system.id),
         stored: this.remote.has(system.id) || Boolean(system.stored), revision: this.remote.get(system.id)?.status.revision ?? system.stored?.revision ?? null,
         executing: this.remote.get(system.id)?.fresh ? this.remote.get(system.id)?.status.executing ?? false : null,
+        runtime: (() => {
+          const remote = this.remote.get(system.id);
+          if (!remote?.fresh || !remote.status.execution) return null;
+          return {rules: remote.configuration.automations.map(rule => ({id: rule['id'], enabled: rule['enabled'] === true})),
+            runs: remote.status.execution.runs, recovery: remote.status.recovery, resume: remote.status.resumeEnabled};
+        })(),
         extensionVersion: this.remote.get(system.id)?.status.extensionVersion ?? '', build: this.remote.get(system.id)?.status.build ?? null,
         devices: this.remote.get(system.id)?.devices.length ?? 0, scenes: this.remote.get(system.id)?.scenes.length ?? 0}))};
   }
@@ -295,5 +347,9 @@ export function validNetworkCommand(value: unknown): value is NetworkCommand {
   if (value['action'] === 'status') return exact(value, ['action', 'id']) && value['id'] === '';
   if (!/^[a-f0-9-]{36}$/.test(value['id'])) return false;
   if (value['action'] === 'view') return exact(value, ['action', 'id', 'source']) && ['draft', 'stored'].includes(String(value['source']));
-  return exact(value, ['action', 'id']) && ['connect', 'disconnect', 'refresh', 'certificates', 'clearCertificates', 'validate', 'store', 'install', 'checkTransfer'].includes(value['action']);
+  if (value['action'] === 'activate') return exact(value, ['action', 'id', 'resume']) && validId(value['id']) && typeof value['resume'] === 'boolean';
+  if (value['action'] === 'run_once' || value['action'] === 'stop_rule') return exact(value, ['action', 'id', 'rule', ...(value['action'] === 'stop_rule' ? ['run'] : [])])
+    && validId(value['id']) && typeof value['rule'] === 'string' && /^[a-z][a-z0-9_-]{0,63}$/.test(value['rule'])
+    && (value['action'] !== 'stop_rule' || validId(value['run']) && !value['run'].startsWith('example'));
+  return exact(value, ['action', 'id']) && ['runtimeStatus', 'deactivate', 'validateEnabled', 'connect', 'disconnect', 'refresh', 'certificates', 'clearCertificates', 'validate', 'store', 'install', 'checkTransfer'].includes(value['action']);
 }

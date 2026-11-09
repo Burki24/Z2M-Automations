@@ -46,7 +46,7 @@ function paint() {
     start.disabled = recording.active; stop.disabled = !recording.active;
     events.replaceChildren(...recording.events.map(event => {
         const row = document.createElement('li');
-        bindText(row, () => formatDate(event.time) + ' · ' + t('desktop.' + event.code) + ' · #' + event.request + (event.operation ? ' · ' + t('project.' + event.operation) : '') + (event.reason ? ' · ' + t('mqtt.error.' + event.reason) : '') + (event.system ? ' · ' + event.system : '') + (event.broker ? ' · ' + event.broker : '') + (event.transaction ? ' · ' + event.transaction : '') + (event.language ? ' · ' + event.language : ''));
+        bindText(row, () => formatDate(event.time) + ' · ' + t('desktop.' + event.code) + ' · #' + event.request + (event.operation ? ' · ' + t('project.' + event.operation) : '') + (event.reason ? ' · ' + t('mqtt.error.' + event.reason) : '') + (event.system ? ' · ' + event.system : '') + (event.broker ? ' · ' + event.broker : '') + (event.transaction ? ' · ' + event.transaction : '') + (event.language ? ' · ' + event.language : '') + (event.run ? ' · ' + event.rule + ' · ' + event.run + ' · ' + t('mqtt.runStep', {state: t('mqtt.run.' + event.state), step: event.step}) : ''));
         return row;
     }));
 }

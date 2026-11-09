@@ -1,6 +1,6 @@
 # Z2M-Automations – Implementation plan
 
-As of 2026-11-08. This is the operational desktop agenda for the new repository
+As of 2026-11-09. This is the operational desktop agenda for the new repository
 `Burki24/Z2M-Automations`, located locally at `E:\git\Z2M-Automations`.
 Windows and Linux will be developed in parallel; **Ubuntu LTS x64** is the
 confirmed first Linux platform. The repository and development guidelines are
@@ -8,8 +8,9 @@ prepared. D0 and D1 are complete for the shared offline foundation. Windows and
 Ubuntu 24.04 CI passed; native installed-app acceptance remains open. D2 local
 projects, drafts and credentials passed Windows/Ubuntu CI. D3 read-only MQTT
 passed Windows/Ubuntu CI. D4 local editing passed both platform jobs. D5
-installation and storage are implemented with platform CI pending. D6 and D7
-remain planned. See [D4](D4.md) and [D5](D5.md).
+installation and storage passed both platform jobs. D6 operation is implemented
+with platform CI pending. D7 remains planned. See [D4](D4.md), [D5](D5.md)
+and [D6](D6.md).
 See [D1](D1.md), [D2](D2.md) and [D3](D3.md) for verification limits.
 Importing this plan did not change any Symcon or Z2M installation.
 

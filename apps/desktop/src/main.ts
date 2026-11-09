@@ -1,3 +1,4 @@
+import {RuntimeControl} from './runtime-control.js';
 import {app, BrowserWindow, ipcMain, protocol, session, Menu, nativeTheme, dialog, safeStorage} from 'electron';
 import {readFileSync, mkdtempSync, readdirSync, rmSync, mkdirSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -83,15 +84,24 @@ async function designer(command: DesignerCommand): Promise<unknown> {
     debug.record('draftCompleted', command.systemId, undefined, context); return result;
   } catch (error) { debug.record('draftRejected', command.systemId, undefined, context); throw error; }
 }
+let runtime: RuntimeControl;
 async function network(command: NetworkCommand): Promise<unknown> {
   switch (command.action) {
-    case 'validate': case 'store': case 'install': case 'checkTransfer': {
+    case 'activate': case 'deactivate': case 'run_once': case 'stop_rule': {
+      if (smoke) throw new Error('invalidRequest');
+      try {
+        const outcome = await runtime.command(command.action, command);
+        return {...(reader.state() as object), bundledExtension, outcome};
+      } finally { void reader.refresh(command.id).catch(() => {}); }
+    }
+    case 'runtimeStatus': void reader.refresh(command.id).catch(() => {}); break;
+    case 'validateEnabled': case 'validate': case 'store': case 'install': case 'checkTransfer': {
       if (smoke) throw new Error('invalidRequest');
       try {
         const outcome = await transfers.command(command.action, command.id);
         return {...(reader.state() as object), bundledExtension, outcome};
       } finally {
-        if (command.action !== 'validate') void reader.refresh(command.id).catch(() => {});
+        if (command.action !== 'validate' && command.action !== 'validateEnabled') void reader.refresh(command.id).catch(() => {});
       }
     }
     case 'status': break;
@@ -193,6 +203,14 @@ async function open(): Promise<void> {
       return result.response === 1;
     }
   });
+  runtime = new RuntimeControl(projects, reader, async (action, review) => {
+    if (!window || smoke) return false;
+    const detail = message('runtimeTarget').replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? ''))
+      + (action === 'activate' ? '\n' + message(review.recovery ? 'runtimeRecoveryOn' : 'runtimeRecoveryOff').replace('{{enabled}}', String(review.enabled)) : '');
+    const result = await dialog.showMessageBox(window, {type: 'warning', message: message('runtime_' + action), detail,
+      buttons: [message('cancel'), message('continue')], defaultId: 0, cancelId: 0, noLink: true});
+    return result.response === 1;
+  });
   exchange = new DraftExchange(projects, drafts, {
     chooseImport: () => chooseDraft('importDraft', 'yaml', true), chooseExport: () => chooseDraft('exportDraft', 'yaml', false),
     chooseBackup: () => chooseDraft('backupDraft', 'z2ma', false),
@@ -225,7 +243,7 @@ async function open(): Promise<void> {
       catch (error) {
         debug.record('projectFailed');
         const key = error instanceof Error ? error.message : '';
-        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferUncertain', 'transferBridge'].includes(key) ? key : 'failed'};
+        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferUncertain', 'transferBridge', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly'].includes(key) ? key : 'failed'};
       }
     });
   });

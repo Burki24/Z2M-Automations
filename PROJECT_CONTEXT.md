@@ -17,6 +17,8 @@ main-process schema/capability checks, directed draft permissions and private
 YAML/JSON import/export with mandatory replacement backups.
 D5 adds explicit extension installation, validation and disabled-rule storage
 with private backups and independent status confirmation. See docs/D5.md.
+D6 adds confirmed activation, stop, single runs and restart recovery for
+stored rules, with correlated execution observations. See docs/D6.md.
 The complete desktop application uses PolyForm Noncommercial 1.0.0 by explicit
 owner decision; existing designer notices are preserved.
 
@@ -42,7 +44,7 @@ D2 CI run 42481799451 passed Windows and Ubuntu 24.04 for source
 D3 CI run 42491457811 passed Windows and Ubuntu 24.04 for source 1ebaead.
 The NSIS directory-selection change passed both platforms in run 42494004402.
 The owner reports the updated Windows setup works; installed Ubuntu remains
-unverified. D4 passed Windows and Ubuntu CI in run 42553084613. D5 platform CI is pending.
+unverified. D4 passed Windows and Ubuntu CI in run 42553084613. D5 passed both jobs in run 42557311324.
 Native Linux keyring/dialog evidence remains open. See docs/D2.md and docs/D3.md.
 
 ## Versioning and next work
@@ -57,6 +59,6 @@ Builds read that canonical metadata; do not manually bump it.
 The operational agenda is docs/DESKTOP_PLAN.md. D1 platform CI evidence is
 recorded in docs/D1.md. D2 implementation and CI are complete; D3 read-only
 MQTT passed its Windows/Ubuntu CI run. D4 local editing passed both platform jobs. D5 transfer
-workflows await new platform evidence. Preserve input and
+passed both platform jobs. D6 operation awaits new platform CI evidence. Preserve input and
 separate systems throughout. Existing Symcon practice tests do not establish
 desktop acceptance. The user commits/pushes through GitHub Desktop only.

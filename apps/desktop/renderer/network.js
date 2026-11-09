@@ -14,6 +14,18 @@ export async function installNetwork(bridge) {
   const catalog = document.createElement('details'); catalog.id = 'mqtt-catalog-view';
   const catalogTitle = document.createElement('summary'); bindText(catalogTitle, () => t('mqtt.catalog')); catalog.append(catalogTitle);
   const catalogList = document.createElement('ul'); catalogList.className = 'mqtt-overview'; catalog.append(catalogList); panel.append(catalog);
+  const runtime = document.createElement('fieldset'); panel.append(runtime);
+  const legend = document.createElement('legend'); bindText(legend, () => t('mqtt.runtime')); runtime.append(legend);
+  const runtimeHelp = document.createElement('p'); bindText(runtimeHelp, () => t('mqtt.runtimeHelp')); runtime.append(runtimeHelp);
+  const runtimeState = document.createElement('p'); runtime.append(runtimeState);
+  const runtimeForm = document.createElement('div'); runtimeForm.className = 'project-form'; runtime.append(runtimeForm);
+  const ruleLabel = document.createElement('label'); const ruleTitle = document.createElement('span');
+  bindText(ruleTitle, () => t('mqtt.runtimeRule')); const rules = document.createElement('select'); rules.id = 'mqtt-rule';
+  ruleLabel.append(ruleTitle, rules); runtimeForm.append(ruleLabel);
+  const resumeLabel = document.createElement('label'); const resume = document.createElement('input'); resume.type = 'checkbox';
+  const resumeTitle = document.createElement('span'); bindText(resumeTitle, () => t('mqtt.resume')); resumeLabel.append(resume, resumeTitle); runtimeForm.append(resumeLabel);
+  const runs = document.createElement('ul'); runs.className = 'mqtt-overview'; runtime.append(runs);
+  const runtimeButtons = new Map();
   let state = {sequence: -1, brokers: [], systems: []}; let busy = false; let poll = false; let emitting = false;
   const changed = () => { emitting = true; document.dispatchEvent(new Event('z2ma-project-changed')); emitting = false; };
   function options(element, items, label) {
@@ -24,9 +36,31 @@ export async function installNetwork(bridge) {
     element.replaceChildren(...[['', t(label)], ...items].map(([id, caption]) => { const option = document.createElement('option'); option.value = id; option.textContent = caption; return option; }));
     if (items.some(([id]) => id === previous)) element.value = previous;
   }
+  function paintRuntime() {
+    const system = state.systems.find(item => item.id === systems.value);
+    const view = system?.runtime;
+    options(rules, (view?.rules ?? []).map(rule => [rule.id, rule.id + ' · ' + t(rule.enabled ? 'mqtt.ruleEnabled' : 'mqtt.ruleDisabled')]), 'mqtt.chooseRule');
+    const running = view?.runs.find(run => run.rule === rules.value && run.state === 'running');
+    for (const [action, button] of runtimeButtons) {
+      button.disabled = busy || !system || (action === 'activate' && (!view?.rules.some(rule => rule.enabled) || system.executing))
+        || (action === 'run_once' && (!view || !rules.value || Boolean(running)))
+        || (action === 'stop_rule' && !running);
+    }
+    bindText(runtimeState, () => t(view ? 'mqtt.recovery.' + view.recovery : 'mqtt.operationUnknown'));
+    const identity = JSON.stringify([systems.value, view?.runs, (view?.runs ?? []).map(run => t('mqtt.run.' + run.state)), t('mqtt.runStep')]);
+    if (runs.dataset.items !== identity) {
+      runs.dataset.items = identity;
+      runs.replaceChildren(...(view?.runs ?? []).map(run => {
+        const row = document.createElement('li');
+        bindText(row, () => run.rule + ' · ' + run.run + ' · ' + t('mqtt.runStep', {state: t('mqtt.run.' + run.state), step: run.step}));
+        return row;
+      }));
+    }
+  }
   function paint() {
     options(brokers, state.brokers.map(broker => [broker.id, broker.name + ' · ' + broker.host + ':' + broker.port + (broker.tls ? ' · TLS' : '') + (broker.certificates ? ' · ' + t('mqtt.tlsLoaded') : '')]), 'mqtt.chooseBroker');
     options(systems, state.systems.map(system => [system.id, system.name + ' · ' + system.baseTopic]), 'mqtt.chooseSystem');
+    paintRuntime();
     overview.replaceChildren(...state.systems.map(system => {
       const row = document.createElement('li'); const broker = state.brokers.find(broker => broker.id === system.brokerId);
       bindText(row, () => system.name + ' · ' + t('mqtt.state.' + (broker?.state ?? 'disconnected')) + ' · '
@@ -52,9 +86,12 @@ export async function installNetwork(bridge) {
     finally { poll = false; }
   }
   async function command(action, source) {
-    const id = ['refresh', 'view', 'catalog', 'validate', 'store', 'install', 'checkTransfer'].includes(action) ? systems.value : brokers.value;
+    const id = ['refresh', 'view', 'catalog', 'validate', 'store', 'install', 'checkTransfer', 'validateEnabled', ...runtimeButtons.keys()].includes(action) ? systems.value : brokers.value;
     if (!id || busy) return;
-    busy = true; panel.setAttribute('aria-busy', 'true');
+    const rule = rules.value;
+    const run = state.systems.find(item => item.id === id)?.runtime?.runs.find(item => item.rule === rule && item.state === 'running')?.run;
+    const runtimeFields = action === 'activate' ? {resume: resume.checked} : action === 'run_once' ? {rule} : action === 'stop_rule' ? {rule, run} : {};
+    busy = true; paintRuntime(); panel.setAttribute('aria-busy', 'true');
     try {
       if (action === 'view' || action === 'catalog') await bridge.selectSystem(id);
       if (action === 'catalog') {
@@ -68,18 +105,25 @@ export async function installNetwork(bridge) {
         });
         catalogList.replaceChildren(...devices, ...scenes); catalog.open = true; changed(); return;
       }
-      const result = await bridge.network({action, id, ...(source ? {source} : {})});
+      const result = await bridge.network({action, id, ...runtimeFields, ...(source ? {source} : {})});
       if (!result.ok) { bindText(feedback, () => t('project.' + result.error)); return; }
       state = result.state; paint(); changed();
       const outcome = result.state.outcome;
       bindText(feedback, () => t(outcome ? 'project.' + outcome : 'mqtt.requestAccepted'));
     } catch { bindText(feedback, () => t('project.failed')); }
-    finally { busy = false; panel.removeAttribute('aria-busy'); }
+    finally { busy = false; paintRuntime(); panel.removeAttribute('aria-busy'); }
   }
-  for (const [key, action, source] of [['connect', 'connect'], ['disconnect', 'disconnect'], ['refresh', 'refresh'], ['catalog', 'catalog'], ['certificates', 'certificates'], ['clearCertificates', 'clearCertificates'], ['draft', 'view', 'draft'], ['stored', 'view', 'stored'], ['validate', 'validate'], ['store', 'store'], ['install', 'install'], ['checkTransfer', 'checkTransfer']]) {
+  for (const [key, action, source] of [['connect', 'connect'], ['disconnect', 'disconnect'], ['refresh', 'refresh'], ['catalog', 'catalog'], ['certificates', 'certificates'], ['clearCertificates', 'clearCertificates'], ['draft', 'view', 'draft'], ['stored', 'view', 'stored'], ['validate', 'validate'], ['validateEnabled', 'validateEnabled'], ['store', 'store'], ['install', 'install'], ['checkTransfer', 'checkTransfer']]) {
     const button = document.createElement('button'); button.type = 'button'; button.id = 'mqtt-' + key;
     bindText(button, () => t('mqtt.' + key)); button.addEventListener('click', () => command(action, source)); controls.append(button);
   }
+  for (const action of ['runtimeStatus', 'activate', 'deactivate', 'run_once', 'stop_rule']) {
+    const button = document.createElement('button'); button.type = 'button'; button.id = 'mqtt-' + action;
+    bindText(button, () => t('mqtt.' + action)); button.addEventListener('click', () => command(action));
+    runtimeButtons.set(action, button); runtimeForm.append(button);
+  }
+  rules.addEventListener('change', paintRuntime);
+  systems.addEventListener('change', () => { resume.checked = false; rules.value = ''; paintRuntime(); });
   const caution = document.createElement('p'); bindText(caution, () => t('mqtt.tlsHelp')); panel.append(caution);
   document.querySelector('#local-project').after(panel);
   document.addEventListener('z2ma-project-changed', () => { if (!emitting) void refresh(); });

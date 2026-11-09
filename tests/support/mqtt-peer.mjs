@@ -39,7 +39,7 @@ export async function startPeer({systems = new Map([['synthetic', remoteFixture(
       }
       if (value.cmd === 'publish') {
         publications.push(value);
-        const match = /^(.*)\/symcon\/automations\/request\/(status|editor|validate|store)$/.exec(value.topic)
+        const match = /^(.*)\/symcon\/automations\/request\/(status|editor|validate|store|activate|deactivate|run_once|stop_rule)$/.exec(value.topic)
           ?? /^(.*)\/bridge\/request\/extension\/save$/.exec(value.topic);
         if (!match || !systems.has(match[1])) return;
         let request; try { request = JSON.parse(value.payload.toString()); } catch { return; }

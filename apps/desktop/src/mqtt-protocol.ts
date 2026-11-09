@@ -4,7 +4,25 @@ import {validConfiguration, type Configuration, text, exact} from './project.js'
 export const extensionPrefix = '/symcon/automations/';
 export const readOperations = ['status', 'editor'] as const;
 export type ReadOperation = typeof readOperations[number];
-export interface RemoteStatus {session: string; revision: number; checksum: string | null; executing: boolean; resumeEnabled: boolean; storage: string; extensionVersion: string; build: string | null}
+export const ruleId = (value: unknown): value is string => typeof value === 'string' && /^[a-z][a-z0-9_-]{0,63}$/.test(value);
+export const uuid = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value);
+const runStates = ['running', 'stopped', 'completed', 'skipped', 'failed'];
+export interface Execution {sequence: number; runs: {rule: string; run: string; state: string; step: number}[]}
+export function executionData(value: unknown, base: RemoteStatus): Execution {
+  if (!record(value) || value['protocol_version'] !== 1 || value['execution_version'] !== 1
+    || value['session'] !== base.session || value['revision'] !== base.revision || value['checksum'] !== base.checksum
+    || !Number.isSafeInteger(value['sequence']) || Number(value['sequence']) < 0
+    || !Array.isArray(value['runs']) || value['runs'].length > 100) throw new Error('protocol');
+  const runs = value['runs'].map((entry: unknown) => {
+    if (!record(entry) || !ruleId(entry['rule_id']) || !uuid(entry['run']) || entry['revision'] !== base.revision
+      || entry['checksum'] !== base.checksum || typeof entry['state'] !== 'string' || !runStates.includes(entry['state'])
+      || !Number.isSafeInteger(entry['step']) || Number(entry['step']) < 0) throw new Error('protocol');
+    return {rule: entry['rule_id'], run: entry['run'], state: entry['state'], step: Number(entry['step'])};
+  });
+  if (new Set(runs.map(run => run.rule)).size !== runs.length) throw new Error('protocol');
+  return {sequence: Number(value['sequence']), runs};
+}
+export interface RemoteStatus {session: string; revision: number; checksum: string | null; executing: boolean; resumeEnabled: boolean; storage: string; extensionVersion: string; build: string | null; activeMatches: boolean; execution?: Execution; recovery: string}
 export interface CatalogProperty {id: string; label: string; type: string; access: number; values: (string | number | boolean | null)[]; unit?: string; endpoint?: string; minimum?: number; maximum?: number; step?: number}
 export interface CatalogDevice {key: string; name: string; target: {type: 'device' | 'group'; id: string | number}; properties: CatalogProperty[]}
 export interface RemoteRead {status: RemoteStatus; configuration: Configuration; yaml: string | null; devices: CatalogDevice[]; scenes: Scene[]}
@@ -20,9 +38,13 @@ export function statusData(value: unknown): RemoteStatus {
   const revision = Number(value['stored_revision']); const checksum = value['checksum'];
   if (revision === 0 ? checksum !== null : typeof checksum !== 'string' || !/^[a-f0-9]{64}$/.test(checksum)) throw new Error('protocol');
   if (revision === 0 ? value['storage'] !== 'empty' || value['executing'] : value['storage'] !== 'ok') throw new Error('protocol');
-  return {session: value['session'], revision, checksum: checksum as string | null, executing: value['executing'], resumeEnabled: value['resume_enabled'] === true, storage: String(value['storage']),
+  const status: RemoteStatus = {session: value['session'], revision, checksum: checksum as string | null, executing: value['executing'], resumeEnabled: value['resume_enabled'] === true, storage: String(value['storage']),
+    activeMatches: revision > 0 && value['active_revision'] === revision && value['active_checksum'] === checksum,
+    recovery: ['unconfigured', 'armed', 'resumed', 'blocked', 'disabled', 'stopped'].includes(String(value['resume_status'])) ? String(value['resume_status']) : '',
     build: typeof value['extension_build'] === 'string' && /^[a-f0-9]{64}$/.test(value['extension_build']) ? value['extension_build'] : null,
     extensionVersion: text(value['extension_version'], 80) ? value['extension_version'] : ''};
+  if (value['execution_version'] === 1) status.execution = executionData(value['execution'], status);
+  return status;
 }
 function scalar(value: unknown): value is string | number | boolean | null {
   return value === null || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value) || typeof value === 'string' && [...value].length <= 256;
