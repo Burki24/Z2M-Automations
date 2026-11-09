@@ -171,7 +171,7 @@ async function open(): Promise<void> {
       }
       if (!window) return null;
       if (source === 'manual') return promptCredentials({title: message('enterCredentials'), username: message('username'),
-        password: message('password'), ok: message('save'), cancel: message('cancel')});
+        password: message('password'), ok: message('save'), cancel: message('cancel')}, window.getNativeWindowHandle());
       const result = await dialog.showOpenDialog(window, {title: message('chooseCredentials'), properties: ['openFile'], filters: [{name: 'JSON', extensions: ['json']}]});
       if (result.canceled || !result.filePaths[0]) return null;
       return readCredentialFile(result.filePaths[0]);
