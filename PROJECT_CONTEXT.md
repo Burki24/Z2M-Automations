@@ -59,6 +59,8 @@ Builds read that canonical metadata; do not manually bump it.
 The operational agenda is docs/DESKTOP_PLAN.md. D1 platform CI evidence is
 recorded in docs/D1.md. D2 implementation and CI are complete; D3 read-only
 MQTT passed its Windows/Ubuntu CI run. D4 local editing passed both platform jobs. D5 transfer
-passed both platform jobs. D6 operation awaits new platform CI evidence. Preserve input and
+passed both platform jobs. D6 operation passed both jobs in run 42561493087.
+D7 adds the beta user guide and installed-package checks. See docs/D7.md for
+the outstanding native desktop acceptance. Preserve input and
 separate systems throughout. Existing Symcon practice tests do not establish
 desktop acceptance. The user commits/pushes through GitHub Desktop only.

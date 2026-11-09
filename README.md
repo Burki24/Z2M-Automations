@@ -4,11 +4,9 @@ A standalone Zigbee2MQTT automation designer for **Windows and Ubuntu Linux**.
 The shared designer will manage up to eight systems on one or more MQTT brokers.
 Automations will run in our own Z2M extension, independently of the application.
 
-**Current state:** D4 adds local rule/sequence editing, typed device/scene
-actions, directed draft permissions and private YAML draft import/export with
-replacement backups. D5 adds explicit extension installation, validation and
-storage of disabled rules. D4 passed Windows and Ubuntu CI. D5 platform CI is
-pending. See [D5](docs/D5.md), [D4](docs/D4.md) and [MQTT](docs/D3.md).
+**Current state:** D6 operation passed Windows and Ubuntu CI. D7 prepares the
+installed beta workflow and native desktop acceptance. See the
+[beta user guide](docs/USER_GUIDE.md) and [D7 acceptance](docs/D7.md).
 
 ## Run the development application
 

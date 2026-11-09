@@ -8,9 +8,9 @@ prepared. D0 and D1 are complete for the shared offline foundation. Windows and
 Ubuntu 24.04 CI passed; native installed-app acceptance remains open. D2 local
 projects, drafts and credentials passed Windows/Ubuntu CI. D3 read-only MQTT
 passed Windows/Ubuntu CI. D4 local editing passed both platform jobs. D5
-installation and storage passed both platform jobs. D6 operation is implemented
-with platform CI pending. D7 remains planned. See [D4](D4.md), [D5](D5.md)
-and [D6](D6.md).
+installation and storage and D6 operation passed both platform jobs. D7 adds
+a beta user guide and installed-package CI checks. Native acceptance remains
+open. See [D6](D6.md) and [D7](D7.md).
 See [D1](D1.md), [D2](D2.md) and [D3](D3.md) for verification limits.
 Importing this plan did not change any Symcon or Z2M installation.
 

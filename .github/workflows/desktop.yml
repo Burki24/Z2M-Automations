@@ -59,6 +59,39 @@ jobs:
       - name: Verify packaged Linux application and runtime dependencies
         if: runner.os == 'Linux'
         run: xvfb-run --auto-servernum --server-args="-screen 0 3840x2160x24" npm run smoke:packaged
+      - name: Verify installed Windows package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = @(Get-ChildItem apps/desktop/out/make -Recurse -Filter '*Setup.exe' -File)
+          if ($setup.Count -ne 1) { throw 'Expected one Windows setup artifact' }
+          $install = Join-Path $env:RUNNER_TEMP 'z2ma-installed-smoke'
+          if (Test-Path -LiteralPath $install) { throw 'Installation path already exists' }
+          $result = Start-Process -FilePath $setup[0].FullName -ArgumentList "/S /currentuser /D=$install" -WindowStyle Hidden -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw "Setup exit code $($result.ExitCode)" }
+          $uninstall = @(Get-ChildItem -LiteralPath $install -Filter 'Uninstall*.exe' -File)
+          if ($uninstall.Count -ne 1) { throw 'Expected one installed uninstaller' }
+          $env:Z2MA_SMOKE_BINARY = Join-Path $install 'Z2M-Automations.exe'
+          try {
+            npm run smoke
+            if ($LASTEXITCODE -ne 0) { throw 'Installed Windows smoke failed' }
+          } finally {
+            $result = Start-Process -FilePath $uninstall[0].FullName -ArgumentList '/S' -WindowStyle Hidden -Wait -PassThru
+            if ($result.ExitCode -ne 0 -or (Test-Path -LiteralPath $env:Z2MA_SMOKE_BINARY)) { throw 'Uninstall failed' }
+          }
+      - name: Verify installed Ubuntu package
+        if: runner.os == 'Linux'
+        run: |
+          mapfile -t packages < <(find apps/desktop/out/make -type f -name '*.deb')
+          [[ ${#packages[@]} -eq 1 ]]
+          sudo apt-get install --yes "$(realpath "${packages[0]}")"
+          trap 'sudo apt-get remove --yes z2m-automations' EXIT
+          binary="$(dpkg-query -L z2m-automations | awk '/\/resources\/app\.asar$/ { sub(/resources\/app\.asar$/, "Z2M-Automations"); print }')"
+          test -x "$binary"
+          Z2MA_SMOKE_BINARY="$binary" xvfb-run --auto-servernum --server-args="-screen 0 3840x2160x24" npm run smoke
+          sudo apt-get remove --yes z2m-automations
+          trap - EXIT
+          test ! -e "$binary"
       - name: Build the shared designer handoff
         run: npm run pack:designer
       - uses: actions/upload-artifact@v4
