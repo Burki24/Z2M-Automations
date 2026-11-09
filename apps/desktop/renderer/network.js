@@ -1,6 +1,6 @@
 import {t, bindText, onLanguageChange} from './localization.js';
 
-export async function installNetwork(bridge) {
+export async function installNetwork(bridge, openBrokerSetup) {
   const panel = document.createElement('details'); panel.className = 'desktop-project'; panel.id = 'mqtt-panel';
   const title = document.createElement('summary'); bindText(title, () => t('mqtt.title')); panel.append(title);
   const help = document.createElement('p'); bindText(help, () => t('mqtt.help')); panel.append(help);
@@ -124,6 +124,10 @@ export async function installNetwork(bridge) {
   }
   rules.addEventListener('change', paintRuntime);
   systems.addEventListener('change', () => { resume.checked = false; rules.value = ''; paintRuntime(); });
+  const setupBroker = document.createElement('button'); setupBroker.type = 'button'; setupBroker.id = 'mqtt-setupBroker';
+  bindText(setupBroker, () => t('mqtt.setupBroker'));
+  setupBroker.addEventListener('click', openBrokerSetup);
+  brokers.closest('label').after(setupBroker);
   const caution = document.createElement('p'); bindText(caution, () => t('mqtt.tlsHelp')); panel.append(caution);
   document.querySelector('#local-project').after(panel);
   document.addEventListener('z2ma-project-changed', () => { if (!emitting) void refresh(); });

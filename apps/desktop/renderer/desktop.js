@@ -64,8 +64,8 @@ stop.addEventListener('click', async () => { recording = await bridge.recording(
 setInterval(async () => { if (panel.open || recording.active) { recording = await bridge.diagnostics(); paint(); } }, 1000);
 onLanguageChange(paint); paint();
 try {
-    await installProjects(bridge);
-    await installNetwork(bridge);
+    const openBrokerSetup = await installProjects(bridge);
+    await installNetwork(bridge, openBrokerSetup);
     installDraftExchange(bridge);
     await import('./reader.js');
     const view = await bridge.snapshot();

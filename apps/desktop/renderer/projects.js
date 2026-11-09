@@ -224,4 +224,9 @@ export async function installProjects(bridge) {
   await bridge.language({language: language(), previousLanguage: language(), openEditor: false});
   const result = await bridge.project({action: 'status'});
   if (result.ok) { state = result.state; paint(); await restoreForms(); } else show('failed');
+  return () => {
+    root.open = true;
+    const target = state?.active ? brokerChoice : actions.querySelector('#project-new');
+    target.focus();
+  };
 }

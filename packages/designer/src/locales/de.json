@@ -1388,6 +1388,7 @@
     "mqtt.title": "MQTT-Verbindungen und Übertragung",
     "mqtt.help": "Ein Broker kann mehrere Systeme bedienen. Erst Verbinden baut eine Verbindung auf. Entwürfe bleiben getrennt vom gelesenen Z2M-Stand.",
     "mqtt.broker": "Broker",
+    "mqtt.setupBroker": "Broker einrichten",
     "mqtt.system": "System",
     "mqtt.chooseBroker": "Broker wählen",
     "mqtt.chooseSystem": "System wählen",
