@@ -6,9 +6,9 @@ Automations will run in our own Z2M extension, independently of the application.
 
 **Current state:** D4 adds local rule/sequence editing, typed device/scene
 actions, directed draft permissions and private YAML draft import/export with
-replacement backups. MQTT remains read-only; no upload or device commands are
-available. D3 Windows/Ubuntu CI passed; D4 platform CI remains open. See
-[D4](docs/D4.md), [MQTT](docs/D3.md) and [projects/credentials](docs/D2.md).
+replacement backups. D5 adds explicit extension installation, validation and
+storage of disabled rules. D4 passed Windows and Ubuntu CI. D5 platform CI is
+pending. See [D5](docs/D5.md), [D4](docs/D4.md) and [MQTT](docs/D3.md).
 
 ## Run the development application
 

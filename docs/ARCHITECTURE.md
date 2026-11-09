@@ -1,8 +1,8 @@
 # Architecture
 
 Status: D1/D2 implementation and Windows/Ubuntu CI are complete. D3 read-only
-MQTT passed platform CI. D4 local editing is implemented; its new platform CI
-and remaining native acceptance are open. See [D4](D4.md).
+MQTT and D4 local editing passed platform CI. D5 adds installation and
+validated storage with platform CI pending. See [D5](D5.md).
 Current behavior is described in [D1](D1.md), [D2](D2.md) and [D3](D3.md). Decisions and complete
 milestones are described in [ADR 0001](adr/0001-parallel-desktop-platforms.md)
 and the [desktop plan](DESKTOP_PLAN.md).

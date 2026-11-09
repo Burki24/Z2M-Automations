@@ -4,7 +4,7 @@ import {validConfiguration, type Configuration, text, exact} from './project.js'
 export const extensionPrefix = '/symcon/automations/';
 export const readOperations = ['status', 'editor'] as const;
 export type ReadOperation = typeof readOperations[number];
-export interface RemoteStatus {session: string; revision: number; checksum: string | null; executing: boolean; storage: string; extensionVersion: string}
+export interface RemoteStatus {session: string; revision: number; checksum: string | null; executing: boolean; resumeEnabled: boolean; storage: string; extensionVersion: string; build: string | null}
 export interface CatalogProperty {id: string; label: string; type: string; access: number; values: (string | number | boolean | null)[]; unit?: string; endpoint?: string; minimum?: number; maximum?: number; step?: number}
 export interface CatalogDevice {key: string; name: string; target: {type: 'device' | 'group'; id: string | number}; properties: CatalogProperty[]}
 export interface RemoteRead {status: RemoteStatus; configuration: Configuration; yaml: string | null; devices: CatalogDevice[]; scenes: Scene[]}
@@ -20,7 +20,8 @@ export function statusData(value: unknown): RemoteStatus {
   const revision = Number(value['stored_revision']); const checksum = value['checksum'];
   if (revision === 0 ? checksum !== null : typeof checksum !== 'string' || !/^[a-f0-9]{64}$/.test(checksum)) throw new Error('protocol');
   if (revision === 0 ? value['storage'] !== 'empty' || value['executing'] : value['storage'] !== 'ok') throw new Error('protocol');
-  return {session: value['session'], revision, checksum: checksum as string | null, executing: value['executing'], storage: String(value['storage']),
+  return {session: value['session'], revision, checksum: checksum as string | null, executing: value['executing'], resumeEnabled: value['resume_enabled'] === true, storage: String(value['storage']),
+    build: typeof value['extension_build'] === 'string' && /^[a-f0-9]{64}$/.test(value['extension_build']) ? value['extension_build'] : null,
     extensionVersion: text(value['extension_version'], 80) ? value['extension_version'] : ''};
 }
 function scalar(value: unknown): value is string | number | boolean | null {

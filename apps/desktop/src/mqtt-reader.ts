@@ -5,14 +5,22 @@ import type {Broker, Project, ProjectSystem, StoredConfiguration} from './projec
 import {exact} from './project.js';
 import type {Credentials} from './credentials.js';
 import type {Diagnostics} from './diagnostics.js';
-import {extensionPrefix, readOperations, statusData, editorData, record, type RemoteRead, type ReadOperation} from './mqtt-protocol.js';
+import {extensionPrefix, readOperations, statusData, editorData, record, type RemoteRead, type RemoteStatus} from './mqtt-protocol.js';
 
-export interface NetworkCommand {action: 'status' | 'connect' | 'disconnect' | 'refresh' | 'certificates' | 'clearCertificates' | 'view'; id: string; source?: 'draft' | 'stored'}
+const wireOperations = [...readOperations, 'validate', 'store', 'install'] as const;
+type WireOperation = typeof wireOperations[number];
+const wireTopic = (base: string, operation: WireOperation, direction: 'request' | 'response'): string =>
+  operation === 'install' ? base + '/bridge/' + direction + '/extension/save' : base + extensionPrefix + direction + '/' + operation;
+const systemTopics = (base: string): string[] => [base + '/bridge/state', base + '/bridge/extensions', base + extensionPrefix + 'status',
+  ...wireOperations.map(operation => wireTopic(base, operation, 'response'))];
+
+export interface NetworkCommand {action: 'status' | 'connect' | 'disconnect' | 'refresh' | 'certificates' | 'clearCertificates' | 'view' | 'validate' | 'store' | 'install' | 'checkTransfer'; id: string; source?: 'draft' | 'stored'}
 export interface TLSMaterial {ca?: string; cert?: string; key?: string; passphrase?: string}
-interface Pending {topic: string; generation: number; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>}
+interface Pending {topic: string; generation: number; operation: 'read' | 'validate' | 'store' | 'install'; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>}
 interface Connection {
   client: MqttClient; signature: string; generation: number; state: string; error: string; ready: boolean;
   pending: Map<string, Pending>; systems: ProjectSystem[]; reads: Map<string, Promise<void>>; closed: boolean;
+  bridges: Map<string, {online?: boolean; installed?: boolean}>;
   subscription: ReturnType<typeof setTimeout> | null;
 }
 export function parseTLS(bytes: Buffer): TLSMaterial {
@@ -90,12 +98,12 @@ export class MqttReader {
     const secret = await this.credentials.read(project.id, broker);
     if (this.project?.id !== project.id || this.epoch !== epoch) throw new Error('stale');
     const client = this.factory(mqttOptions(broker, secret, this.tls.get(id)?.material ?? {}));
-    const connection: Connection = {client, signature: this.signature(broker, systems), generation: 0, state: 'connecting', error: '', ready: false, pending: new Map(), systems, reads: new Map(), closed: false, subscription: null};
+    const connection: Connection = {client, signature: this.signature(broker, systems), generation: 0, state: 'connecting', error: '', ready: false, pending: new Map(), systems, reads: new Map(), closed: false, bridges: new Map(), subscription: null};
     this.connections.set(id, connection); this.sequence++;
     this.debug.record('mqttConnect', undefined, undefined, {operation: 'connect', broker: id});
     const invalidate = () => {
       if (this.connections.get(id) !== connection) return;
-      connection.ready = false;
+      connection.ready = false; connection.bridges.clear();
       if (connection.subscription) clearTimeout(connection.subscription);
       connection.subscription = null;
       for (const system of systems) { const remote = this.remote.get(system.id); if (remote) remote.fresh = false; }
@@ -119,7 +127,7 @@ export class MqttReader {
       if (connection.closed) return;
       connection.generation++; connection.error = ''; connection.state = 'connecting'; invalidate();
       const generation = connection.generation;
-      const topics = systems.flatMap(system => [system.baseTopic + '/bridge/state', system.baseTopic + extensionPrefix + 'status', ...readOperations.map(operation => system.baseTopic + extensionPrefix + 'response/' + operation)]);
+      const topics = systems.flatMap(system => systemTopics(system.baseTopic));
       connection.subscription = setTimeout(() => {
         connection.error = 'timeout'; connection.state = 'error'; connection.closed = true; invalidate(); client.end(true);
       }, this.timeout);
@@ -137,12 +145,23 @@ export class MqttReader {
       });
     });
     client.on('message', (topic, bytes, packet) => {
-      if (!connection.ready || connection.closed || bytes.length > 2097152) return;
+      if (connection.closed || bytes.length > 2097152) return;
       let value: unknown;
       try { value = JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(bytes)); } catch { return; }
-      const system = systems.find(system => [system.baseTopic + '/bridge/state', system.baseTopic + extensionPrefix + 'status', ...readOperations.map(operation => system.baseTopic + extensionPrefix + 'response/' + operation)].includes(topic));
+      const system = systems.find(system => systemTopics(system.baseTopic).includes(topic));
       if (!system) return;
+      const bridge = connection.bridges.get(system.id) ?? {};
+      if (topic === system.baseTopic + '/bridge/extensions') {
+        if (Array.isArray(value) && value.every(item => record(item) && typeof item['name'] === 'string')) {
+          bridge.installed = value.some(item => item.name === 'z2m-automations.mjs');
+          connection.bridges.set(system.id, bridge);
+        }
+        return;
+      }
       if (topic === system.baseTopic + '/bridge/state') {
+        if (record(value) && ['online', 'offline'].includes(String(value['state']))) {
+          bridge.online = value['state'] === 'online'; connection.bridges.set(system.id, bridge);
+        }
         if (record(value) && value['state'] === 'offline') { const old = this.remote.get(system.id); if (old) old.fresh = false; this.sequence++; }
         return;
       }
@@ -158,27 +177,61 @@ export class MqttReader {
         }
         return;
       }
-      if (packet.retain || !record(value) || value['protocol_version'] !== 1 || typeof value['transaction'] !== 'string') return;
+      if (!connection.ready || packet.retain || !record(value) || typeof value['transaction'] !== 'string') return;
       const pending = connection.pending.get(value['transaction']);
       if (!pending || pending.topic !== topic || pending.generation !== connection.generation) return;
+      if (topic !== wireTopic(system.baseTopic, 'install', 'response') && value['protocol_version'] !== 1) return;
       connection.pending.delete(value['transaction']); clearTimeout(pending.timer);
-      this.debug.record('mqttReply', system.id, undefined, {operation: 'read', transaction: value['transaction']});
+      this.debug.record('mqttReply', system.id, undefined, {operation: pending.operation, transaction: value['transaction']});
       if (value['status'] === 'ok' && record(value['data'])) pending.resolve(value['data']);
       else pending.reject(new Error('remoteError'));
     });
     client.connect();
   }
-  private request(connection: Connection, system: ProjectSystem, operation: ReadOperation): Promise<unknown> {
-    if (!readOperations.includes(operation) || !connection.ready || !connection.client.connected || connection.closed) return Promise.reject(new Error('disconnected'));
+  private request(connection: Connection, system: ProjectSystem, operation: WireOperation, fields: Record<string, unknown> = {}): Promise<unknown> {
+    if (!connection.ready || !connection.client.connected || connection.closed) return Promise.reject(new Error('disconnected'));
     return new Promise((resolve, reject) => {
-      const transaction = randomUUID(); const topic = system.baseTopic + extensionPrefix + 'response/' + operation;
+      const transaction = randomUUID(); const topic = wireTopic(system.baseTopic, operation, 'response');
       const timer = setTimeout(() => { connection.pending.delete(transaction); reject(new Error('timeout')); }, this.timeout);
-      connection.pending.set(transaction, {topic, generation: connection.generation, resolve, reject, timer});
-      this.debug.record('mqttRead', system.id, undefined, {operation: 'read', transaction});
-      connection.client.publish(system.baseTopic + extensionPrefix + 'request/' + operation, JSON.stringify({protocol_version: 1, transaction}), {qos: 0, retain: false}, error => {
+      const diagnostic = operation === 'status' || operation === 'editor' ? 'read' : operation;
+      connection.pending.set(transaction, {topic, generation: connection.generation, operation: diagnostic, resolve, reject, timer});
+      this.debug.record(diagnostic === 'read' ? 'mqttRead' : 'mqttTransfer', system.id, undefined, {operation: diagnostic, transaction});
+      connection.client.publish(wireTopic(system.baseTopic, operation, 'request'), JSON.stringify({...fields, ...(operation === 'install' ? {} : {protocol_version: 1}), transaction}), {qos: 0, retain: false}, error => {
         if (error && connection.pending.has(transaction)) { connection.pending.delete(transaction); clearTimeout(timer); reject(new Error('connectionError')); }
       });
     });
+  }
+  transfer(id: string) {
+    const system = this.project?.systems.find(item => item.id === id);
+    const connection = system && this.connections.get(system.brokerId);
+    if (!system || !connection?.ready) throw new Error('disconnected');
+    const generation = connection.generation;
+    const assertCurrent = () => {
+      if (this.connections.get(system.brokerId) !== connection || connection.generation !== generation || !connection.ready) throw new Error('disconnected');
+    };
+    const send = async (operation: WireOperation, fields?: Record<string, unknown>) => {
+      assertCurrent();
+      if (connection.bridges.get(id)?.online === false) throw new Error('transferBridge');
+      if (operation === 'store' || operation === 'install') {
+        // A read captured before a write must never publish its old snapshot later.
+        connection.reads.delete(id);
+        const previous = this.remote.get(id);
+        if (previous) previous.fresh = false;
+        this.sequence++;
+      }
+      const result = await this.request(connection, system, operation, fields);
+      assertCurrent();
+      return result;
+    };
+    return {
+      assertCurrent,
+      status: async (): Promise<RemoteStatus> => statusData(await send('status')),
+      editor: async (): Promise<RemoteRead> => editorData(await send('editor')),
+      bridge: () => { assertCurrent(); return {...connection.bridges.get(id)}; },
+      validate: (yaml: string) => send('validate', {yaml}),
+      store: (yaml: string, base: RemoteStatus) => send('store', {yaml, session: base.session, expected_revision: base.revision}),
+      install: (code: string) => send('install', {name: 'z2m-automations.mjs', code})
+    };
   }
   async refresh(id: string): Promise<void> {
     const project = this.project; const epoch = this.epoch;
@@ -187,8 +240,7 @@ export class MqttReader {
     if (!project || !system || !connection?.ready) throw new Error('disconnected');
     const existing = connection.reads.get(id); if (existing) return existing;
     const generation = connection.generation;
-    let task: Promise<void>;
-    task = (async () => {
+    const task: Promise<void> = Promise.resolve().then(async () => {
       this.errors.delete(id); const previous = this.remote.get(id); if (previous) previous.fresh = false; this.sequence++;
       try {
         const before = statusData(await this.request(connection, system, 'status'));
@@ -197,16 +249,17 @@ export class MqttReader {
         if ([remote.status, after].some(status => status.session !== before.session || status.revision !== before.revision || status.checksum !== before.checksum)
           || generation !== connection.generation || !connection.ready || this.project?.id !== project.id || this.epoch !== epoch) throw new Error('stale');
         remote.status = after;
-        const current = () => generation === connection.generation && connection.ready && this.connections.get(system.brokerId) === connection && this.project?.id === project.id && this.epoch === epoch;
+        const current = () => generation === connection.generation && connection.ready && this.connections.get(system.brokerId) === connection
+          && this.project?.id === project.id && this.epoch === epoch && connection.reads.get(id) === task;
         await this.observed(project.id, epoch, id, {revision: after.revision, checksum: after.checksum, configuration: remote.configuration, yaml: remote.yaml}, current);
-        if (generation !== connection.generation || !connection.ready || this.epoch !== epoch) throw new Error('stale');
+        if (!current()) throw new Error('stale');
         this.remote.set(id, {...remote, fresh: true}); this.debug.record('mqttReadComplete', id);
       } catch (error) {
         const code = error instanceof Error && ['timeout', 'protocol', 'stale', 'disconnected', 'remoteError'].includes(error.message) ? error.message : 'readError';
-        if (generation === connection.generation && this.connections.get(system.brokerId) === connection && this.epoch === epoch) this.errors.set(id, code);
+        if (connection.reads.get(id) === task && generation === connection.generation && this.connections.get(system.brokerId) === connection && this.epoch === epoch) this.errors.set(id, code);
         this.debug.record('mqttFailure', id, undefined, {operation: 'read', reason: code}); throw new Error(code);
-      } finally { if (generation === connection.generation) connection.reads.delete(id); this.sequence++; }
-    })();
+      } finally { if (connection.reads.get(id) === task) connection.reads.delete(id); this.sequence++; }
+    });
     connection.reads.set(id, task); return task;
   }
   disconnect(id: string): void {
@@ -233,6 +286,7 @@ export class MqttReader {
         reading: this.connections.get(system.brokerId)?.reads.has(system.id) ?? false, error: this.errors.get(system.id) ?? '', source: this.source(system.id),
         stored: this.remote.has(system.id) || Boolean(system.stored), revision: this.remote.get(system.id)?.status.revision ?? system.stored?.revision ?? null,
         executing: this.remote.get(system.id)?.fresh ? this.remote.get(system.id)?.status.executing ?? false : null,
+        extensionVersion: this.remote.get(system.id)?.status.extensionVersion ?? '', build: this.remote.get(system.id)?.status.build ?? null,
         devices: this.remote.get(system.id)?.devices.length ?? 0, scenes: this.remote.get(system.id)?.scenes.length ?? 0}))};
   }
 }
@@ -241,5 +295,5 @@ export function validNetworkCommand(value: unknown): value is NetworkCommand {
   if (value['action'] === 'status') return exact(value, ['action', 'id']) && value['id'] === '';
   if (!/^[a-f0-9-]{36}$/.test(value['id'])) return false;
   if (value['action'] === 'view') return exact(value, ['action', 'id', 'source']) && ['draft', 'stored'].includes(String(value['source']));
-  return exact(value, ['action', 'id']) && ['connect', 'disconnect', 'refresh', 'certificates', 'clearCertificates'].includes(value['action']);
+  return exact(value, ['action', 'id']) && ['connect', 'disconnect', 'refresh', 'certificates', 'clearCertificates', 'validate', 'store', 'install', 'checkTransfer'].includes(value['action']);
 }

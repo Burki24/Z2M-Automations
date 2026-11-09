@@ -50,6 +50,8 @@ export class DraftExchange {
     if (source && canonical(source) === canonical(backup)) throw new Error('fileConflict');
     this.editor.system(command); await this.projects.backup(backup);
     configuration.automations.forEach(rule => { rule['enabled'] = false; });
-    this.editor.save(system, configuration); return {ok: true};
+    this.editor.save(system, configuration);
+    if (command.route === 'adopt') this.projects.acceptStoredBase(system.id);
+    return {ok: true};
   }
 }

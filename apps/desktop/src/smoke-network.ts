@@ -33,7 +33,7 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     document.querySelector('#mqtt-draft').click();
     await wait(async () => (await state()).systems[0].source === 'draft');
     assert(JSON.stringify((await bridge.snapshot()).configuration) === draft, 'draft view changed');
-    assert(!(await bridge.network({action: 'store', id})).ok, 'upload accepted');
+    assert(!(await bridge.network({action: 'store', id})).ok, 'smoke profile permitted a transfer');
     assert(!(await bridge.network({action: 'publish', id, topic: 'synthetic/device/set', payload: 'ON'})).ok, 'raw publish accepted');
     assert((await bridge.network({action: 'disconnect', id: broker.id})).ok, 'disconnect');
     assert(!(await state()).systems[0].fresh, 'disconnected state marked fresh');

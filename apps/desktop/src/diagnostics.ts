@@ -1,6 +1,6 @@
 import {validId} from './project.js';
-export type EventCode = 'ready' | 'snapshotRead' | 'systemSelected' | 'languageChanged' | 'rejected' | 'projectRequest' | 'projectChanged' | 'credentialRequest' | 'projectFailed' | 'mqttConnect' | 'mqttConnected' | 'mqttDisconnected' | 'mqttFailure' | 'mqttRead' | 'mqttReadComplete' | 'mqttReply' | 'draftRequest' | 'draftCompleted' | 'draftRejected';
-const operations = ['status', 'new', 'open', 'save', 'saveAs', 'export', 'restore', 'editing', 'edited', 'rename', 'broker', 'system', 'draft', 'storeCredentials', 'removeCredentials', 'read', 'connect', 'disconnect'] as const;
+export type EventCode = 'ready' | 'snapshotRead' | 'systemSelected' | 'languageChanged' | 'rejected' | 'projectRequest' | 'projectChanged' | 'credentialRequest' | 'projectFailed' | 'mqttConnect' | 'mqttConnected' | 'mqttDisconnected' | 'mqttFailure' | 'mqttRead' | 'mqttReadComplete' | 'mqttTransfer' | 'mqttReply' | 'draftRequest' | 'draftCompleted' | 'draftRejected';
+const operations = ['status', 'new', 'open', 'save', 'saveAs', 'export', 'restore', 'editing', 'edited', 'rename', 'broker', 'system', 'draft', 'storeCredentials', 'removeCredentials', 'read', 'connect', 'disconnect', 'validate', 'store', 'install'] as const;
 type Operation = typeof operations[number];
 const reasons = ['timeout', 'protocol', 'stale', 'disconnected', 'remoteError', 'readError', 'connectionError', 'tlsError', 'authentication', 'permission'] as const;
 export interface DebugEvent { time: number; code: EventCode; request: number; system?: string; language?: string; operation?: Operation; transaction?: string; broker?: string; reason?: string }

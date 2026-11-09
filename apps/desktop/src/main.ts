@@ -17,6 +17,7 @@ import {connect} from 'mqtt';
 import {smokeNetwork} from './smoke-network.js';
 import {DraftEditor, type DesignerCommand} from './draft-editor.js';
 import {DraftExchange} from './draft-exchange.js';
+import {ExtensionTransfer, bundledExtension} from './extension-transfer.js';
 import {smokeDrafts} from './smoke-drafts.js';
 
 const smoke = process.argv.includes('--smoke-test');
@@ -34,6 +35,7 @@ let projects: ProjectService;
 let reader: MqttReader;
 let drafts: DraftEditor;
 let exchange: DraftExchange;
+let transfers: ExtensionTransfer;
 function message(key: string): string {
   const catalog = JSON.parse(readFileSync(join(assetsRoot, 'locales', language + '.json'), 'utf8')) as Record<string, string>;
   return catalog['project.' + key] ?? key;
@@ -83,6 +85,15 @@ async function designer(command: DesignerCommand): Promise<unknown> {
 }
 async function network(command: NetworkCommand): Promise<unknown> {
   switch (command.action) {
+    case 'validate': case 'store': case 'install': case 'checkTransfer': {
+      if (smoke) throw new Error('invalidRequest');
+      try {
+        const outcome = await transfers.command(command.action, command.id);
+        return {...(reader.state() as object), bundledExtension, outcome};
+      } finally {
+        if (command.action !== 'validate') void reader.refresh(command.id).catch(() => {});
+      }
+    }
     case 'status': break;
     case 'connect': await reader.connectBroker(command.id); break;
     case 'disconnect': reader.disconnect(command.id); break;
@@ -96,7 +107,7 @@ async function network(command: NetworkCommand): Promise<unknown> {
       break;
     }
   }
-  return reader.state();
+  return {...(reader.state() as object), bundledExtension};
 }
 
 async function open(): Promise<void> {
@@ -167,6 +178,21 @@ async function open(): Promise<void> {
     if (open) { const result = await dialog.showOpenDialog(window, {title: message(key), properties: ['openFile'], filters}); return result.canceled ? null : result.filePaths[0] ?? null; }
     const result = await dialog.showSaveDialog(window, {title: message(key), defaultPath: 'draft.' + extension, filters}); return result.canceled ? null : result.filePath ?? null;
   };
+  transfers = new ExtensionTransfer(projects, reader, {
+    backup: async (conflict, review) => {
+      if (conflict && review && window) await dialog.showMessageBox(window, {type: 'warning', message: message('transferConflict'),
+        detail: message('transferConflictDetail').replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? ''))});
+      return chooseDraft(conflict ? 'transferConflictBackup' : 'transferBackup', 'z2ma', false);
+    },
+    confirm: async (action, review) => {
+      if (!window || smoke) return false;
+      const detail = message(action === 'store' ? 'transferStoreDetail' : 'transferInstallDetail')
+        .replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? ''));
+      const result = await dialog.showMessageBox(window, {type: 'warning', message: message(action === 'store' ? 'transferStoreConfirm' : 'transferInstallConfirm'), detail,
+        buttons: [message('cancel'), message('continue')], defaultId: 0, cancelId: 0, noLink: true});
+      return result.response === 1;
+    }
+  });
   exchange = new DraftExchange(projects, drafts, {
     chooseImport: () => chooseDraft('importDraft', 'yaml', true), chooseExport: () => chooseDraft('exportDraft', 'yaml', false),
     chooseBackup: () => chooseDraft('backupDraft', 'z2ma', false),
@@ -199,7 +225,7 @@ async function open(): Promise<void> {
       catch (error) {
         debug.record('projectFailed');
         const key = error instanceof Error ? error.message : '';
-        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale'].includes(key) ? key : 'failed'};
+        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferUncertain', 'transferBridge'].includes(key) ? key : 'failed'};
       }
     });
   });

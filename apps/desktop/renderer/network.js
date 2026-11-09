@@ -33,6 +33,8 @@ export async function installNetwork(bridge) {
         + t(system.reading ? 'mqtt.reading' : system.fresh ? 'mqtt.fresh' : system.stored ? 'mqtt.stale' : 'mqtt.unknown')
         + ' · ' + t('mqtt.counts', {devices: system.devices, scenes: system.scenes, revision: system.revision ?? '—'})
         + ' · ' + t(system.executing === null ? 'mqtt.operationUnknown' : system.executing ? 'mqtt.operationActive' : 'mqtt.operationStopped')
+        + ' · ' + t('project.extensionBuilds', {installed: system.extensionVersion + ' ' + (system.build?.slice(0, 12) ?? '—'), bundled: (state.bundledExtension?.version ?? '') + ' ' + (state.bundledExtension?.build?.slice(0, 12) ?? '—')})
+        + (system.fresh && system.build && state.bundledExtension ? ' · ' + t(system.build === state.bundledExtension.build ? 'project.extensionMatch' : 'project.extensionDifferent') : '')
         + (system.error || broker?.error ? ' · ' + t('mqtt.error.' + (system.error || broker.error)) : ''));
       return row;
     }));
@@ -50,7 +52,7 @@ export async function installNetwork(bridge) {
     finally { poll = false; }
   }
   async function command(action, source) {
-    const id = ['refresh', 'view', 'catalog'].includes(action) ? systems.value : brokers.value;
+    const id = ['refresh', 'view', 'catalog', 'validate', 'store', 'install', 'checkTransfer'].includes(action) ? systems.value : brokers.value;
     if (!id || busy) return;
     busy = true; panel.setAttribute('aria-busy', 'true');
     try {
@@ -69,11 +71,12 @@ export async function installNetwork(bridge) {
       const result = await bridge.network({action, id, ...(source ? {source} : {})});
       if (!result.ok) { bindText(feedback, () => t('project.' + result.error)); return; }
       state = result.state; paint(); changed();
-      bindText(feedback, () => t('mqtt.requestAccepted'));
+      const outcome = result.state.outcome;
+      bindText(feedback, () => t(outcome ? 'project.' + outcome : 'mqtt.requestAccepted'));
     } catch { bindText(feedback, () => t('project.failed')); }
     finally { busy = false; panel.removeAttribute('aria-busy'); }
   }
-  for (const [key, action, source] of [['connect', 'connect'], ['disconnect', 'disconnect'], ['refresh', 'refresh'], ['catalog', 'catalog'], ['certificates', 'certificates'], ['clearCertificates', 'clearCertificates'], ['draft', 'view', 'draft'], ['stored', 'view', 'stored']]) {
+  for (const [key, action, source] of [['connect', 'connect'], ['disconnect', 'disconnect'], ['refresh', 'refresh'], ['catalog', 'catalog'], ['certificates', 'certificates'], ['clearCertificates', 'clearCertificates'], ['draft', 'view', 'draft'], ['stored', 'view', 'stored'], ['validate', 'validate'], ['store', 'store'], ['install', 'install'], ['checkTransfer', 'checkTransfer']]) {
     const button = document.createElement('button'); button.type = 'button'; button.id = 'mqtt-' + key;
     bindText(button, () => t('mqtt.' + key)); button.addEventListener('click', () => command(action, source)); controls.append(button);
   }

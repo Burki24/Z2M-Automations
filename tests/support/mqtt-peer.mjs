@@ -17,7 +17,7 @@ export function remoteFixture(name = 'Synthetic remote rule') {
     groups: [{id: 1, name: 'Synthetic group'}], scenes: [{target: {type: 'device', id: '0x0000000000000002'}, id: 1, name: 'Synthetic scene', endpoint: 1, control_property: 'state'}]}};
 }
 /** Minimal independent MQTT 3.1.1 test peer. It implements no device or runtime actions. */
-export async function startPeer({systems = new Map([['synthetic', remoteFixture()]]), secure, deny = false, auth = false, acknowledge = true, reply} = {}) {
+export async function startPeer({systems = new Map([['synthetic', remoteFixture()]]), secure, deny = false, auth = false, acknowledge = true, reply, bridge} = {}) {
   const sockets = new Set(); const clients = []; const publications = []; const subscriptions = [];
   const server = secure ? tls.createServer(secure) : net.createServer();
   server.on('connection', socket => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)); socket.on('error', () => {}); });
@@ -32,15 +32,20 @@ export async function startPeer({systems = new Map([['synthetic', remoteFixture(
         subscriptions.push(...value.subscriptions.map(subscription => subscription.topic));
         for (const subscription of value.subscriptions) topics.add(subscription.topic);
         if (acknowledge) send(socket, {cmd: 'suback', messageId: value.messageId, granted: value.subscriptions.map(() => deny ? 128 : 0)});
+        for (const base of systems.keys()) for (const [suffix, data] of Object.entries(bridge ?? {})) {
+          const topic = base + '/bridge/' + suffix;
+          if (topics.has(topic)) send(socket, {cmd: 'publish', topic, payload: Buffer.from(JSON.stringify(data)), qos: 0, retain: true, dup: false});
+        }
       }
       if (value.cmd === 'publish') {
         publications.push(value);
-        const match = /^(.*)\/symcon\/automations\/request\/(status|editor)$/.exec(value.topic);
+        const match = /^(.*)\/symcon\/automations\/request\/(status|editor|validate|store)$/.exec(value.topic)
+          ?? /^(.*)\/bridge\/request\/extension\/save$/.exec(value.topic);
         if (!match || !systems.has(match[1])) return;
         let request; try { request = JSON.parse(value.payload.toString()); } catch { return; }
-        const operation = match[2]; const fixture = systems.get(match[1]);
-        const responseTopic = match[1] + '/symcon/automations/response/' + operation;
-        const response = {protocol_version: 1, transaction: request.transaction, status: 'ok', data: structuredClone(fixture[operation])};
+        const operation = match[2] ?? 'install'; const fixture = systems.get(match[1]);
+        const responseTopic = match[1] + (operation === 'install' ? '/bridge/response/extension/save' : '/symcon/automations/response/' + operation);
+        const response = {...(operation === 'install' ? {} : {protocol_version: 1}), transaction: request.transaction, status: 'ok', data: structuredClone(fixture[operation] ?? {})};
         const publish = (body = response, topic = responseTopic, retain = false) => {
           if (topics.has(topic)) send(socket, {cmd: 'publish', topic, payload: Buffer.from(JSON.stringify(body)), qos: 0, retain, dup: false});
         };

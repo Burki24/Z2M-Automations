@@ -47,15 +47,23 @@ export class ProjectService {
   }
   async backup(path: string): Promise<void> { await this.file.export(this.project, path); }
   async exportBytes(path: string, bytes: Buffer): Promise<void> { await this.file.exportBytes(path, bytes); }
-  observe(projectId: string, epoch: number, systemId: string, stored: StoredConfiguration): void {
+  observe(projectId: string, epoch: number, systemId: string, stored: StoredConfiguration, initializeBase = true): void {
     if (!this.active || this.project.id !== projectId || this.epoch !== epoch || !validStored(stored)) throw new Error('stale');
     const next = this.data(); const system = next.systems.find(system => system.id === systemId);
     if (!system) throw new Error('stale');
     if (JSON.stringify(system.stored) === JSON.stringify(stored)) return;
+    if (initializeBase && !system.stored && !system.baseline) system.baseline = stored.revision > 0 && stored.checksum ? {revision: stored.revision, checksum: stored.checksum} : null;
     system.stored = structuredClone(stored);
-    system.baseline = stored.revision > 0 && stored.checksum ? {revision: stored.revision, checksum: stored.checksum} : null;
     projectBytes(next); this.project = next; this.dirty = true;
   }
+  acceptStoredBase(systemId: string): void {
+    const next = this.data(); const system = next.systems.find(item => item.id === systemId);
+    if (!system?.stored) throw new Error('noStored');
+    const {revision, checksum} = system.stored;
+    system.baseline = revision && checksum ? {revision, checksum} : null;
+    projectBytes(next); this.project = next; this.dirty = true;
+  }
+  hasPendingInput(): boolean { return this.pending || this.editorPending; }
   isDirty(): boolean { return this.dirty || this.pending || this.editorPending; }
   editorState(pending: boolean): void { this.editorPending = pending; }
   async state(): Promise<unknown> {

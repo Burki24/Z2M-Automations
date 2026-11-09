@@ -22,4 +22,8 @@ const schemaRoot = join(root, 'apps/desktop/schema');
 const provenance = JSON.parse(readFileSync(join(schemaRoot, 'provenance.json'), 'utf8'));
 if (createHash('sha256').update(readFileSync(join(schemaRoot, 'automations.schema.json'))).digest('hex') !== provenance.sha256) throw new Error('Schema artifact integrity mismatch.');
 cpSync(schemaRoot, join(root, 'apps/desktop/.build/schema'), {recursive: true});
+const extensionRoot = join(root, 'apps/desktop/extension');
+const extension = JSON.parse(readFileSync(join(extensionRoot, 'provenance.json'), 'utf8'));
+if (extension.schemaSha256 !== provenance.sha256 || createHash('sha256').update(readFileSync(join(extensionRoot, 'z2m-automations.mjs'))).digest('hex') !== extension.sha256) throw new Error('Extension artifact integrity mismatch.');
+cpSync(extensionRoot, join(root, 'apps/desktop/.build/extension'), {recursive: true});
 console.log('Desktop compiled and local assets staged.');

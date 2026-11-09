@@ -156,8 +156,12 @@ test('broker denial and locked credentials fail without control requests or anon
   locked.reconcile(project, 1); t.after(() => locked.close());
   await assert.rejects(locked.connectBroker(project.brokers[0].id), /protectionUnavailable/); assert.equal(peer.clients.length, 1);
 });
-test('network IPC has no publish, device, upload, install or raw TLS/file operation', () => {
-  for (const action of ['publish', 'store', 'activate', 'install', 'run_once', 'set']) assert.equal(validPayload('network', {action, id: randomUUID()}), false);
+test('network IPC exposes fixed transfer actions without raw MQTT, TLS or file operations', () => {
+  for (const action of ['validate', 'store', 'install']) {
+    assert.equal(validPayload('network', {action, id: randomUUID()}), true);
+    assert.equal(validPayload('network', {action, id: randomUUID(), yaml: 'private'}), false);
+  }
+  for (const action of ['publish', 'activate', 'run_once', 'set']) assert.equal(validPayload('network', {action, id: randomUUID()}), false);
   assert.equal(validPayload('network', {action: 'connect', id: randomUUID(), host: 'private.invalid', rejectUnauthorized: false}), false);
   const options = mqttOptions({id: randomUUID(), name: 'Synthetic', host: 'broker.invalid', port: 8883, tls: true}, null, {});
   assert.equal(options.rejectUnauthorized, true); assert.equal(options.queueQoSZero, false); assert.equal(options.resubscribe, false); assert.equal(options.clean, true);

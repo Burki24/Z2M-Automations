@@ -62,7 +62,7 @@ export function checkedEntry(entry: Entry, sequence: boolean): void {
   if (!entry['name'].trim()) throw new Error('draftSchema');
   for (const item of [...(entry['triggers'] ?? []), ...(entry['conditions'] ?? [])] as Entry[]) if (item['timezone'] !== undefined) timezone(item['timezone']);
 }
-export function checkCapabilities(entry: Entry, sequence: boolean, configuration: Configuration, project: Project, system: ProjectSystem, reader: MqttReader, sections = ['triggers', 'conditions', 'actions']): void {
+export function checkCapabilities(entry: Entry, sequence: boolean, configuration: Configuration, project: Project, system: ProjectSystem, reader: Pick<MqttReader, 'current'>, sections = ['triggers', 'conditions', 'actions']): void {
   checkedEntry(entry, sequence);
   for (const item of sections.filter(section => section !== 'actions').flatMap(section => entry[section] ?? []) as Entry[]) if (['device', 'device_value'].includes(item['type'])) {
     const remote = reader.current(system.id);
