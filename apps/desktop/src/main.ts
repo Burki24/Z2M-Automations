@@ -23,6 +23,8 @@ import {DraftExchange} from './draft-exchange.js';
 import {ExtensionTransfer, bundledExtension} from './extension-transfer.js';
 import {smokeDrafts} from './smoke-drafts.js';
 
+if (process.platform === 'linux') app.setDesktopName('z2m-automations.desktop');
+
 const smoke = process.argv.includes('--smoke-test');
 if (configureSmokeRendering(app, {smoke, platform: process.platform, ci: process.env['CI'] === 'true'})) console.log('DESKTOP_CI_SOFTWARE_RENDERING');
 const profile = smoke ? process.env['Z2MA_SMOKE_PROFILE'] || mkdtempSync(join(tmpdir(), 'z2ma-smoke-')) : null;
@@ -139,6 +141,7 @@ async function open(): Promise<void> {
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({cancel: !details.url.startsWith('z2ma://app/')}));
   // Give Linux smoke a mapped rendering surface for capturePage; CI supplies Xvfb.
   window = new BrowserWindow({width: 1360, height: 900, minWidth: 360, minHeight: 500, show: !smoke || process.platform === 'linux',
+    ...(process.platform === 'linux' ? {icon: join(assetsRoot, 'app-icon.png')} : {}),
     title: 'Z2M-Automations ' + (process.platform === 'win32' ? 'for Windows' : 'for Linux'),
     webPreferences: {...rendererPreferences, preload: join(__dirname, 'preload.js')}});
   const view = window.webContents;

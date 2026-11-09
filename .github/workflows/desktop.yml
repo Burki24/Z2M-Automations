@@ -88,6 +88,10 @@ jobs:
           trap 'sudo apt-get remove --yes z2m-automations' EXIT
           binary="$(dpkg-query -L z2m-automations | awk '/\/resources\/app\.asar$/ { sub(/resources\/app\.asar$/, "Z2M-Automations"); print }')"
           test -x "$binary"
+          launcher="$(dpkg-query -L z2m-automations | awk '/\/applications\/z2m-automations\.desktop$/')"
+          icon="$(dpkg-query -L z2m-automations | awk '/\/z2m-automations\.png$/')"
+          grep -Fx 'Icon=z2m-automations' "$launcher"
+          cmp apps/desktop/renderer/app-icon.png "$icon"
           Z2MA_SMOKE_BINARY="$binary" xvfb-run --auto-servernum --server-args="-screen 0 3840x2160x24" npm run smoke
           sudo apt-get remove --yes z2m-automations
           trap - EXIT
