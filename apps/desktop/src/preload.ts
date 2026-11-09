@@ -5,6 +5,7 @@ const bridge: DesktopBridge = Object.freeze({
   snapshot: () => ipcRenderer.invoke('z2ma:snapshot'),
   selectSystem: (systemId: string) => ipcRenderer.invoke('z2ma:select-system', systemId),
   language: (change: Parameters<DesktopBridge['language']>[0]) => ipcRenderer.invoke('z2ma:language', change),
+  theme: (theme: Parameters<DesktopBridge['theme']>[0]) => ipcRenderer.invoke('z2ma:theme', theme),
   diagnostics: () => ipcRenderer.invoke('z2ma:diagnostics'),
   recording: (action: 'start' | 'stop') => ipcRenderer.invoke('z2ma:recording', action),
   project: (command: Parameters<DesktopBridge['project']>[0]) => ipcRenderer.invoke('z2ma:project', command),

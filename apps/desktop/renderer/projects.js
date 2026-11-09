@@ -216,7 +216,7 @@ export async function installProjects(bridge) {
     mode.required = true; paintSecretState();
   }
   for (const element of [nameForm, brokerForm, systemForm, draftForm, credentialForm]) element.addEventListener('submit', event => event.preventDefault());
-  document.body.prepend(root);
+  document.querySelector('.app-header').after(root);
   document.addEventListener('z2ma-project-changed', async () => {
     if (busy || !state) return;
     const epoch = state.epoch;

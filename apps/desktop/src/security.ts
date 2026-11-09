@@ -34,6 +34,7 @@ export function validPayload(channel: Channel, value: unknown): boolean {
   switch (channel) {
     case 'snapshot': case 'diagnostics': return value === undefined;
     case 'select-system': return validId(value);
+    case 'theme': return value === 'system' || value === 'light' || value === 'dark';
     case 'language': return languageChange(value);
     case 'recording': return value === 'start' || value === 'stop';
     case 'network': return validNetworkCommand(value);

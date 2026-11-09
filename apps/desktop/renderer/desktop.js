@@ -63,11 +63,39 @@ start.addEventListener('click', async () => { recording = await bridge.recording
 stop.addEventListener('click', async () => { recording = await bridge.recording('stop'); paint(); });
 setInterval(async () => { if (panel.open || recording.active) { recording = await bridge.diagnostics(); paint(); } }, 1000);
 onLanguageChange(paint); paint();
+const themeOptions = ['system', 'light', 'dark'];
+const themeKey = 'z2ma.desktop.theme';
+async function installTheme() {
+    let preference = 'system';
+    try {
+        const saved = localStorage.getItem(themeKey);
+        if (themeOptions.includes(saved)) preference = saved;
+    } catch { /* The session still supports changing the theme. */ }
+    await bridge.theme(preference);
+    const label = document.createElement('label'); label.className = 'designer-language';
+    const caption = document.createElement('span'); bindText(caption, () => t('desktop.theme'));
+    const select = document.createElement('select'); select.id = 'desktop-theme';
+    for (const value of themeOptions) {
+        const option = document.createElement('option'); option.value = value;
+        bindText(option, () => t('desktop.theme.' + value)); select.append(option);
+    }
+    select.value = preference;
+    select.addEventListener('change', async () => {
+        const value = select.value;
+        await bridge.theme(value);
+        try { localStorage.setItem(themeKey, value); } catch { /* The current session already uses the theme. */ }
+    });
+    label.append(caption, select);
+    const language = document.querySelector('#designer-language')?.closest('label');
+    if (language) language.after(label);
+    else document.querySelector('.app-header .toolbar').append(label);
+}
 try {
     const openBrokerSetup = await installProjects(bridge);
     await installNetwork(bridge, openBrokerSetup);
     installDraftExchange(bridge);
     await import('./reader.js');
+    await installTheme();
     const view = await bridge.snapshot();
     const caption = document.querySelector('.brand-copy strong') ?? document.querySelector('.brand strong');
     if (caption) bindText(caption, () => 'Z2M-Automations ' + t(view.desktop.platform === 'win32' ? 'desktop.windows' : 'desktop.linux') + ' · ' + view.desktop.version);

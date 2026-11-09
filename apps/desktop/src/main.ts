@@ -69,6 +69,7 @@ function handle(channel: Channel, payload: unknown): unknown {
       projects.select(payload); debug.record('systemSelected', payload); return {ok: true};
     } break;
     case 'language': if (languageChange(payload)) { language = payload.language; debug.record('languageChanged', undefined, payload.language); return {ok: true}; } break;
+    case 'theme': if (payload === 'system' || payload === 'light' || payload === 'dark') { nativeTheme.themeSource = payload; return {ok: true}; } break;
     case 'diagnostics': return debug.read();
     case 'recording': if (payload === 'start' || payload === 'stop') return debug.control(payload); break;
     case 'project': return projects.command(payload as ProjectCommand).then(state => { reader.reconcile(projects.active ? projects.data() : null, projects.generation()); return state; });
@@ -278,8 +279,17 @@ async function open(): Promise<void> {
       const wait = async test => { for (let n = 0; n < 100; n++) { if (test()) return; await new Promise(r => setTimeout(r, 50)); } throw new Error('View timeout: ' + document.body.textContent.slice(-500)); };
       await wait(() => document.querySelector('#designer-system')?.options.length === 2);
       const bridge = window.z2maDesktop;
+      const header = document.querySelector('.app-header');
+      if (!(header.compareDocumentPosition(document.querySelector('#local-project')) & Node.DOCUMENT_POSITION_FOLLOWING)) throw new Error('Desktop header is below project controls');
+      const theme = document.querySelector('#desktop-theme');
+      for (const value of ['dark', 'light', 'system']) {
+        theme.value = value;
+        theme.dispatchEvent(new Event('change', {bubbles: true}));
+        await wait(() => localStorage.getItem('z2ma.desktop.theme') === value);
+        if (value !== 'system') await wait(() => matchMedia('(prefers-color-scheme: ' + value + ')').matches);
+      }
       if (typeof require !== 'undefined' || typeof process !== 'undefined') throw new Error('Node exposed');
-      if (Object.keys(bridge).sort().join(',') !== 'credential,designer,diagnostics,language,network,project,recording,selectSystem,snapshot') throw new Error('Unexpected bridge');
+      if (Object.keys(bridge).sort().join(',') !== 'credential,designer,diagnostics,language,network,project,recording,selectSystem,snapshot,theme') throw new Error('Unexpected bridge');
       const first = await bridge.snapshot();
       const before = JSON.stringify(first.configuration);
       await bridge.recording('start');
