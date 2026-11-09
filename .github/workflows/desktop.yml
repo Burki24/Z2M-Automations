@@ -98,7 +98,7 @@ jobs:
           test ! -e "$binary"
       - name: Build the shared designer handoff
         run: npm run pack:designer
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: desktop-${{ runner.os }}
           path: |
