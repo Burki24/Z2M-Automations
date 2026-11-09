@@ -1,0 +1,779 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "urn:burki24:z2m-automations:schema:1",
+    "title": "Z2MAutomations configuration v1",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "schema_version": {
+            "const": 1
+        },
+        "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+        },
+        "automations": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+                "$ref": "#/definitions/automation"
+            }
+        },
+        "mesh_peers": {
+            "type": "array",
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+                "$ref": "#/definitions/system"
+            }
+        },
+        "sequences": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+                "$ref": "#/definitions/sequence"
+            }
+        }
+    },
+    "required": [
+        "schema_version",
+        "revision",
+        "automations"
+    ],
+    "definitions": {
+        "device": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]{16}$"
+        },
+        "jsonValue": {
+            "anyOf": [
+                {
+                    "type": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "null"
+                    ],
+                    "maxLength": 256
+                },
+                {
+                    "type": "array",
+                    "maxItems": 32,
+                    "items": {
+                        "$ref": "#/definitions/jsonValue"
+                    }
+                },
+                {
+                    "type": "object",
+                    "maxProperties": 32,
+                    "propertyNames": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+                        "not": {
+                            "enum": [
+                                "__proto__",
+                                "constructor",
+                                "prototype"
+                            ]
+                        }
+                    },
+                    "additionalProperties": {
+                        "$ref": "#/definitions/jsonValue"
+                    }
+                }
+            ]
+        },
+        "deviceTrigger": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "device"
+                },
+                "device": {
+                    "$ref": "#/definitions/device"
+                },
+                "property": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+                    "not": {
+                        "enum": [
+                            "__proto__",
+                            "constructor",
+                            "prototype"
+                        ]
+                    }
+                },
+                "operator": {
+                    "enum": [
+                        "eq",
+                        "ne",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte"
+                    ]
+                },
+                "value": {
+                    "type": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "null"
+                    ],
+                    "maxLength": 256
+                },
+                "for_seconds": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 86400
+                },
+                "on_change": {
+                    "type": "boolean"
+                }
+            },
+            "required": [
+                "type",
+                "device",
+                "property",
+                "operator",
+                "value"
+            ],
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "operator": {
+                                "enum": [
+                                    "gt",
+                                    "gte",
+                                    "lt",
+                                    "lte"
+                                ]
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "value": {
+                                "type": "number"
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        "timeTrigger": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "time"
+                },
+                "at": {
+                    "type": "string",
+                    "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$"
+                },
+                "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                }
+            },
+            "required": [
+                "type",
+                "at",
+                "timezone"
+            ]
+        },
+        "deviceCondition": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "device_value"
+                },
+                "device": {
+                    "$ref": "#/definitions/device"
+                },
+                "property": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+                    "not": {
+                        "enum": [
+                            "__proto__",
+                            "constructor",
+                            "prototype"
+                        ]
+                    }
+                },
+                "operator": {
+                    "enum": [
+                        "eq",
+                        "ne",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte"
+                    ]
+                },
+                "value": {
+                    "type": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "null"
+                    ],
+                    "maxLength": 256
+                },
+                "start_only": {
+                    "type": "boolean"
+                }
+            },
+            "required": [
+                "type",
+                "device",
+                "property",
+                "operator",
+                "value"
+            ],
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "operator": {
+                                "enum": [
+                                    "gt",
+                                    "gte",
+                                    "lt",
+                                    "lte"
+                                ]
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "value": {
+                                "type": "number"
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        "timeCondition": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "time_window"
+                },
+                "after": {
+                    "type": "string",
+                    "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$"
+                },
+                "before": {
+                    "type": "string",
+                    "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$"
+                },
+                "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                },
+                "weekdays": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 7,
+                    "uniqueItems": true,
+                    "items": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 7
+                    }
+                }
+            },
+            "required": [
+                "type",
+                "after",
+                "before",
+                "timezone"
+            ]
+        },
+        "target": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "type": {
+                            "const": "device"
+                        },
+                        "id": {
+                            "$ref": "#/definitions/device"
+                        },
+                        "system": {
+                            "$ref": "#/definitions/system"
+                        }
+                    },
+                    "required": [
+                        "type",
+                        "id"
+                    ]
+                },
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "type": {
+                            "const": "group"
+                        },
+                        "id": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 65535
+                        },
+                        "system": {
+                            "$ref": "#/definitions/system"
+                        }
+                    },
+                    "required": [
+                        "type",
+                        "id"
+                    ]
+                }
+            ]
+        },
+        "action": {
+            "oneOf": [
+                {
+                    "$ref": "#/definitions/sceneAction"
+                },
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "type": {
+                            "const": "set"
+                        },
+                        "target": {
+                            "$ref": "#/definitions/target"
+                        },
+                        "values": {
+                            "type": "object",
+                            "minProperties": 1,
+                            "maxProperties": 32,
+                            "propertyNames": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+                                "not": {
+                                    "enum": [
+                                        "__proto__",
+                                        "constructor",
+                                        "prototype"
+                                    ]
+                                }
+                            },
+                            "additionalProperties": {
+                                "$ref": "#/definitions/jsonValue"
+                            }
+                        },
+                        "delay_seconds": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 86400
+                        }
+                    },
+                    "required": [
+                        "type",
+                        "target",
+                        "values"
+                    ]
+                },
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "type": {
+                            "const": "toggle"
+                        },
+                        "target": {
+                            "$ref": "#/definitions/target"
+                        },
+                        "property": {
+                            "type": "string",
+                            "pattern": "^state(?:_[A-Za-z0-9_]+)?$",
+                            "maxLength": 64
+                        },
+                        "delay_seconds": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 86400
+                        }
+                    },
+                    "required": [
+                        "type",
+                        "target",
+                        "property"
+                    ]
+                },
+                {
+                    "$ref": "#/definitions/sequenceCall"
+                }
+            ]
+        },
+        "sceneAction": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "scene"
+                },
+                "target": {
+                    "$ref": "#/definitions/target"
+                },
+                "scene_id": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255
+                },
+                "endpoint": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 240
+                },
+                "delay_seconds": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 86400
+                }
+            },
+            "required": [
+                "type",
+                "target",
+                "scene_id"
+            ],
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "target": {
+                                "type": "object",
+                                "properties": {
+                                    "type": {
+                                        "const": "group"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "endpoint": false
+                        }
+                    },
+                    "else": {
+                        "properties": {
+                            "endpoint": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 240
+                            }
+                        },
+                        "required": [
+                            "endpoint"
+                        ]
+                    }
+                }
+            ]
+        },
+        "automation": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+                },
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "retrigger": {
+                    "enum": [
+                        "ignore",
+                        "restart",
+                        "extend"
+                    ]
+                },
+                "restart_policy": {
+                    "enum": [
+                        "abort",
+                        "resume",
+                        "resume_expired"
+                    ]
+                },
+                "triggers": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "items": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/definitions/deviceTrigger"
+                            },
+                            {
+                                "$ref": "#/definitions/timeTrigger"
+                            },
+                            {
+                                "$ref": "#/definitions/sunTrigger"
+                            }
+                        ]
+                    }
+                },
+                "conditions": {
+                    "type": "array",
+                    "maxItems": 16,
+                    "items": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/definitions/deviceCondition"
+                            },
+                            {
+                                "$ref": "#/definitions/timeCondition"
+                            },
+                            {
+                                "$ref": "#/definitions/weekdayCondition"
+                            }
+                        ]
+                    }
+                },
+                "actions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "items": {
+                        "$ref": "#/definitions/action"
+                    }
+                }
+            },
+            "required": [
+                "id",
+                "name",
+                "enabled",
+                "triggers",
+                "conditions",
+                "actions"
+            ]
+        },
+        "system": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$"
+        },
+        "sunTrigger": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "sun"
+                },
+                "event": {
+                    "enum": [
+                        "sunrise",
+                        "sunset"
+                    ]
+                },
+                "latitude": {
+                    "type": "number",
+                    "minimum": -90,
+                    "maximum": 90
+                },
+                "longitude": {
+                    "type": "number",
+                    "minimum": -180,
+                    "maximum": 180
+                },
+                "offset_minutes": {
+                    "type": "integer",
+                    "minimum": -720,
+                    "maximum": 720
+                },
+                "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                }
+            },
+            "required": [
+                "type",
+                "event",
+                "latitude",
+                "longitude",
+                "offset_minutes",
+                "timezone"
+            ]
+        },
+        "leafAction": {
+            "oneOf": [
+                {
+                    "$ref": "#/definitions/sceneAction"
+                },
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "type": {
+                            "const": "set"
+                        },
+                        "target": {
+                            "$ref": "#/definitions/target"
+                        },
+                        "values": {
+                            "type": "object",
+                            "minProperties": 1,
+                            "maxProperties": 32,
+                            "propertyNames": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+                                "not": {
+                                    "enum": [
+                                        "__proto__",
+                                        "constructor",
+                                        "prototype"
+                                    ]
+                                }
+                            },
+                            "additionalProperties": {
+                                "$ref": "#/definitions/jsonValue"
+                            }
+                        },
+                        "delay_seconds": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 86400
+                        }
+                    },
+                    "required": [
+                        "type",
+                        "target",
+                        "values"
+                    ]
+                },
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "type": {
+                            "const": "toggle"
+                        },
+                        "target": {
+                            "$ref": "#/definitions/target"
+                        },
+                        "property": {
+                            "type": "string",
+                            "pattern": "^state(?:_[A-Za-z0-9_]+)?$",
+                            "maxLength": 64
+                        },
+                        "delay_seconds": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 86400
+                        }
+                    },
+                    "required": [
+                        "type",
+                        "target",
+                        "property"
+                    ]
+                }
+            ]
+        },
+        "sequenceCall": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "sequence"
+                },
+                "sequence_id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+                },
+                "delay_seconds": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 86400
+                }
+            },
+            "required": [
+                "type",
+                "sequence_id"
+            ]
+        },
+        "sequence": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+                },
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                },
+                "actions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "items": {
+                        "$ref": "#/definitions/leafAction"
+                    }
+                }
+            },
+            "required": [
+                "id",
+                "name",
+                "actions"
+            ]
+        },
+        "weekdayCondition": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "weekday"
+                },
+                "weekdays": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 7,
+                    "uniqueItems": true,
+                    "items": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 7
+                    }
+                },
+                "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                }
+            },
+            "required": [
+                "type",
+                "weekdays",
+                "timezone"
+            ]
+        }
+    }
+}

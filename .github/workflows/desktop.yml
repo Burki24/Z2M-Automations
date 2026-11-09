@@ -1,0 +1,103 @@
+name: Desktop verification
+
+on:
+  push:
+    branches: [dev, main]
+    paths-ignore: [version.json]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      electron_config_cache: ${{ github.workspace }}/.cache/electron
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.20.0
+          cache: npm
+      - name: Install pinned tools without implicit lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Cache verified Electron downloads for setup and packaging
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.electron_config_cache }}
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
+      - name: Prepare reviewed Electron and installer tools
+        run: npm run setup:tools
+      - name: Install Linux build and display tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes fakeroot dpkg xvfb openssl
+      - name: Verify shared sources and desktop contracts
+        run: npm run verify
+      - name: Package the native application
+        run: npm run make
+      - name: Verify Windows renderer and IPC
+        if: runner.os == 'Windows'
+        run: npm run smoke
+      - name: Verify packaged Windows application and runtime dependencies
+        if: runner.os == 'Windows'
+        run: npm run smoke:packaged
+      - name: Configure the Chromium sandbox in the disposable Linux runner
+        if: runner.os == 'Linux'
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox apps/desktop/out/Z2M-Automations-linux-x64/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox apps/desktop/out/Z2M-Automations-linux-x64/chrome-sandbox
+      - name: Verify Linux renderer and IPC under Xvfb
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 3840x2160x24" npm run smoke
+      - name: Verify packaged Linux application and runtime dependencies
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 3840x2160x24" npm run smoke:packaged
+      - name: Verify installed Windows package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = @(Get-ChildItem apps/desktop/out/make -Recurse -Filter '*Setup.exe' -File)
+          if ($setup.Count -ne 1) { throw 'Expected one Windows setup artifact' }
+          $install = Join-Path $env:RUNNER_TEMP 'z2ma-installed-smoke'
+          if (Test-Path -LiteralPath $install) { throw 'Installation path already exists' }
+          $result = Start-Process -FilePath $setup[0].FullName -ArgumentList "/S /currentuser /D=$install" -WindowStyle Hidden -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw "Setup exit code $($result.ExitCode)" }
+          $uninstall = @(Get-ChildItem -LiteralPath $install -Filter 'Uninstall*.exe' -File)
+          if ($uninstall.Count -ne 1) { throw 'Expected one installed uninstaller' }
+          $env:Z2MA_SMOKE_BINARY = Join-Path $install 'Z2M-Automations.exe'
+          try {
+            npm run smoke
+            if ($LASTEXITCODE -ne 0) { throw 'Installed Windows smoke failed' }
+          } finally {
+            $result = Start-Process -FilePath $uninstall[0].FullName -ArgumentList '/S' -WindowStyle Hidden -Wait -PassThru
+            if ($result.ExitCode -ne 0 -or (Test-Path -LiteralPath $env:Z2MA_SMOKE_BINARY)) { throw 'Uninstall failed' }
+          }
+      - name: Verify installed Ubuntu package
+        if: runner.os == 'Linux'
+        run: |
+          mapfile -t packages < <(find apps/desktop/out/make -type f -name '*.deb')
+          [[ ${#packages[@]} -eq 1 ]]
+          sudo apt-get install --yes "$(realpath "${packages[0]}")"
+          trap 'sudo apt-get remove --yes z2m-automations' EXIT
+          binary="$(dpkg-query -L z2m-automations | awk '/\/resources\/app\.asar$/ { sub(/resources\/app\.asar$/, "Z2M-Automations"); print }')"
+          test -x "$binary"
+          Z2MA_SMOKE_BINARY="$binary" xvfb-run --auto-servernum --server-args="-screen 0 3840x2160x24" npm run smoke
+          sudo apt-get remove --yes z2m-automations
+          trap - EXIT
+          test ! -e "$binary"
+      - name: Build the shared designer handoff
+        run: npm run pack:designer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ runner.os }}
+          path: |
+            apps/desktop/out/make/
+            artifacts/*.tgz
+          retention-days: 7
