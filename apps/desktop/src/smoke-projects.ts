@@ -46,7 +46,8 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     await wait(() => !document.querySelector('#local-project').hasAttribute('aria-busy'));
     click('save'); await wait(async () => !(await state()).dirty);
     assert((await state()).hasPath, 'file not saved');
-    const credentialBroker = document.querySelector('#project-credentialBroker'); credentialBroker.value = brokerId;
+    assert(document.querySelector('#project-brokerChoice').value === brokerId, 'credential target is the selected broker');
+    assert(document.querySelector('#project-broker-form').nextElementSibling.id === 'project-credentials-form', 'credentials follow broker settings');
     field('credentialMode', 'session'); click('storeCredentials');
     await wait(async () => (await state()).credentials[brokerId] === 'session');
     assert(!document.querySelector('input[type=password]'), 'credential input exposed to designer');

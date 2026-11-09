@@ -1355,6 +1355,7 @@
     "project.chooseMode": "Choose storage explicitly",
     "project.session": "This session only",
     "project.protected": "Protected on this computer",
+    "project.applyBrokerForCredentials": "Apply the broker settings before entering credentials.",
     "project.enterCredentials": "Enter credentials",
     "project.credentialPromptUnavailable": "The entry dialog is unavailable. On Ubuntu it requires Zenity. You can still import a JSON file.",
     "project.storeCredentials": "Import credentials",

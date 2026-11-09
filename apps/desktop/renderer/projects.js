@@ -38,6 +38,7 @@ export async function installProjects(bridge) {
         pending.add(form);
       }
       if (pending.size) await bridge.project({action: 'editing'});
+      paintSecretState();
     } catch { /* Never let unavailable or invalid session storage discard the project. */ }
   }
   const refresh = () => document.dispatchEvent(new Event('z2ma-project-changed'));
@@ -50,8 +51,10 @@ export async function installProjects(bridge) {
     const element = document.createElement('form'); element.className = 'project-form'; element.id = 'project-' + key + '-form';
     const legend = document.createElement('h3'); bindText(legend, () => t('project.' + key)); element.append(legend); root.append(element);
     element.addEventListener('input', event => {
-      if (['project-brokerChoice', 'project-systemChoice', 'project-draftSystem', 'project-draftChoice', 'project-credentialBroker'].includes(event.target.id)) return;
+      if (key === 'credentials') return;
+      if (['project-brokerChoice', 'project-systemChoice', 'project-draftSystem', 'project-draftChoice'].includes(event.target.id)) return;
       pending.add(element); rememberForms();
+      if (element === brokerForm) paintSecretState();
       if (state) state.dirty = true;
       bindText(stateLabel, () => t('project.unsaved'));
       void bridge.project({action: 'editing'});
@@ -99,7 +102,7 @@ export async function installProjects(bridge) {
         rememberForms();
       }
       paint();
-      if (command.action === 'broker') { brokerChoice.value = command.broker.id; brokerForm.dataset.selected = command.broker.id; }
+      if (command.action === 'broker') { brokerChoice.value = command.broker.id; brokerForm.dataset.selected = command.broker.id; paintSecretState(); }
       if (command.action === 'system') { systemChoice.value = command.system.id; systemForm.dataset.selected = command.system.id; }
       refresh(); show('done'); return true;
     } catch { show('failed'); return false; }
@@ -125,6 +128,7 @@ export async function installProjects(bridge) {
     brokerForm.dataset.selected = brokerChoice.value;
     const broker = state?.project.brokers.find(item => item.id === brokerChoice.value);
     brokerName.value = broker?.name ?? ''; host.value = broker?.host ?? ''; port.value = String(broker?.port ?? 1883); tls.checked = broker?.tls ?? false;
+    paintSecretState();
   });
   button(brokerForm, 'applyBroker', () => {
     if (brokerForm.reportValidity()) void run({action: 'broker', broker: {id: brokerChoice.value || crypto.randomUUID(), name: brokerName.value, host: host.value, port: Number(port.value), tls: tls.checked}}, brokerForm);
@@ -165,34 +169,35 @@ export async function installProjects(bridge) {
     // Main-process confirmation protects deletion through every caller.
     await run({action: 'draft', systemId: draftSystem.value, operation, ruleId: draftChoice.value, name: draftName.value}, draftForm);
   });
-  const credentialForm = form('credentials'); const credentialBroker = select(credentialForm, 'credentialBroker'); credentialBroker.required = true;
+  const credentialForm = form('credentials'); brokerForm.after(credentialForm);
   const mode = select(credentialForm, 'credentialMode');
   const secretState = document.createElement('p'); credentialForm.append(secretState);
   const secretHelp = document.createElement('p'); bindText(secretHelp, () => t('project.secretHelp')); credentialForm.append(secretHelp);
   async function credential(source) {
     const remove = source === 'remove';
-    if (busy || !credentialBroker.value || (!remove && !credentialForm.reportValidity())) return;
+    const brokerId = brokerChoice.value;
+    if (busy || !brokerId || pending.has(brokerForm)) return;
     busy = true;
     try {
-      const input = {brokerId: credentialBroker.value, mode: remove ? 'remove' : mode.value, ...(source === 'manual' ? {source} : {})};
+      const input = {brokerId, mode: remove ? 'remove' : mode.value, ...(source === 'manual' ? {source} : {})};
       const result = await bridge.credential(input);
       if (!result.ok) { show(result.error); return; }
-      pending.delete(credentialForm); state = result.state;
-      if (!pending.size) { const applied = await bridge.project({action: 'edited'}); if (applied.ok) state = applied.state; }
+      state = result.state;
       paint(); show('done');
     } catch { show('failed'); }
     finally { busy = false; }
   }
-  button(credentialForm, 'enterCredentials', () => credential('manual'));
-  button(credentialForm, 'storeCredentials', () => credential());
-  button(credentialForm, 'removeCredentials', () => credential('remove'));
-  credentialBroker.addEventListener('change', () => {
-    if (pending.has(credentialForm)) { credentialBroker.value = credentialForm.dataset.selected ?? ''; show('applyFirst'); return; }
-    credentialForm.dataset.selected = credentialBroker.value;
-    paintSecretState();
-  });
+  const credentialButtons = [
+    button(credentialForm, 'enterCredentials', () => credential('manual')),
+    button(credentialForm, 'storeCredentials', () => credential()),
+    button(credentialForm, 'removeCredentials', () => credential('remove'))
+  ];
   function paintSecretState() {
-    bindText(secretState, () => t('project.secret.' + (state?.credentials[credentialBroker.value] ?? 'none')));
+    const available = Boolean(brokerChoice.value) && !pending.has(brokerForm);
+    mode.disabled = !available;
+    for (const action of credentialButtons) action.disabled = !available;
+    bindText(secretState, () => available ? t('project.secret.' + (state?.credentials[brokerChoice.value] ?? 'none'))
+      : t('project.applyBrokerForCredentials'));
   }
   function paint() {
     bindText(stateLabel, () => t(state?.active ? state.dirty ? 'project.unsaved' : 'project.saved' : 'project.examples'));
@@ -204,7 +209,6 @@ export async function installProjects(bridge) {
     options(systemChoice, state.project.systems.map(system => [system.id, system.name]), 'newSystem');
     options(systemBroker, state.project.brokers.map(broker => [broker.id, broker.name]), 'chooseBroker');
     options(draftSystem, state.project.systems.map(system => [system.id, system.name]), 'chooseSystem');
-    options(credentialBroker, state.project.brokers.map(broker => [broker.id, broker.name]), 'chooseBroker');
     draftOptions();
     const previous = mode.value;
     options(mode, [['session', t('project.session')], ...(state.protectedAvailable ? [['protected', t('project.protected')]] : [])], 'chooseMode');

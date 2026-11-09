@@ -18,6 +18,7 @@
 .desktop-project summary { cursor: pointer; font-weight: 600; }
 .project-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .project-form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; margin-block: 1rem; padding-block: .75rem; border-top: 1px solid var(--border, #8293a8); }
+#project-credentials-form { margin-block-start: 0; margin-inline-start: .75rem; border-top: 0; border-inline-start: 2px solid var(--line); padding-inline-start: .75rem; }
 .project-form[hidden] { display: none; }
 .project-form h3, .project-form p { flex-basis: 100%; margin: .25rem 0; overflow-wrap: anywhere; }
 .project-form label { display: flex; flex-direction: column; gap: .3rem; min-width: 0; flex: 1 1 12rem; }

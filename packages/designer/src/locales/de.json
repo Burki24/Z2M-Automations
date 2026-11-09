@@ -1355,6 +1355,7 @@
     "project.chooseMode": "Ablage ausdrücklich wählen",
     "project.session": "Nur für diese Sitzung",
     "project.protected": "Geschützt auf diesem Computer",
+    "project.applyBrokerForCredentials": "Übernimm zuerst die Broker-Einstellungen, um Zugangsdaten zu hinterlegen.",
     "project.enterCredentials": "Zugangsdaten eingeben",
     "project.credentialPromptUnavailable": "Der Eingabedialog ist nicht verfügbar. Unter Ubuntu benötigt er Zenity. Du kannst weiterhin eine JSON-Datei importieren.",
     "project.storeCredentials": "Zugangsdaten importieren",

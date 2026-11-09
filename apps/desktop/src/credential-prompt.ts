@@ -25,10 +25,24 @@ $form.ShowInTaskbar = $false
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false
 $form.MinimizeBox = $false
+$form.Font = [Drawing.Font]::new('Segoe UI', 11)
+$form.AutoScaleMode = 'Font'
+# Match the shared designer palette while honoring Windows high contrast.
+$themed = -not [Windows.Forms.SystemInformation]::HighContrast
+if ($themed) {
+    $colors = if ($env:Z2MA_PROMPT_DARK -eq '1') {
+        @('#192431', '#eff6fc', '#101822', '#344657', '#55dec0', '#092b24')
+    } else {
+        @('#ffffff', '#152b3e', '#f5f8fb', '#d6e1e9', '#00796f', '#ffffff')
+    }
+    $surface, $ink, $field, $line, $primary, $onPrimary = $colors | ForEach-Object { [Drawing.ColorTranslator]::FromHtml($_) }
+    $form.BackColor = $surface
+    $form.ForeColor = $ink
+}
 $fields = New-Object Windows.Forms.FlowLayoutPanel
 $fields.FlowDirection = 'TopDown'
 $fields.WrapContents = $false
-$fields.Padding = [Windows.Forms.Padding]::new(12)
+$fields.Padding = [Windows.Forms.Padding]::new(18)
 $fields.AutoSize = $true
 $form.Controls.Add($fields)
 function Add-Field($caption, $limit, $secret) {
@@ -40,6 +54,11 @@ function Add-Field($caption, $limit, $secret) {
     $inputField.Width = 320
     $inputField.MaxLength = $limit
     $inputField.UseSystemPasswordChar = $secret
+    $inputField.Margin = [Windows.Forms.Padding]::new(3, 4, 3, 12)
+    if ($themed) {
+        $inputField.BackColor = $field
+        $inputField.ForeColor = $ink
+    }
     $fields.Controls.Add($inputField)
     return $inputField
 }
@@ -51,7 +70,18 @@ $fields.Controls.Add($buttons)
 foreach ($name in 'OK', 'Cancel') {
     $button = New-Object Windows.Forms.Button
     $button.AutoSize = $true
+    $button.Padding = [Windows.Forms.Padding]::new(10, 4, 10, 4)
     $button.DialogResult = $name
+    if ($themed) {
+        $button.FlatStyle = 'Flat'
+        $button.FlatAppearance.BorderColor = $line
+        $button.BackColor = $field
+        $button.ForeColor = $ink
+        if ($name -eq 'OK') {
+            $button.BackColor = $primary
+            $button.ForeColor = $onPrimary
+        }
+    }
     if ($name -eq 'OK') {
         $button.Text = $env:Z2MA_PROMPT_OK
         $form.AcceptButton = $button
@@ -71,7 +101,7 @@ try {
 } finally { $form.Dispose() }
 `;
 
-export function promptCredentials(labels: {title: string; username: string; password: string; ok: string; cancel: string}, ownerHandle: Buffer): Promise<ReturnType<typeof parseCredentials> | null> {
+export function promptCredentials(labels: {title: string; username: string; password: string; ok: string; cancel: string}, ownerHandle: Buffer, dark: boolean): Promise<ReturnType<typeof parseCredentials> | null> {
   const windows = process.platform === 'win32';
   const separator = '\u001f';
   const command = windows ? join(process.env['SystemRoot'] ?? 'C:\\Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe') : '/usr/bin/zenity';
@@ -79,7 +109,7 @@ export function promptCredentials(labels: {title: string; username: string; pass
     : ['--forms', '--title=' + labels.title, '--text=' + labels.title, '--add-entry=' + labels.username,
       '--add-password=' + labels.password, '--separator=' + separator, '--ok-label=' + labels.ok, '--cancel-label=' + labels.cancel];
   const owner = windows ? ownerHandle.readBigUInt64LE().toString() : '';
-  const env = {...process.env, Z2MA_PROMPT_OWNER: owner, Z2MA_PROMPT_TITLE: labels.title, Z2MA_PROMPT_USER: labels.username,
+  const env = {...process.env, Z2MA_PROMPT_OWNER: owner, Z2MA_PROMPT_DARK: dark ? '1' : '0', Z2MA_PROMPT_TITLE: labels.title, Z2MA_PROMPT_USER: labels.username,
     Z2MA_PROMPT_PASSWORD: labels.password, Z2MA_PROMPT_OK: labels.ok, Z2MA_PROMPT_CANCEL: labels.cancel};
   return new Promise((resolve, reject) => {
     execFile(command, args, {env, windowsHide: true, encoding: 'utf8', maxBuffer: 65536, timeout: 300000}, (error, output) => {
