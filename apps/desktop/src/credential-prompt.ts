@@ -31,9 +31,9 @@ $form.AutoScaleMode = 'Font'
 $themed = -not [Windows.Forms.SystemInformation]::HighContrast
 if ($themed) {
     $colors = if ($env:Z2MA_PROMPT_DARK -eq '1') {
-        @('#192431', '#eff6fc', '#101822', '#344657', '#55dec0', '#092b24')
+        @('#262321', '#f7f0e8', '#1b1918', '#93847a', '#a5c7af', '#17291f')
     } else {
-        @('#ffffff', '#152b3e', '#f5f8fb', '#d6e1e9', '#00796f', '#ffffff')
+        @('#fffcf7', '#282321', '#f4f1ec', '#87796e', '#3d7058', '#ffffff')
     }
     $surface, $ink, $field, $line, $primary, $onPrimary = $colors | ForEach-Object { [Drawing.ColorTranslator]::FromHtml($_) }
     $form.BackColor = $surface

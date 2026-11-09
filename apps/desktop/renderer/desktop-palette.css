@@ -1,0 +1,28 @@
+/* Desktop palette shared by the workspace and its confirmation windows. */
+:root {
+    --ink: light-dark(#282321, #f7f0e8);
+    --muted: light-dark(#665c55, #c6b9ad);
+    --page: light-dark(#f4f1ec, #1b1918);
+    --surface: light-dark(#fffcf7, #262321);
+    --surface-soft: light-dark(#eee8df, #302b28);
+    --line: light-dark(#d8cfc5, #554b45);
+    --line-strong: light-dark(#87796e, #93847a);
+    --primary: light-dark(#3d7058, #a5c7af);
+    --on-primary: light-dark(#ffffff, #17291f);
+    --primary-hover: light-dark(#315d49, #b9d6c1);
+    --primary-soft: light-dark(#e4ede5, #293c31);
+    --success: var(--primary);
+    --success-soft: var(--primary-soft);
+    --warning: light-dark(#835514, #e6b76a);
+    --warning-soft: light-dark(#f6ead4, #44331f);
+    --danger: light-dark(#9f283f, #f0a6b1);
+    --danger-soft: light-dark(#fae8eb, #482930);
+    --when: light-dark(#70416c, #d6a8cd);
+    --when-soft: light-dark(#f1e4ef, #422f40);
+    --action: var(--primary);
+    --action-soft: var(--primary-soft);
+    --focus: var(--when);
+    --shadow: light-dark(#28232112, #00000040);
+    --backdrop: light-dark(#28232166, #00000099);
+    accent-color: var(--primary);
+}

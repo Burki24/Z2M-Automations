@@ -8,7 +8,7 @@
 .desktop-foundation .designer-controls { display: none !important; }
 .desktop-foundation .app-header .brand-mark { background: transparent; flex-shrink: 0; }
 .desktop-foundation .app-header .brand-mark img { width: 100%; height: 100%; }
-.desktop-debug { margin: 1rem; padding: 1rem; border: 1px solid var(--border, #8293a8); border-radius: .75rem; }
+.desktop-debug { margin: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: .75rem; }
 .desktop-debug summary { cursor: pointer; font-weight: 600; }
 .desktop-debug-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: .75rem 0; }
 .desktop-debug ol { max-height: 14rem; overflow: auto; padding-inline-start: 2rem; }
@@ -16,17 +16,18 @@
 
 .desktop-foundation .preview-notice { display: flex; flex-wrap: wrap; }
 .desktop-foundation .system-selector > span { display: none; }
-.desktop-project { margin: 1rem; padding: 1rem; border: 1px solid var(--border, #8293a8); border-radius: .75rem; }
+.desktop-project { margin: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: .75rem; }
+.desktop-project, .desktop-debug { background: var(--surface); }
 .desktop-project summary { cursor: pointer; font-weight: 600; }
 .project-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
-.project-form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; margin-block: 1rem; padding-block: .75rem; border-top: 1px solid var(--border, #8293a8); }
+.project-form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; margin-block: 1rem; padding-block: .75rem; border-top: 1px solid var(--line); }
 #project-credentials-form { margin-block-start: 0; margin-inline-start: .75rem; border-top: 0; border-inline-start: 2px solid var(--line); padding-inline-start: .75rem; }
 .project-form[hidden] { display: none; }
 .project-form h3, .project-form p { flex-basis: 100%; margin: .25rem 0; overflow-wrap: anywhere; }
 .project-form label { display: flex; flex-direction: column; gap: .3rem; min-width: 0; flex: 1 1 12rem; }
-.project-form input, .project-form select { min-width: 0; width: 100%; max-width: 100%; padding: .5rem; font: inherit; color: inherit; background: var(--panel, Canvas); border: 1px solid var(--border, #8293a8); border-radius: .3rem; }
+.project-form input, .project-form select { min-width: 0; width: 100%; max-width: 100%; padding: .5rem; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--line-strong); border-radius: .3rem; }
 .project-form input[type=checkbox] { width: 1.5rem; height: 1.5rem; }
 .desktop-project button { padding: .5rem .75rem; font: inherit; cursor: pointer; }
-.desktop-project :focus-visible { outline: 3px solid Highlight; outline-offset: 2px; }
+.desktop-project :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .mqtt-overview { padding-inline-start: 1.5rem; max-height: 20rem; overflow-y: auto; }
 .mqtt-overview li { padding: .4rem 0; overflow-wrap: anywhere; }
