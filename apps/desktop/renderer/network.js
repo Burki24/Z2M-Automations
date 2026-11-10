@@ -1,4 +1,4 @@
-import {t, bindText, onLanguageChange, language} from './localization.js';
+import {t, bindText, onLanguageChange, sortByName} from './localization.js';
 
 export async function installNetwork(bridge, openBrokerSetup) {
   const panel = document.createElement('details'); panel.className = 'desktop-project'; panel.id = 'mqtt-panel';
@@ -96,12 +96,10 @@ export async function installNetwork(bridge, openBrokerSetup) {
       if (action === 'view' || action === 'catalog') await bridge.selectSystem(id);
       if (action === 'catalog') {
         const data = await bridge.snapshot();
-        const {compare} = new Intl.Collator(language(), {numeric: true, sensitivity: 'base'});
-        const byName = (a, b) => compare(a.name, b.name);
-        const devices = data.devices.toSorted(byName).map(device => {
+        const devices = sortByName(data.devices).map(device => {
           const row = document.createElement('li'); row.textContent = device.name + ' · ' + device.properties.map(property => property.label).join(', '); return row;
         });
-        const scenes = (data.scenes ?? []).toSorted(byName).map(scene => {
+        const scenes = sortByName(data.scenes ?? []).map(scene => {
           const row = document.createElement('li'); const target = data.devices.find(device => device.target.type === scene.target.type && device.target.id === scene.target.id);
           bindText(row, () => scene.name + ' · ' + (target?.name ?? '') + ' · #' + scene.id + (scene.endpoint ? ' · ' + t('mqtt.channel', {channel: scene.endpoint}) : '')); return row;
         });

@@ -1,5 +1,5 @@
 import {designerRequest as fetch, isDesktop} from './transport.js';
-import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse} from './localization.js';
+import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse, sortByName} from './localization.js';
 /* Own scoped module view. Creation is a separate, local-draft-only POST. */
 import {installEditing} from './editor.js';
 import {installEventImport} from './imports.js';
@@ -77,8 +77,7 @@ import {installNativeEmbedding} from './embedding.js';
 
     const entryKey = entry => `${entry.kind === 'sequence' ? 'sequence' : 'rule'}:${entry.id}`;
     function sortedDevices() {
-        const {compare} = new Intl.Collator(locale(), {numeric: true, sensitivity: 'base'});
-        return (data?.devices ?? []).toSorted((a, b) => compare(a.name, b.name));
+        return sortByName(data?.devices ?? []);
     }
     const current = () => category === 'catalog' ? data?.devices.find(device => device.key === selected) : entries().find(entry => entryKey(entry) === selected);
     const targetDevice = target => data?.devices.find(device => device.target.type === target?.type && device.target.id === target?.id

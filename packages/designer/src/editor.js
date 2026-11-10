@@ -1,5 +1,5 @@
 import {designerRequest as fetch, isDesktop} from './transport.js';
-import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse} from './localization.js';
+import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse, sortByName} from './localization.js';
 /* Shared rule editor: complete creation and cloned, field-scoped editing stay local to the draft. */
 import {creationDevices, creationProperties, creationValue, requestIdentity} from './creator.js';
 import {systemHeaders} from './workspace.js';
@@ -102,7 +102,7 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
             const found = creationDevices(getData(), side, search.value);
             if (current && !found.some(device => device.key === current.key)) found.unshift(current);
             select.replaceChildren(localizedOption(() => t("ui.select.device.c5925e7a"), ''));
-            for (const device of found) select.add(localizedOption(() => t("ui.text.db1b0c15", {p1: device.name, p2: device.target.system ?? getData().module.baseTopic}), device.key));
+            for (const device of sortByName(found)) select.add(localizedOption(() => t("ui.text.db1b0c15", {p1: device.name, p2: device.target.system ?? getData().module.baseTopic}), device.key));
             if (current) select.value = current.key;
         }
         refreshOptions();

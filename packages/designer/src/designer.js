@@ -1,4 +1,5 @@
 import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse} from './localization.js';
+import {sortByName} from './localization.js';
 /* Own, offline interaction prototype. No Symcon, MQTT or device access. */
 (async () => {
     'use strict';
@@ -133,7 +134,7 @@ import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, M
     const selectField = (label, field, values, value) => `<label class="field">${label}<select data-field="${field}">${options(values, value)}</select></label>`;
     const inputField = (label, field, value, type = 'text', extra = '') => `<label class="field">${label}<input data-field="${field}" type="${type}" value="${esc(value)}" ${extra}></label>`;
     const checkField = (label, field, value) => `<label class="check-field"><input type="checkbox" data-field="${field}" ${value ? 'checked' : ''}><span>${label}</span></label>`;
-    const deviceOptions = mode => catalog.filter(device => mode === 'scene' ? device.scenes?.length : mode !== 'action' || device.properties.some(meta => meta.writable)).map(device => ({value: device.id, label: t("ui.text.db1b0c15", {p1: device.name, p2: device.room})}));
+    const deviceOptions = mode => sortByName(catalog).filter(device => mode === 'scene' ? device.scenes?.length : mode !== 'action' || device.properties.some(meta => meta.writable)).map(device => ({value: device.id, label: t("ui.text.db1b0c15", {p1: device.name, p2: device.room})}));
 
     function deviceFields(item, kind) {
         const device = deviceById(item.device);

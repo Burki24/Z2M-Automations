@@ -18,6 +18,10 @@ const collected = new FinalizationRegistry(reference => references.delete(refere
 const listeners = new Set();
 let audit = null;
 const valueOf = value => typeof value === 'function' ? valueOf(value()) : value;
+export function sortByName(items) {
+    const {compare} = new Intl.Collator(locale(), {numeric: true, sensitivity: 'base'});
+    return items.toSorted((a, b) => compare(a.name, b.name));
+}
 export const language = () => currentLanguage;
 export const locale = () => currentLanguage === 'de' ? 'de-DE' : 'en-GB';
 export const formatNumber = value => new Intl.NumberFormat(locale(), {maximumFractionDigits: 20}).format(value);
