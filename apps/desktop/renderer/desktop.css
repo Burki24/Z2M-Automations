@@ -124,6 +124,12 @@ html:has(.desktop-foundation) { scroll-padding-block-start: calc(var(--desktop-s
 .mqtt-overview { padding-inline-start: 1.5rem; max-height: 20rem; overflow-y: auto; }
 .mqtt-overview li { padding: .4rem 0; overflow-wrap: anywhere; }
 .mqtt-overview:empty { display: none; }
+.desktop-read-catalog { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.desktop-read-catalog .mqtt-overview {
+  margin: .6rem 0 0; padding-inline-end: .75rem; overscroll-behavior-y: contain;
+  border: 1px solid var(--line); border-radius: .5rem; background: var(--surface-soft);
+}
+.desktop-read-catalog .mqtt-overview:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
 @container desktop-page (max-width: 64rem) {
   .desktop-foundation .workspace { grid-template-columns: minmax(11rem, .8fr) minmax(0, 2fr); height: auto; align-items: start; }
@@ -133,6 +139,7 @@ html:has(.desktop-foundation) { scroll-padding-block-start: calc(var(--desktop-s
   .desktop-foundation .workspace .canvas-scroll { max-height: 65dvh; overflow-y: auto; }
 }
 @container desktop-page (max-width: 42rem) {
+  .desktop-read-catalog { grid-template-columns: minmax(0, 1fr); }
   .project-overview button { grid-template-columns: minmax(0, 1fr); gap: .2rem; }
   .desktop-foundation .workspace { display: flex; flex-direction: column; gap: .75rem; }
   .desktop-foundation .workspace > .panel { width: 100%; }

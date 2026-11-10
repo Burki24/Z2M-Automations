@@ -20,8 +20,16 @@ function stoppedFixture(name) {
   Object.assign(fixture.editor, fixture.status);
   return fixture;
 }
+const first = stoppedFixture('Synthetic remote rule');
+for (let number = 16; number >= 1; number--) {
+  first.editor.devices.push({id: '0x' + (number + 2).toString(16).padStart(16, '0'), name: 'Device ' + number, properties: []});
+  first.editor.groups.push({id: number + 1, name: 'Group ' + number});
+}
+const second = stoppedFixture('Other stored rule');
+second.editor.devices[0].name = 'Other sensor';
+second.editor.groups = [];
 const peer = await startPeer({
-  systems: new Map([['synthetic', stoppedFixture('Synthetic remote rule')], ['synthetic-other', stoppedFixture('Other stored rule')]]),
+  systems: new Map([['synthetic', first], ['synthetic-other', second]]),
   reply({operation, request, response, publish}) {
     if (operation === 'validate') {
       const draft = parse(request.yaml);

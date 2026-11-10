@@ -1,4 +1,4 @@
-import {t, bindText, onLanguageChange, sortByName, formatNumber} from './localization.js';
+import {t, bindText, onLanguageChange, sortByName, formatNumber, language} from './localization.js';
 import {installDraftReview} from './draft-review.js';
 
 function button(parent, id, key, action) {
@@ -26,6 +26,43 @@ function setOptions(element, items, empty) {
   const previous = element.value;
   element.replaceChildren(...entries.map(([id, title]) => new Option(title, id)));
   if (items.some(([id]) => id === previous)) element.value = previous;
+}
+
+function installConnectionCatalog(parent) {
+  const panel = document.createElement('section');
+  panel.id = 'mqtt-catalog'; panel.className = 'desktop-card desktop-read-catalog'; panel.hidden = true;
+  parent.append(panel);
+  const columns = ['device', 'group'].map(type => {
+    const column = document.createElement('div');
+    const title = document.createElement('h2'); title.id = 'mqtt-catalog-' + type + '-title';
+    const list = document.createElement('ul');
+    list.id = 'mqtt-catalog-' + type; list.className = 'mqtt-overview'; list.tabIndex = 0;
+    list.setAttribute('aria-labelledby', title.id);
+    const empty = document.createElement('p'); bindText(empty, () => t('desktop.catalog.empty.' + type));
+    column.append(title, list, empty);
+    panel.append(column);
+    return {type, title, list, empty};
+  });
+  let shown;
+  return function paintCatalog(view, fresh, scope) {
+    panel.hidden = !(fresh && view?.desktop.project && view.status.confirmed);
+    if (panel.hidden) return;
+    const entries = view.devices;
+    const signature = JSON.stringify([scope, language(), entries.map(entry => [entry.target.type, entry.name])]);
+    if (shown === signature) return;
+    shown = signature;
+    for (const {type, title, list, empty} of columns) {
+      const items = sortByName(entries.filter(entry => entry.target.type === type));
+      bindText(title, () => t('desktop.catalog.' + type, {count: items.length}));
+      list.hidden = !items.length;
+      empty.hidden = Boolean(items.length);
+      list.replaceChildren(...items.map(({name}) => {
+        const row = document.createElement('li'); row.textContent = name;
+        return row;
+      }));
+      list.scrollTop = 0;
+    }
+  };
 }
 
 export function installNetwork(bridge, workspace, settleEditor) {
@@ -139,6 +176,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
   const editBroker = workspace.link(connectionActions, 'broker');
   const editSystem = workspace.link(connectionActions, 'system');
   const nextDraft = workspace.link(connectionActions, 'draft');
+  const paintCatalog = installConnectionCatalog(workspace.pages.connection);
 
   const localActions = document.querySelector('#draft-local-actions');
   const storedActions = document.querySelector('#draft-stored-actions');
@@ -208,6 +246,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
     const connectionMessage = () => t(connectionKey(system, broker), {name, broker: broker?.name ?? ''});
     bindText(connectionState, () => feedbackText(connectionFeedback) || connectionMessage());
     bindText(catalogState, () => system?.fresh ? t('desktop.steps.catalog', {devices: formatNumber(system.devices), scenes: formatNumber(system.scenes)}) : '');
+    paintCatalog(view, connected && system?.fresh, selected);
     connect.hidden = connected;
     connect.disabled = pending || !system || connecting;
     read.hidden = !connected;

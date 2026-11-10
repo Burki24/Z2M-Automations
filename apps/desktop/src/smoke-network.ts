@@ -15,6 +15,8 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     assert((await bridge.project({action: 'broker', broker})).ok, 'synthetic broker setup');
     document.dispatchEvent(new Event('z2ma-project-changed'));
     navigate('connection');
+    const catalog = document.querySelector('#mqtt-catalog');
+    assert(catalog?.hidden, 'the catalog lists wait for a confirmed read');
     await wait(() => !document.querySelector('#mqtt-connect').disabled);
     document.querySelector('#mqtt-connect').click();
     await wait(async () => (await state()).systems[0].fresh);
@@ -24,6 +26,20 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     const id = project.systems[0].id;
     await wait(() => document.querySelector('#desktop-connection').dataset.connected === 'true');
     assert(document.querySelector('#designer-system').value === id, 'the shared system picker identifies the connected draft');
+    await wait(() => !catalog.hidden);
+    const devices = document.querySelector('#mqtt-catalog-device');
+    const groups = document.querySelector('#mqtt-catalog-group');
+    const names = list => [...list.children].map(item => item.textContent).join(',');
+    const numbered = name => Array.from({length: 16}, (_, index) => name + ' ' + (index + 1));
+    assert(names(devices) === [...numbered('Device'), 'Synthetic light', 'Synthetic sensor'].join(','), 'devices are separate and sorted');
+    assert(names(groups) === [...numbered('Group'), 'Synthetic group'].join(','), 'groups are separate and sorted');
+    for (const list of [devices, groups]) {
+      assert(list.tabIndex === 0 && getComputedStyle(list).overflowY === 'auto' && list.scrollHeight > list.clientHeight,
+        'both long lists are independently scrollable and keyboard accessible');
+      list.scrollTop = list.scrollHeight;
+      assert(Math.abs(list.scrollTop + list.clientHeight - list.scrollHeight) <= 1, 'the last entry can be reached');
+      list.scrollTop = 0;
+    }
     document.querySelector('#desktop-view-connection [data-step="draft"]').click();
     await wait(() => !document.querySelector('#mqtt-stored').disabled);
     document.querySelector('#mqtt-stored').click();
@@ -45,6 +61,8 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     picker.value = project.systems[1].id; picker.dispatchEvent(new Event('change'));
     await wait(() => [...document.querySelector('#mqtt-rule').options].some(option => option.textContent.includes('Other stored rule')));
     assert(![...document.querySelector('#mqtt-rule').options].some(option => option.textContent.includes('Synthetic remote rule')), 'operation mixed rules from different systems');
+    assert(!catalog.hidden && names(devices) === 'Other sensor,Synthetic light' && groups.hidden && !groups.children.length,
+      'the selected system replaces both catalog lists and shows its empty group list');
     picker.value = id; picker.dispatchEvent(new Event('change'));
     await wait(() => [...document.querySelector('#mqtt-rule').options].some(option => option.textContent.includes('Synthetic remote rule')));
     navigate('automations');
@@ -58,6 +76,7 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     assert((await bridge.snapshot()).status.confirmed === false, 'disconnected operation confirmed');
     assert(JSON.stringify((await bridge.project({action: 'status'})).state.project.systems[0].configuration) === draft, 'draft lost after disconnect');
     document.dispatchEvent(new Event('z2ma-project-changed'));
+    await wait(() => catalog.hidden);
   })()`);
-  console.log('DESKTOP_MQTT_OK shared-system/read-only/stored-source/operation/catalog');
+  console.log('DESKTOP_MQTT_OK shared-system/read-only/stored-source/operation/sorted-scrollable-catalog');
 }
