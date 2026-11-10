@@ -28,6 +28,15 @@
   min-height: 0; padding: clamp(.9rem, 2vw, 1.6rem); overflow-y: auto;
   overscroll-behavior: contain; scroll-padding-block: .6rem;
 }
+.desktop-foundation .rule-edit-dialog .edit-section[data-section="triggers"] {
+  background-color: var(--when-soft);
+}
+.desktop-foundation .rule-edit-dialog .edit-section[data-section="conditions"] {
+  background-color: var(--warning-soft);
+}
+.desktop-foundation .rule-edit-dialog .edit-section[data-section="actions"] {
+  background-color: var(--action-soft);
+}
 .desktop-foundation .rule-edit-dialog .dialog-actions {
   position: static; flex: none; align-items: center; margin: 0; padding: .65rem clamp(.9rem, 2vw, 1.6rem);
 }
