@@ -7,13 +7,14 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     const assert = (value, message) => { if (!value) throw new Error('MQTT smoke: ' + message); };
     const wait = async predicate => { for (let n = 0; n < 160; n++) { if (await predicate()) return; await new Promise(resolve => setTimeout(resolve, 30)); } throw new Error('MQTT UI timeout'); };
     const state = async () => (await bridge.network({action: 'status', id: ''})).state;
+    const navigate = key => document.querySelector('#desktop-nav-' + key).click();
     let project = (await bridge.project({action: 'status'})).state.project;
     const draft = JSON.stringify(project.systems[0].configuration);
     assert((await state()).brokers.every(broker => broker.state === 'disconnected'), 'automatic connection on open');
     const broker = {...project.brokers[0], host: '127.0.0.1', port: ${port}, tls: false};
     assert((await bridge.project({action: 'broker', broker})).ok, 'synthetic broker setup');
     document.dispatchEvent(new Event('z2ma-project-changed'));
-    document.querySelector('#desktop-nav-automations').click();
+    navigate('connection');
     await wait(() => !document.querySelector('#mqtt-connect').disabled);
     document.querySelector('#mqtt-connect').click();
     await wait(async () => (await state()).systems[0].fresh);
@@ -23,19 +24,22 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     const id = project.systems[0].id;
     await wait(() => document.querySelector('#desktop-connection').dataset.connected === 'true');
     assert(document.querySelector('#designer-system').value === id, 'the shared system picker identifies the connected draft');
-    document.querySelector('#draft-exchange').open = true;
+    document.querySelector('#desktop-view-connection [data-step="draft"]').click();
     await wait(() => !document.querySelector('#mqtt-stored').disabled);
     document.querySelector('#mqtt-stored').click();
     await wait(async () => (await state()).systems[0].source === 'stored');
     await wait(() => document.querySelector('#entry-title').textContent === 'Synthetic remote rule');
     await wait(() => !document.querySelector('#desktop-draft-review').hasAttribute('aria-busy'));
-    assert(document.querySelector('#mqtt-validate').hidden, 'stored data should offer a route back to the draft');
-    document.querySelector('#mqtt-stored').click();
+    assert(!document.querySelector('#desktop-view-automations').hidden && document.querySelector('#desktop-check-draft').hidden,
+      'stored data opens in the designer without draft checks');
+    navigate('draft');
+    document.querySelector('#mqtt-draft').click();
     await wait(async () => (await state()).systems[0].source === 'draft');
     await wait(() => !document.querySelector('#mqtt-validate').hidden);
     assert(JSON.stringify((await bridge.snapshot()).configuration) === draft, 'draft view changed');
-    document.querySelector('#desktop-nav-operation').click();
-    assert(document.querySelector('#desktop-view-automations').hidden && document.querySelector('#desktop-view-setup').hidden, 'operation is a separate work area');
+    navigate('operation');
+    assert(!document.querySelector('#desktop-view-operation').hidden && document.querySelector('#desktop-view-automations').hidden
+      && !document.querySelector('#desktop-view-operation #mqtt-store'), 'operation is separate from editing and transfer');
     await wait(() => [...document.querySelector('#mqtt-rule').options].some(option => option.textContent.includes('Synthetic remote rule')));
     const picker = document.querySelector('#designer-system');
     picker.value = project.systems[1].id; picker.dispatchEvent(new Event('change'));
@@ -43,7 +47,7 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     assert(![...document.querySelector('#mqtt-rule').options].some(option => option.textContent.includes('Synthetic remote rule')), 'operation mixed rules from different systems');
     picker.value = id; picker.dispatchEvent(new Event('change'));
     await wait(() => [...document.querySelector('#mqtt-rule').options].some(option => option.textContent.includes('Synthetic remote rule')));
-    document.querySelector('#desktop-nav-automations').click();
+    navigate('automations');
     document.querySelector('[data-area="catalog"]').click();
     assert(document.querySelector('#entry-list').textContent.includes('Synthetic light'), 'catalog stays in the automation workspace');
     document.querySelector('[data-area="device"]').click();

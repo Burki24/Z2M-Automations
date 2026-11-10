@@ -18,32 +18,44 @@ acceptance target. Development packages are unsigned.
 
 ## Work with a project
 
-1. Create or open a local project. Save the project to a location you control.
-2. Add a broker and a Z2M system with its own base topic. Choose session-only
-   credentials or protected storage. Use **Enter credentials** for direct entry
-   or **Import credentials** to select a private JSON file. Direct entry opens
-   a native dialog outside the project renderer and uses Zenity on Ubuntu.
-   If the Linux keyring is unavailable, unlock it or choose session-only
-   storage explicitly.
-3. Connect to the broker and read the system. The status row shows the selected
-   system, local draft, stored Z2M revision, operation and project file separately.
-   Its shortcut opens the relevant connection or review controls.
-4. Select **New automation as draft** in the automation list. Check the system
-   shown in the form and enter a name, a trigger, any optional conditions and
-   the actions. **Create YAML** checks the input and saves the complete draft
-   for that system to a YAML file, with the new rule disabled. Use **Add to
-   draft disabled** and save the project to keep the rule in the project.
-5. Install the bundled extension only on the intended system when needed.
-   Validate the draft, then confirm storage. Regular validation stores disabled
-   rules. For automatic operation, change the intended enabled flags, validate
-   those flags, store the revision and explicitly activate the system.
-6. Use **Z2M operation** to start a stored rule once, stop a run or stop the
-   entire system. Enable restart recovery only if the system should resume
-   automatic operation after Z2M restarts. Closing the desktop app disconnects
-   its broker client. The extension continues running.
-7. Use **Desktop diagnostics** to start a one-minute recording. Select
-   **Open recording** after events arrive to inspect the current session's
-   recording.
+The numbered steps are on the left. In a narrow window, use the **Workflow
+step** list. An existing project with a configured system opens in **Edit
+automations**. The system selector above the work area sets the target for
+reading, editing, checking and transfer.
+
+1. **Open or create a project.** Save the project to a location you control.
+2. **Set up broker.** Apply the broker settings, then choose an explicit
+   credential storage mode if the broker requires authentication. Use **Enter
+   credentials** or **Import credentials** from a private JSON file. Direct
+   entry opens a separate OS dialog. If protected storage is unavailable,
+   unlock the keyring or explicitly choose session-only storage.
+3. **Assign a Z2M system.** Choose its broker and enter its base topic.
+4. **Connect and read Z2M state.** Read devices and the stored configuration.
+   The bundled extension is available under **Z2M extension** when needed.
+5. **Choose a starting point.** Edit the local draft, import a YAML or JSON
+   file, or copy the configuration stored in Z2M into the draft. Copy the
+   stored configuration first if you want to add to existing rules. Replacing
+   a draft requires a project backup.
+6. **Edit automations.** Enter a name, a trigger, optional conditions and
+   actions. **Create YAML** saves the complete draft to a YAML file. **Add to
+   draft disabled** adds the new rule to the local project. Save the project
+   in step 1 to keep those changes.
+7. **Check draft.** The check is also available directly from step 6. Use a
+   finding's **Go to the draft field** button to correct the affected entry.
+   An offline check covers the local format. Read the system in step 4 and
+   check again to prepare a transfer.
+8. **Transfer to Z2M.** Review the target and confirm the transfer of the
+   complete checked draft. A regular transfer stores the rules disabled.
+   Existing stored state is backed up before replacement.
+
+Use **Operation** to run a stored rule once, stop a run or stop the system.
+To enable rules for automatic operation, change the rule switches in the
+local draft, choose **Check enabled rules** in step 7 and transfer the flags
+in step 8. Start automatic operation explicitly in **Operation**. Closing the
+desktop app disconnects its broker client. The extension continues running.
+
+**Desktop diagnostics** in step 1 records events for one minute. Use **Open
+recording** after events arrive to inspect the current session's recording.
 
 ## Update or return to an earlier version
 

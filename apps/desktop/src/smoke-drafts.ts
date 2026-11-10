@@ -98,28 +98,35 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     const transfer = document.querySelector('#mqtt-store');
     const message = document.querySelector('#desktop-review-message');
     const findings = document.querySelector('#mqtt-validation-issues');
+    const pane = key => document.querySelector('#desktop-view-' + key);
+    const navigate = key => document.querySelector('#desktop-nav-' + key).click();
     const project = (await bridge.project({action: 'status'})).state.project;
-    const brokerId = project.systems[0].brokerId;
     const picker = document.querySelector('#designer-system');
     const connected = () => document.querySelector('#desktop-connection').dataset.connected === 'true';
     const disconnect = async () => {
-      assert((await bridge.network({action: 'disconnect', id: brokerId})).ok, 'disconnect before local check');
-      document.dispatchEvent(new Event('z2ma-project-changed'));
+      navigate('connection');
+      const button = document.querySelector('#mqtt-disconnect');
+      await wait(() => !button.disabled);
+      button.click();
       await wait(() => !connected() && !document.querySelector('#mqtt-connect').hidden);
     };
     const connect = async () => {
+      navigate('connection');
       document.querySelector('#mqtt-connect').click();
-      await wait(async () => connected() && (await bridge.snapshot()).status.confirmed && !review.hasAttribute('aria-busy'), 'Inline connection did not read the selected system');
+      await wait(async () => connected() && (await bridge.snapshot()).status.confirmed && !review.hasAttribute('aria-busy'), 'Connection step did not read the selected system');
     };
-    const checkDraft = async () => {
-      await wait(() => !check.disabled && !picker.disabled);
-      check.click();
+    const checkDraft = async (fromEditor = false) => {
+      navigate(fromEditor ? 'automations' : 'review');
+      const button = fromEditor ? document.querySelector('#desktop-check-draft') : check;
+      await wait(() => !button.disabled && !picker.disabled);
+      button.click();
+      assert(!pane('review').hidden && pane('automations').hidden, 'draft check must open the review step');
       await wait(() => !review.hasAttribute('aria-busy'), 'Draft check did not finish');
     };
     await disconnect();
     assert(transfer.disabled, 'the transfer is offered only after a successful Z2M check');
-    await checkDraft();
-    assert(!findings.hidden && !document.querySelector('#desktop-view-automations').hidden, 'validation must remain in Automations: ' + message.textContent);
+    await checkDraft(true);
+    assert(!findings.hidden && pane('transfer').hidden && pane('transfer').contains(transfer), 'findings and transfer must appear in separate steps');
     const incompleteRule = [...findings.children].map(row => row.textContent).filter(line => line.includes('Concurrent draft'));
     assert(incompleteRule.length === 2 && incompleteRule.some(line => line.includes('Füge mindestens einen Auslöser hinzu.'))
       && incompleteRule.some(line => line.includes('Füge mindestens eine Aktion hinzu.')), 'validation omitted the older rule or its missing entries');
@@ -129,10 +136,12 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     await wait(async () => !picker.disabled && (await bridge.snapshot()).workspaceContext.systemId === context.systemId);
     await checkDraft();
     await connect();
+    navigate('review');
     const correction = [...findings.children].find(row => row.textContent.includes('Füge mindestens einen Auslöser hinzu.')).querySelector('button');
     correction.click();
     await wait(() => document.querySelector('#edit-dialog').open, 'The result did not open the correct draft');
-    assert(name().value === 'Concurrent draft' && document.activeElement.closest('[data-section]')?.dataset.section === 'triggers'
+    assert(!pane('automations').hidden && pane('review').hidden && name().value === 'Concurrent draft'
+      && document.activeElement.closest('[data-section]')?.dataset.section === 'triggers'
       && document.activeElement.dataset.draftField === 'add', 'correction should focus Add trigger in the affected draft');
     document.activeElement.click();
     set(document.querySelector('[data-section="triggers"] fieldset select'), 'time');
@@ -141,18 +150,25 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     set(document.querySelector('[data-section="actions"] [data-draft-field="type"]').closest('fieldset').querySelectorAll('select')[1], result.state.sequenceId);
     click('submit');
     await wait(() => !document.querySelector('#edit-dialog').open && findings.hidden);
+    await wait(() => document.querySelector('#feedback').textContent.includes('Änderung im lokalen Entwurf übernommen.'),
+      'Correction did not confirm the applied local change');
     assert(transfer.disabled, 'editing alone does not authorize a transfer');
     await disconnect();
     await checkDraft();
-    assert(message.textContent.includes('Entwurf lokal geprüft.') && transfer.disabled, 'an offline check must explain the next step: ' + message.textContent);
+    assert(message.textContent.includes('Entwurf lokal geprüft.') && transfer.disabled && !review.querySelector('[data-step="connection"]').hidden,
+      'an offline check must link to the connection step: ' + message.textContent);
     await connect();
     await checkDraft();
     assert(message.textContent.includes('hat den Entwurf') && !transfer.disabled, 'the Z2M check must unlock the separate transfer: ' + message.textContent);
+    review.querySelector('[data-step="transfer"]').click();
+    assert(!pane('transfer').hidden && pane('review').hidden && !transfer.disabled
+      && document.querySelector('#desktop-transfer-target').textContent.includes(project.systems[0].name + ' · ' + project.systems[0].baseTopic),
+      'transfer step must identify the checked destination');
     assert(JSON.stringify((await bridge.project({action: 'status'})).state.project.systems[0].stored) === JSON.stringify(stored), 'review changed stored Zigbee2MQTT data');
     const corrected = (await bridge.snapshot()).configuration.automations.find(rule => rule.name === 'Concurrent draft');
     await bridge.project({action: 'draft', systemId: context.systemId, operation: 'rename', ruleId: corrected.id, name: 'Corrected draft'});
     document.dispatchEvent(new Event('z2ma-project-changed'));
-    await wait(() => transfer.disabled && message.textContent.includes('hat sich geändert.'));
+    await wait(() => transfer.disabled && document.querySelector('#desktop-transfer-message').textContent.includes('hat sich geändert.'));
   })()`);
   const yaml = importDraft(await readFile(exportPath));
   const [existing, added] = yaml.automations;

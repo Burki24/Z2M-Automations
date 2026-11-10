@@ -34,26 +34,43 @@ export function validationSummary(details) {
   return messages.join('\n');
 }
 
-export const draftScope = view => JSON.stringify([view?.desktop.projectId, view?.desktop.epoch, view?.workspaceContext?.systemId, view?.desktop.draftRevision]);
+const draftScope = view => JSON.stringify([view?.desktop.projectId, view?.desktop.epoch, view?.workspaceContext?.systemId, view?.module.baseTopic, view?.desktop.draftRevision]);
 
-export function installDraftReview(bridge, workspace, {current, perform, command, busy, button, flags}) {
-  const check = button(workspace.actions, 'mqtt-validate', 'desktop.review.check', () => validate(false));
-  const store = button(workspace.actions, 'mqtt-store', 'desktop.review.store', () => transfer(false));
+export function installDraftReview(bridge, workspace, {current, perform, command, busy, button}) {
+  const checkFromEditor = button(workspace.actions, 'desktop-check-draft', 'desktop.review.check', () => {
+    if (workspace.show('review')) void validate(false);
+  });
+  const contents = document.createElement('p');
+  const reviewActions = document.createElement('div'); reviewActions.className = 'project-actions';
+  const check = button(reviewActions, 'mqtt-validate', 'desktop.review.check', () => validate(false));
+  check.classList.add('primary');
+  const flags = document.createElement('details'); flags.className = 'desktop-card';
+  const flagsTitle = document.createElement('summary'); bindText(flagsTitle, () => t('desktop.operation.flags'));
+  const flagsHelp = document.createElement('p'); bindText(flagsHelp, () => t('desktop.steps.flagsReviewHelp'));
+  flags.append(flagsTitle, flagsHelp); workspace.pages.review.append(flags);
   const checkFlags = button(flags, 'mqtt-validateEnabled', 'desktop.review.checkFlags', () => validate(true));
-  const storeFlags = button(flags, 'mqtt-storeFlags', 'desktop.review.storeFlags', () => transfer(true));
   const explanation = document.createElement('p'); explanation.id = 'desktop-review-message'; explanation.setAttribute('role', 'status');
-  const flagExplanation = document.createElement('p'); flagExplanation.setAttribute('role', 'status');
   const findings = document.createElement('ul'); findings.id = 'mqtt-validation-issues'; findings.className = 'desktop-findings'; findings.hidden = true;
   const more = document.createElement('p'); more.hidden = true; bindText(more, () => t('validation.more'));
-  const next = document.createElement('div'); next.className = 'project-actions';
-  workspace.review.append(explanation, findings, more, next);
-  flags.append(flagExplanation);
+  const nextReview = workspace.link(reviewActions, 'transfer'); nextReview.hidden = true;
+  workspace.review.append(contents, explanation, findings, more, reviewActions);
   check.setAttribute('aria-describedby', explanation.id);
-  store.setAttribute('aria-describedby', explanation.id);
-  const reconcile = button(next, 'mqtt-checkTransfer', 'desktop.review.checkTransfer', () => checkTransfer());
+  checkFlags.setAttribute('aria-describedby', explanation.id);
+
+  const transferCard = document.createElement('section'); transferCard.className = 'desktop-card';
+  const target = document.createElement('h2'); target.id = 'desktop-transfer-target';
+  const transferContents = document.createElement('p');
+  const transferHelp = document.createElement('p');
+  const transferStatus = document.createElement('p'); transferStatus.id = 'desktop-transfer-message'; transferStatus.setAttribute('role', 'status');
+  const transferActions = document.createElement('div'); transferActions.className = 'project-actions';
+  const store = button(transferActions, 'mqtt-store', 'desktop.review.store', transfer);
+  store.setAttribute('aria-describedby', transferStatus.id);
+  const reconcile = button(transferActions, 'mqtt-checkTransfer', 'desktop.review.checkTransfer', checkTransfer);
+  const nextTransfer = workspace.link(transferActions, 'review');
+  transferCard.append(target, transferContents, transferHelp, transferStatus, transferActions);
+  workspace.pages.transfer.append(transferCard);
   let result;
   let shown;
-  let messageKey;
 
   function issueList(assessment) {
     if (shown === assessment) return;
@@ -70,51 +87,76 @@ export function installDraftReview(bridge, workspace, {current, perform, command
         ? assessment.view.configuration[kind][Number(index)]?.id : null;
       if (id) button(row, '', 'desktop.review.correct', () => {
         const view = current().view;
-        if (draftScope(view) !== assessment.scope || view.desktop.source !== 'draft') return;
+        if (draftScope(view) !== assessment.scope || view.desktop.source !== 'draft' || !workspace.show('automations')) return;
         const opened = !document.dispatchEvent(new CustomEvent('z2ma-open-draft-issue', {cancelable: true,
           detail: {systemId: view.workspaceContext.systemId, revision: view.desktop.draftRevision, kind, id, path, message: () => validationReason(issue)}}));
-        if (!opened) bindText(explanation, () => t('desktop.review.changed'));
+        if (!opened) {
+          workspace.show('review');
+          set(view, assessment.flags, {key: 'changed'});
+        }
       });
       return row;
     }));
     findings.hidden = !issues.length; more.hidden = !assessment?.validation?.truncated;
   }
+  function paintLink(link, step) {
+    link.hidden = !step;
+    if (!step) return;
+    link.dataset.step = step;
+    bindText(link, () => t('desktop.steps.' + step));
+  }
   function paint() {
     const {view, system, broker} = current();
     const stored = view?.desktop.source === 'stored';
     const connected = broker?.state === 'connected';
+    const fresh = connected && system?.fresh;
     const scope = draftScope(view);
     if (result?.scope !== scope && result) {
       result = result.view.workspaceContext.systemId === view?.workspaceContext?.systemId
         && result.view.desktop.epoch === view?.desktop.epoch ? {scope, view, key: 'changed'} : undefined;
     }
-    if (!connected && result?.key === 'ready') result = {...result, key: 'local'};
-    if (connected && result?.key === 'ready' && system?.fresh && result.remote
+    if (!fresh && result?.key === 'ready') result = {...result, key: 'local'};
+    if (fresh && result?.key === 'ready' && result.remote
       && (system.revision !== result.remote.revision || system.build !== result.remote.build)) result = {...result, key: 'changed'};
     const running = system?.executing || system?.runtime?.resume || system?.runtime?.runs.some(run => run.state === 'running');
-    const ready = result?.key === 'ready' && connected && !running;
+    const checked = result?.key === 'ready';
+    const ready = checked && fresh && !running && !stored;
     const blocked = busy() || !system || stored;
-    check.disabled = checkFlags.disabled = blocked;
-    store.disabled = blocked || !ready || result.flags;
-    storeFlags.disabled = blocked || !ready || !result.flags;
-    check.hidden = store.hidden = stored;
-    check.classList.toggle('primary', !stored && !ready && !!view?.configuration.automations.length);
-    store.classList.toggle('primary', !store.disabled);
-    const create = workspace.actions.querySelector('#draft-wizard-start');
-    create?.classList.toggle('primary', !view?.configuration.automations.length);
-    const key = stored ? 'storedView' : result?.key === 'ready' && running ? 'stopFirst'
-      : result?.key === 'local' && connected ? 'connectedAfterCheck' : result?.key ?? (connected ? 'start' : 'startDisconnected');
-    const message = result?.error ? (result.validation?.issues.length ? t('desktop.review.invalid')
-      : t(errorKeys[result.error] ?? 'project.' + result.error, {name: system?.name ?? ''})) : t('desktop.review.' + key, {name: system?.name ?? ''});
-    if (message !== messageKey) {
-      messageKey = message;
-      // The status lives beside the actions, including after a review of rule flags.
-      bindText(explanation, message);
-      bindText(flagExplanation, message);
-    }
-    explanation.dataset.tone = result?.error ? 'error' : ready ? 'success' : '';
-    reconcile.hidden = result?.error !== 'transferUncertain' && result?.error !== 'transferConflict';
-    reconcile.disabled = busy() || !connected;
+    const sent = result?.key === 'stored' || result?.key === 'flagsStored';
+    check.disabled = checkFromEditor.disabled = blocked;
+    checkFlags.disabled = blocked || !fresh;
+    store.disabled = blocked || !ready;
+    check.hidden = checkFromEditor.hidden = store.hidden = flags.hidden = stored;
+    check.classList.toggle('primary', !ready);
+    store.classList.toggle('primary', ready);
+    bindText(store, () => t(result?.flags ? 'desktop.review.storeFlags' : 'desktop.review.store'));
+    let key = result?.key ?? (fresh ? 'start' : 'startDisconnected');
+    if (stored) key = 'storedView';
+    else if (checked && running) key = 'stopFirst';
+    else if (ready && result.flags) key = 'readyFlags';
+    else if (key === 'local' && fresh) key = 'connectedAfterCheck';
+    else if (key === 'local' && connected) key = 'readAfterLocal';
+    const name = system?.name ?? view?.desktop.systemName ?? '';
+    const message = !stored && result?.error ? t(result.validation?.issues.length ? 'desktop.review.invalid'
+      : errorKeys[result.error] ?? 'project.' + result.error, {name}) : t('desktop.review.' + key, {name});
+    const transferMessage = stored || result ? message : t('desktop.steps.transferNeedsReview');
+    if (explanation.textContent !== message) explanation.textContent = message;
+    if (transferStatus.textContent !== transferMessage) transferStatus.textContent = transferMessage;
+    explanation.dataset.tone = transferStatus.dataset.tone = !stored && result?.error ? 'error' : ready || sent ? 'success' : '';
+    const draftContents = () => stored ? '' : t('desktop.steps.contents', {rules: formatNumber(view?.configuration.automations.length ?? 0),
+      sequences: formatNumber(view?.configuration.sequences.length ?? 0)});
+    bindText(contents, draftContents);
+    bindText(transferContents, draftContents);
+    bindText(target, () => t('desktop.steps.transferTarget', {name, topic: system?.baseTopic ?? view?.module.baseTopic ?? ''}));
+    bindText(transferHelp, () => stored || sent ? '' : t(result?.flags ? 'desktop.steps.transferFlagsHelp' : 'desktop.steps.transferHelp'));
+    const needRead = result?.key === 'local' && !fresh || ['disconnected', 'timeout', 'protocol', 'transferChanged'].includes(result?.error);
+    paintLink(nextReview, stored ? 'draft' : ready ? 'transfer' : sent || checked && running ? 'operation' : needRead ? 'connection' : '');
+    nextReview.classList.toggle('primary', ready);
+    paintLink(nextTransfer, stored ? 'draft' : sent || checked && running ? 'operation'
+      : ready || busy() ? '' : needRead ? 'connection' : 'review');
+    nextTransfer.classList.add('primary');
+    reconcile.hidden = !connected || ready;
+    reconcile.disabled = busy();
     issueList(stored ? null : result);
   }
   const errorKeys = {
@@ -150,19 +192,21 @@ export function installDraftReview(bridge, workspace, {current, perform, command
       const local = await bridge.designer({route: 'check-draft', systemId: context.systemId,
         generation: context.generation, fingerprint: context.fingerprint, payload: {}});
       if (!local.ok) { set(snapshot, flags, {key: 'error', error: local.error, validation: local.validation}); return; }
-      if (current().broker?.state !== 'connected') { set(snapshot, flags, {key: 'local'}); return; }
-      if (draftScope(current().view) !== draftScope(snapshot)) return;
+      const latest = current();
+      if (draftScope(latest.view) !== draftScope(snapshot)) return;
+      if (latest.broker?.state !== 'connected' || !latest.system?.fresh) { set(snapshot, flags, {key: 'local'}); return; }
       set(snapshot, flags, {key: 'checkingReceiver'});
       updateOutcome(snapshot, flags, await command(flags ? 'validateEnabled' : 'validate', context.systemId));
     }, () => set(current().view, flags, {key: 'error', error: 'failed'}));
   }
-  function transfer(flags) {
+  function transfer() {
     return perform(async () => {
       const {view, system} = current();
-      if (!system || result?.key !== 'ready' || result.flags !== flags || result.scope !== draftScope(view)) return;
+      if (!system || view.desktop.source !== 'draft' || result?.key !== 'ready' || result.scope !== draftScope(view)) return;
+      const {flags} = result;
       set(view, flags, {key: 'transferring'});
       updateOutcome(view, flags, await command('store', system.id));
-    }, () => set(current().view, flags, {key: 'error', error: 'failed'}));
+    }, () => set(current().view, result?.flags ?? false, {key: 'error', error: 'failed'}));
   }
   function checkTransfer() {
     return perform(async () => {
@@ -170,5 +214,5 @@ export function installDraftReview(bridge, workspace, {current, perform, command
       if (system) updateOutcome(view, result?.flags ?? false, await command('checkTransfer', system.id));
     }, () => set(current().view, false, {key: 'error', error: 'failed'}));
   }
-  return {paint, next, checkTransfer};
+  return {paint};
 }

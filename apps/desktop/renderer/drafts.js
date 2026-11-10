@@ -1,28 +1,45 @@
-import {t, bindText} from './localization.js';
+import {t, bindText, formatNumber} from './localization.js';
 
 export function installDraftExchange(bridge, workspace) {
-  const panel = document.createElement('details'); panel.className = 'desktop-project'; panel.id = 'draft-exchange';
-  const title = document.createElement('summary'); bindText(title, () => t('desktop.review.files')); panel.append(title);
-  const help = document.createElement('p'); bindText(help, () => t('desktop.review.filesHelp')); panel.append(help);
-  const feedback = document.createElement('p'); feedback.id = 'desktop-yaml-feedback'; feedback.setAttribute('role', 'status'); workspace.review.append(feedback);
-  const controls = document.createElement('div'); controls.id = 'draft-exchange-actions'; controls.className = 'project-actions'; panel.append(controls);
+  function card(key) {
+    const panel = document.createElement('section'); panel.className = 'desktop-card';
+    const title = document.createElement('h2'); bindText(title, () => t('desktop.steps.' + key));
+    const summary = document.createElement('p');
+    const help = document.createElement('p'); bindText(help, () => t('desktop.steps.' + key + 'Help'));
+    const controls = document.createElement('div'); controls.id = 'draft-' + key + '-actions'; controls.className = 'project-actions';
+    const feedback = document.createElement('p'); feedback.className = 'desktop-feedback'; feedback.setAttribute('role', 'status');
+    panel.append(title, summary, help, controls, feedback); workspace.pages.draft.append(panel);
+    return {summary, controls, feedback};
+  }
+  const local = card('local');
+  const stored = card('stored');
+  const read = workspace.link(stored.controls, 'connection', 'desktop.steps.readStored');
+  const feedback = document.createElement('p'); feedback.id = 'desktop-yaml-feedback'; feedback.className = 'desktop-feedback';
+  feedback.setAttribute('role', 'status'); workspace.actions.after(feedback);
   let busy = false;
   let view;
   const buttons = new Map();
   function update() {
+    const revision = view?.status.storedRevision;
+    const showingStored = view?.desktop.source === 'stored';
+    read.hidden = Boolean(view?.status.confirmed);
+    bindText(local.summary, () => t('mqtt.localRevision', {revision: formatNumber(view?.desktop.draftRevision ?? 0)}));
+    bindText(stored.summary, () => revision == null ? t('desktop.steps.noStored') : revision === 0 && view?.status.confirmed
+      ? t('desktop.steps.noStoredRules')
+      : t(view.status.confirmed ? 'desktop.steps.storedSource' : 'desktop.steps.lastReadSource', {revision: formatNumber(revision)}));
     for (const [route, button] of buttons) {
-      button.disabled = busy || !view?.workspaceContext?.systemId || (route !== 'adopt' && view.desktop.source === 'stored')
-        || (route === 'adopt' && !(view?.status.storedRevision > 0));
+      button.hidden = route !== 'adopt' && showingStored;
+      button.disabled = busy || !view?.workspaceContext?.systemId || (route === 'adopt' && !(revision > 0));
     }
   }
   for (const [route, key] of [['import', 'importDraft'], ['export', 'exportDraft'], ['adopt', 'adoptStored']]) {
     const button = document.createElement('button'); button.type = 'button'; button.id = 'draft-' + route;
     buttons.set(route, button);
     bindText(button, () => t(route === 'export' ? 'editor.export' : 'project.' + key));
-    (route === 'export' ? workspace.actions : controls).append(button);
+    (route === 'export' ? workspace.actions : route === 'adopt' ? stored.controls : local.controls).append(button);
     button.addEventListener('click', async () => {
       if (busy || document.querySelector('dialog[open]') || workspace.review.hasAttribute('aria-busy')) return;
-      const target = route === 'export' ? feedback : panel.querySelector('[role="status"]');
+      const target = route === 'export' ? feedback : route === 'adopt' ? stored.feedback : local.feedback;
       busy = true; update();
       try {
         const snapshot = await bridge.snapshot(); const context = snapshot.workspaceContext;
@@ -34,11 +51,9 @@ export function installDraftExchange(bridge, workspace) {
       finally { busy = false; update(); }
     });
   }
-  const exchangeStatus = document.createElement('p'); exchangeStatus.setAttribute('role', 'status'); panel.append(exchangeStatus);
-  workspace.review.after(panel);
   document.addEventListener('z2ma-designer-view', event => {
     if (view?.workspaceContext?.systemId !== event.detail.workspaceContext?.systemId || view?.desktop.epoch !== event.detail.desktop.epoch) {
-      bindText(feedback, ''); bindText(exchangeStatus, '');
+      for (const label of [feedback, local.feedback, stored.feedback]) bindText(label, '');
     }
     view = event.detail;
     update();

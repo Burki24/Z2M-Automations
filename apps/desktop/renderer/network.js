@@ -1,4 +1,4 @@
-import {t, bindText, onLanguageChange, sortByName} from './localization.js';
+import {t, bindText, onLanguageChange, sortByName, formatNumber} from './localization.js';
 import {installDraftReview} from './draft-review.js';
 
 function button(parent, id, key, action) {
@@ -37,6 +37,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
   let operationFeedback;
   let setupFeedback;
   let connectionFeedback;
+  let sourceFeedback;
 
   function current() {
     const system = state.systems.find(system => system.id === view?.workspaceContext?.systemId);
@@ -90,11 +91,10 @@ export function installNetwork(bridge, workspace, settleEditor) {
   }
 
   const operation = document.createElement('section'); operation.className = 'desktop-card';
-  const title = document.createElement('h1'); bindText(title, () => t('desktop.operation'));
-  operation.append(title); workspace.operation.append(operation);
+  workspace.pages.operation.append(operation);
   const operationState = status(operation);
   const operationConnection = actions(operation);
-  const connectOperation = button(operationConnection, '', 'desktop.connect', () => systemCommand('connect', (key, name) => { operationFeedback = {key, name}; }));
+  const connectOperation = workspace.link(operationConnection, 'connection');
   const runtimeStatus = button(operationConnection, 'mqtt-runtimeStatus', 'desktop.operation.readStatus', () => systemCommand('runtimeStatus', () => { operationFeedback = undefined; }));
   const automatic = document.createElement('fieldset'); operation.append(automatic);
   const automaticTitle = document.createElement('legend'); bindText(automaticTitle, () => t('desktop.operation.automatic')); automatic.append(automaticTitle);
@@ -119,41 +119,58 @@ export function installNetwork(bridge, workspace, settleEditor) {
     if (run) runtimeAction('stop_rule', {rule: run.rule, run: run.run});
   });
   const runs = document.createElement('ul'); runs.className = 'mqtt-overview'; operation.append(runs);
-  const flags = document.createElement('details'); flags.className = 'desktop-card'; workspace.operation.append(flags);
+  const flags = document.createElement('details'); flags.className = 'desktop-card'; workspace.pages.operation.append(flags);
   const flagsTitle = document.createElement('summary'); bindText(flagsTitle, () => t('desktop.operation.flags')); flags.append(flagsTitle);
   const flagsHelp = document.createElement('p'); bindText(flagsHelp, () => t('desktop.operation.flagsHelp')); flags.append(flagsHelp);
-  const review = installDraftReview(bridge, workspace, {current, perform, command, busy: () => pending, button, flags: actions(flags)});
+  const flagActions = actions(flags);
+  workspace.link(flagActions, 'automations');
+  workspace.link(flagActions, 'review');
+  const review = installDraftReview(bridge, workspace, {current, perform, command, busy: () => pending, button});
 
-  const connection = document.createElement('div'); connection.className = 'desktop-connection-actions';
-  workspace.review.append(connection);
+  const connection = document.createElement('section'); connection.className = 'desktop-card';
+  workspace.pages.connection.append(connection);
   const connectionState = status(connection);
+  const catalogState = document.createElement('p'); connection.append(catalogState);
   const connectionActions = actions(connection);
-  const connect = button(connectionActions, 'mqtt-connect', 'desktop.connect', () => systemCommand('connect', (key, name) => { connectionFeedback = {key, name}; }));
-  const read = button(connectionActions, 'mqtt-refresh', 'desktop.readDevices', () => systemCommand('refresh', () => { connectionFeedback = undefined; }));
-  const setupLink = button(connectionActions, 'mqtt-setupBroker', 'desktop.setupLink', () => workspace.showSetup('brokers'));
+  const connect = button(connectionActions, 'mqtt-connect', 'desktop.steps.connection', () => systemCommand('connect', (key, name) => { connectionFeedback = {key, name}; }));
+  connect.className = 'primary';
+  const read = button(connectionActions, 'mqtt-refresh', 'desktop.steps.readState', () => systemCommand('refresh', () => { connectionFeedback = undefined; }));
+  const disconnect = button(connectionActions, 'mqtt-disconnect', 'mqtt.disconnect', () => systemCommand('disconnect', () => { connectionFeedback = undefined; }));
+  const editBroker = workspace.link(connectionActions, 'broker');
+  const editSystem = workspace.link(connectionActions, 'system');
+  const nextDraft = workspace.link(connectionActions, 'draft');
 
-  const exchange = document.querySelector('#draft-exchange-actions');
-  const viewSource = button(exchange, 'mqtt-stored', 'desktop.review.viewStored', () => perform(async () => {
-    const {system} = current();
-    if (!system) return;
-    const response = await command('view', system.id, {source: view.desktop.source === 'draft' ? 'stored' : 'draft'});
-    connectionFeedback = {key: response.ok ? '' : 'project.' + response.error, name: system.name};
-  }, () => { connectionFeedback = {key: 'project.failed'}; }));
-  button(exchange, '', 'desktop.review.checkTransfer', review.checkTransfer);
+  const localActions = document.querySelector('#draft-local-actions');
+  const storedActions = document.querySelector('#draft-stored-actions');
+  const local = button(localActions, 'mqtt-draft', 'desktop.steps.editDraft', () => openSource('draft'));
+  const stored = button(storedActions, 'mqtt-stored', 'desktop.review.viewStored', () => openSource('stored'));
+  local.className = 'primary';
+  localActions.prepend(local);
+  storedActions.prepend(stored);
+  const sourceResult = status(workspace.pages.draft); sourceResult.className = 'desktop-feedback';
+  function openSource(source) {
+    return perform(async () => {
+      const {system} = current();
+      if (!system) return;
+      sourceFeedback = '';
+      if (view.desktop.source !== source) {
+        const response = await command('view', system.id, {source});
+        if (!response.ok) { sourceFeedback = 'project.' + response.error; return; }
+      }
+      workspace.show('automations');
+    }, () => { sourceFeedback = 'project.failed'; });
+  }
 
-  const setup = document.createElement('details'); setup.id = 'desktop-setup-connection'; setup.name = 'desktop-setup'; setup.className = 'desktop-card'; workspace.setup.append(setup);
+  const setup = document.createElement('details'); setup.className = 'desktop-card'; workspace.pages.connection.append(setup);
   const setupTitle = document.createElement('summary'); bindText(setupTitle, () => t('desktop.setup.connection')); setup.append(setupTitle);
-  const setupState = status(setup);
   const versions = document.createElement('p'); setup.append(versions);
   const connectionSettings = actions(setup);
   const setupResult = status(setup);
-  const disconnect = button(connectionSettings, 'mqtt-disconnect', 'mqtt.disconnect', () => systemCommand('disconnect', (key, name) => {
-    setupFeedback = {key: key || 'desktop.setup.disconnected', name};
-  }));
   const install = button(connectionSettings, 'mqtt-install', 'mqtt.install', () => systemCommand('install', (key, name) => { setupFeedback = {key, name}; }));
+  const resolveInstall = workspace.link(connectionSettings, 'transfer', 'desktop.review.checkTransfer');
 
   const brokerChoice = document.querySelector('#project-brokerChoice');
-  const tls = document.createElement('details'); tls.className = 'desktop-tls'; brokerChoice.closest('details').append(tls);
+  const tls = document.createElement('details'); tls.className = 'desktop-tls'; brokerChoice.closest('.desktop-card').append(tls);
   const tlsTitle = document.createElement('summary'); bindText(tlsTitle, () => t('desktop.setup.tls')); tls.append(tlsTitle);
   const tlsHelp = document.createElement('p'); bindText(tlsHelp, () => t('mqtt.tlsHelp')); tls.append(tlsHelp);
   const tlsStatus = status(tls);
@@ -172,7 +189,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
   const clearCertificates = button(tlsActions, 'mqtt-clearCertificates', 'mqtt.clearCertificates', () => changeTLS('clearCertificates'));
 
   function connectionKey(system, broker) {
-    if (!system) return 'desktop.noSystemHelp';
+    if (!system) return 'desktop.steps.need.system';
     if (broker?.error) return 'desktop.connection.' + broker.error;
     if (['connecting', 'reconnecting'].includes(broker?.state)) return 'desktop.connection.connecting';
     if (broker?.state !== 'connected') return 'desktop.connection.offline';
@@ -190,20 +207,24 @@ export function installNetwork(bridge, workspace, settleEditor) {
     const name = system?.name ?? '';
     const connectionMessage = () => t(connectionKey(system, broker), {name, broker: broker?.name ?? ''});
     bindText(connectionState, () => feedbackText(connectionFeedback) || connectionMessage());
-    connection.hidden = Boolean(system?.fresh && connected && !connectionFeedback?.key);
+    bindText(catalogState, () => system?.fresh ? t('desktop.steps.catalog', {devices: formatNumber(system.devices), scenes: formatNumber(system.scenes)}) : '');
     connect.hidden = connected;
-    connect.disabled = connectOperation.disabled = pending || !system || connecting;
+    connect.disabled = pending || !system || connecting;
     read.hidden = !connected;
     read.disabled = pending || Boolean(system?.reading);
-    setupLink.hidden = !broker?.error && !system?.error;
-    bindText(setupState, connectionMessage);
+    read.classList.toggle('primary', !system?.fresh);
+    nextDraft.classList.toggle('primary', Boolean(system?.fresh));
+    editBroker.hidden = !broker?.error;
+    editSystem.hidden = !system?.error;
     bindText(setupResult, () => feedbackText(setupFeedback));
+    resolveInstall.hidden = setupFeedback?.key !== 'project.transferUncertain';
     disconnect.disabled = pending || (!connected && !connecting);
     install.disabled = pending || !connected;
     versions.hidden = !system;
     bindText(versions, () => t('project.extensionBuilds', {installed: system?.extensionVersion || '—', bundled: state.bundledExtension?.version ?? '—'}));
-    viewSource.disabled = pending || !system?.stored;
-    bindText(viewSource, () => t(view?.desktop.source === 'stored' ? 'desktop.review.viewDraft' : 'desktop.review.viewStored'));
+    local.disabled = pending || !system;
+    stored.disabled = pending || !system?.stored;
+    bindText(sourceResult, () => sourceFeedback ? t(sourceFeedback) : '');
 
     connectOperation.hidden = connected || !system;
     runtimeStatus.hidden = !connected;
@@ -236,7 +257,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
     const id = data.desktop.projectId + ':' + data.desktop.epoch + ':' + data.workspaceContext?.systemId;
     if (id !== selected) {
       selected = id; resume.checked = false; rules.value = '';
-      connectionFeedback = operationFeedback = setupFeedback = undefined;
+      connectionFeedback = operationFeedback = setupFeedback = sourceFeedback = undefined;
     }
     view = data;
     paint();

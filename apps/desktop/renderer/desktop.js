@@ -43,7 +43,6 @@ installTransport({kind: 'desktop', request: async (input, init = {}) => {
             return new Response(JSON.stringify({ok: false, error: result.error, message}), {status: 409});
         }
         value = result.state;
-        if (route !== '/create-yaml' && route !== '/edit-yaml') document.dispatchEvent(new Event('z2ma-project-changed'));
     }
     else throw new Error('Unsupported desktop operation.');
     return new Response(JSON.stringify(value), {status: 200, headers: {'Content-Type': 'application/json'}});
@@ -115,8 +114,7 @@ try {
     await installProjects(bridge, workspace);
     installDraftExchange(bridge, workspace);
     const updateNetwork = installNetwork(bridge, workspace, () => editorState);
-    panel.name = 'desktop-setup';
-    workspace.setup.append(panel);
+    workspace.pages.project.append(panel);
     document.addEventListener('z2ma-designer-view', event => {
         workspace.update(event.detail);
         updateNetwork(event.detail);

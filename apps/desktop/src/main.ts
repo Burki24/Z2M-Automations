@@ -318,9 +318,15 @@ async function open(): Promise<void> {
       const bridge = window.z2maDesktop;
       const header = document.querySelector('.app-header');
       await wait(() => header.querySelector('.brand-mark img')?.naturalWidth > 0);
-      const automationView = document.querySelector('#desktop-view-automations');
-      if (!automationView || automationView.hidden || !document.querySelector('#desktop-view-setup')?.hidden
-        || !document.querySelector('#desktop-view-operation')?.hidden) throw new Error('Automations must be the initial workspace with setup and operation separated');
+      const navigation = document.querySelector('.desktop-steps');
+      const stepTargets = [...(navigation?.querySelectorAll('ol button') ?? [])].map(button => button.getAttribute('aria-controls'));
+      if (stepTargets.join(',') !== ['project', 'broker', 'system', 'connection', 'draft', 'automations', 'review', 'transfer'].map(key => 'desktop-view-' + key).join(',')) {
+        throw new Error('The desktop workspace must present eight ordered steps');
+      }
+      const visibleViews = [...document.querySelectorAll('.desktop-view:not([hidden])')].map(view => view.id);
+      if (visibleViews.join(',') !== 'desktop-view-project' || !document.querySelector('#desktop-view-transfer #mqtt-store')) {
+        throw new Error('A fresh workspace must start at the project and keep transfer in its own step');
+      }
       if (!(header.compareDocumentPosition(document.querySelector('#local-project')) & Node.DOCUMENT_POSITION_FOLLOWING)) throw new Error('Desktop header is below project controls');
       const theme = document.querySelector('#desktop-theme');
       for (const value of ['dark', 'light', 'system']) {
@@ -374,13 +380,31 @@ async function open(): Promise<void> {
     await smokeProjects(view);
     await smokeNetwork(view, Number(process.env['Z2MA_SMOKE_MQTT_PORT']));
     await smokeDrafts(view, join(app.getPath('userData'), 'synthetic-automations.yaml'));
-    for (const width of [360, 1920, 3840]) {
+    for (const width of [360, 1024, 1920, 3840]) {
       window.setContentSize(width, 900);
       for (const theme of ['light', 'dark'] as const) {
         nativeTheme.themeSource = theme;
         await new Promise(resolve => setTimeout(resolve, 150));
-        const fits: boolean = await view.executeJavaScript('document.documentElement.scrollWidth <= innerWidth + 1');
-        if (!fits) throw new Error('Desktop layout overflow: ' + width + '/' + theme);
+        const issue: string = await view.executeJavaScript(`(() => {
+          const nav = document.querySelector('.desktop-steps');
+          const picker = document.querySelector('#desktop-step');
+          const compact = innerWidth <= 900;
+          if (compact !== Boolean(picker.getClientRects().length)) return 'compact picker visibility';
+          function select(key) {
+            if (compact) { picker.value = key; picker.dispatchEvent(new Event('change')); }
+            else nav.querySelector('#desktop-nav-' + key).click();
+          }
+          for (const {value: key} of picker.options) {
+            select(key);
+            const pane = document.querySelector('#desktop-view-' + key);
+            if (pane.hidden || picker.value !== key) return key + ' did not open';
+            if (document.documentElement.scrollWidth > innerWidth + 1) return key + ' overflow';
+            if (!compact && nav.getBoundingClientRect().right > pane.getBoundingClientRect().left + 1) return key + ' overlaps the sidebar';
+          }
+          select('automations');
+          return '';
+        })()`);
+        if (issue) throw new Error('Desktop layout at ' + width + '/' + theme + ': ' + issue);
         console.log('DESKTOP_VIEWPORT_OK ' + width + '/' + theme);
       }
     }
@@ -395,7 +419,7 @@ async function open(): Promise<void> {
       writeFileSync(join(__dirname, '../out/smoke.png'), image.toPNG());
       console.log('DESKTOP_CAPTURE_OK');
     }
-    console.log('DESKTOP_LAYOUT_OK 360/1920/3840 light/dark');
+    console.log('DESKTOP_LAYOUT_OK 360/1024/1920/3840 light/dark');
     await projects.serialize(async () => {
       if (projects.hasPendingInput() || !projects.isDirty()) throw new Error('Close smoke requires an applied unsaved draft');
       await projects.command({action: 'rename', name: 'Saved from the close dialog'});

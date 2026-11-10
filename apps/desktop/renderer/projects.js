@@ -2,16 +2,21 @@ import {t, bindText, onLanguageChange, language} from './localization.js';
 
 // File paths and credential reads are intentionally absent from the renderer bridge.
 export async function installProjects(bridge, workspace) {
-  const root = document.createElement('div'); root.id = 'local-project'; workspace.setup.append(root);
-  function group(key) {
-    const card = document.createElement('details'); card.id = 'desktop-setup-' + key; card.name = 'desktop-setup'; card.className = 'desktop-card';
-    const title = document.createElement('summary'); bindText(title, () => t('desktop.setup.' + key)); card.append(title);
+  function group(step, id) {
+    const card = document.createElement('section'); card.id = id; card.className = 'desktop-card';
     const feedback = document.createElement('p'); feedback.className = 'setup-feedback'; feedback.setAttribute('role', 'status');
-    feedback.hidden = true; card.append(feedback); root.append(card); return card;
+    feedback.hidden = true; card.append(feedback); workspace.pages[step].append(card); return card;
   }
-  const file = group('file'); file.open = true;
-  const brokerGroup = group('brokers');
-  const systemGroup = group('systems');
+  const file = group('project', 'local-project');
+  const brokerGroup = group('broker', 'desktop-setup-brokers');
+  const systemGroup = group('system', 'desktop-setup-systems');
+  for (const [group, step] of [[brokerGroup, 'broker'], [systemGroup, 'system']]) {
+    const help = document.createElement('p'); bindText(help, () => t('desktop.steps.' + step + 'Help')); group.append(help);
+  }
+  const nextBroker = workspace.link(workspace.pages.project, 'broker');
+  const nextSystem = workspace.link(workspace.pages.broker, 'system');
+  const nextConnection = workspace.link(workspace.pages.system, 'connection');
+  for (const next of [nextBroker, nextSystem, nextConnection]) next.className = 'primary';
   const stateLabel = document.createElement('p'); file.append(stateLabel);
   const actions = document.createElement('div'); actions.className = 'project-actions'; file.append(actions);
   let state = null;
@@ -94,8 +99,8 @@ export async function installProjects(bridge, workspace) {
   }
   async function run(command, submitted = null) {
     if (busy) return false;
-    const card = submitted?.closest('details') ?? file;
-    busy = true; root.setAttribute('aria-busy', 'true');
+    const card = submitted?.closest('.desktop-card') ?? file;
+    busy = true; card.setAttribute('aria-busy', 'true');
     try {
       const result = await bridge.project(command);
       if (!result.ok) { show(card, 'project.' + result.error); return false; }
@@ -111,20 +116,24 @@ export async function installProjects(bridge, workspace) {
         }
         rememberForms();
       }
-      paint();
+      paint(command.action === 'open');
       if (command.action === 'broker') { brokerChoice.value = command.broker.id; brokerForm.dataset.selected = command.broker.id; paintSecretState(); }
       if (command.action === 'system') { systemChoice.value = command.system.id; systemForm.dataset.selected = command.system.id; }
       const key = ['save', 'saveAs'].includes(command.action) ? 'save' : command.action;
       show(card, 'desktop.setup.result.' + key, {name: command.broker?.name ?? command.system?.name ?? state.project.name});
       refresh();
-      if (command.action === 'open' && state.project.systems.length) workspace.show('automations');
       return true;
     } catch { show(card, 'project.failed'); return false; }
-    finally { busy = false; root.removeAttribute('aria-busy'); }
+    finally { busy = false; card.removeAttribute('aria-busy'); }
   }
-  for (const action of ['new', 'open', 'save', 'saveAs', 'export', 'restore']) button(actions, action, () => run({action}));
-  button(actions, 'refresh', () => run({action: 'status'}));
-  button(actions, 'discardInputs', async () => {
+  for (const action of ['new', 'open', 'save']) button(actions, action, () => run({action}));
+  const projectOptions = document.createElement('details'); projectOptions.className = 'desktop-project-options';
+  const optionsTitle = document.createElement('summary'); bindText(optionsTitle, () => t('desktop.steps.projectOptions'));
+  const optionsActions = document.createElement('div'); optionsActions.className = 'project-actions';
+  projectOptions.append(optionsTitle, optionsActions);
+  for (const action of ['saveAs', 'export', 'restore']) button(optionsActions, action, () => run({action}));
+  button(optionsActions, 'refresh', () => run({action: 'status'}));
+  button(optionsActions, 'discardInputs', async () => {
     if (busy) return;
     try { sessionStorage.removeItem(inputStorageKey()); } catch {}
     resetForms(); const result = await bridge.project({action: 'edited'});
@@ -132,6 +141,7 @@ export async function installProjects(bridge, workspace) {
   });
   const nameForm = form('projectName', file); const name = input(nameForm, 'name');
   button(nameForm, 'applyName', () => { if (nameForm.reportValidity()) void run({action: 'rename', name: name.value}, nameForm); });
+  file.append(projectOptions);
   const brokerForm = form('broker', brokerGroup); const brokerChoice = select(brokerForm, 'brokerChoice');
   const brokerName = input(brokerForm, 'brokerName'); const host = input(brokerForm, 'host'); host.maxLength = 253;
   const port = input(brokerForm, 'port', 'number'); port.min = '1'; port.max = '65535'; port.defaultValue = '1883';
@@ -200,11 +210,14 @@ export async function installProjects(bridge, workspace) {
     bindText(stateLabel, () => state?.active
       ? t(state.dirty ? 'desktop.fileUnsaved' : 'desktop.fileSaved', {name: state.project.name}) : t('desktop.noProjectHelp'));
   }
-  function paint() {
+  function paint(open = false) {
     paintFileState();
-    for (const element of [nameForm, brokerGroup, systemGroup]) element.hidden = !state?.active;
-    for (const action of ['save', 'saveAs', 'export', 'restore']) document.querySelector('#project-' + action).disabled = !state?.active;
-    if (!state?.active) return;
+    workspace.updateProject(state, open);
+    nameForm.hidden = projectOptions.hidden = nextBroker.hidden = !state.active;
+    file.querySelector('#project-save').hidden = !state.active;
+    nextSystem.hidden = !state.project.brokers.length;
+    nextConnection.hidden = !state.project.systems.length;
+    if (!state.active) return;
     if (!pending.has(nameForm)) name.value = state.project.name;
     options(brokerChoice, state.project.brokers.map(broker => [broker.id, broker.name]), 'newBroker');
     options(systemChoice, state.project.systems.map(system => [system.id, system.name]), 'newSystem');
@@ -223,9 +236,17 @@ export async function installProjects(bridge, workspace) {
       if (!busy && result.ok && result.state.epoch === epoch) { state = result.state; state.dirty ||= pending.size > 0; paint(); }
     } catch { /* A later explicit refresh can still recover the latest main-process state. */ }
   });
-  onLanguageChange(() => { if (!busy) paint(); });
+  document.addEventListener('z2ma-designer-view', ({detail: {desktop}}) => {
+    if (!desktop.project || state?.epoch !== desktop.epoch) return;
+    // The editor refreshes its own view after saving a draft.
+    const dirty = desktop.projectDirty || pending.size > 0;
+    if (state.dirty === dirty) return;
+    state.dirty = dirty;
+    paintFileState();
+  });
+  onLanguageChange(() => { if (!busy && state) paint(); });
   // Synchronize native dialog language even when the stored preference overrides the OS.
   await bridge.language({language: language(), previousLanguage: language(), openEditor: false});
   const result = await bridge.project({action: 'status'});
-  if (result.ok) { state = result.state; paint(); await restoreForms(); } else show(file, 'project.failed');
+  if (result.ok) { state = result.state; paint(true); await restoreForms(); } else show(file, 'project.failed');
 }

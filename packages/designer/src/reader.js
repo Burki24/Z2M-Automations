@@ -380,11 +380,11 @@ import {installNativeEmbedding} from './embedding.js';
             : t("ui.the.automation.was.added.to.9cc3bca1")));
     }, onEdited: async ruleId => {
         const refreshed = await load(ruleId);
-        message(() => (refreshed ? t("ui.change.applied.to.the.local.9b87dbaf")
+        message(() => (refreshed ? t(isDesktop() ? "desktop.review.editApplied" : "ui.change.applied.to.the.local.9b87dbaf")
             : t("ui.the.change.was.applied.to.0df2d1eb")));
     }, onSequenceSaved: async sequenceId => {
         const refreshed = await load('', sequenceId);
-        message(() => (refreshed ? t("ui.action.sequence.applied.to.the.37c830cc")
+        message(() => (refreshed ? t(isDesktop() ? "desktop.review.editApplied" : "ui.action.sequence.applied.to.the.37c830cc")
             : t("ui.the.action.sequence.was.applied.226c343e")));
     }});
     management = installManagement({getData: () => data, getEntry: current, isLoading: () => busy, reload: () => load(), copied: ruleId => load(ruleId), message,
