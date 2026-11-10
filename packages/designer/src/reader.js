@@ -76,6 +76,10 @@ import {installNativeEmbedding} from './embedding.js';
     }
 
     const entryKey = entry => `${entry.kind === 'sequence' ? 'sequence' : 'rule'}:${entry.id}`;
+    function sortedDevices() {
+        const {compare} = new Intl.Collator(locale(), {numeric: true, sensitivity: 'base'});
+        return (data?.devices ?? []).toSorted((a, b) => compare(a.name, b.name));
+    }
     const current = () => category === 'catalog' ? data?.devices.find(device => device.key === selected) : entries().find(entry => entryKey(entry) === selected);
     const targetDevice = target => data?.devices.find(device => device.target.type === target?.type && device.target.id === target?.id
         && (device.target.system ?? '') === (target?.system ?? ''));
@@ -136,7 +140,7 @@ import {installNativeEmbedding} from './embedding.js';
         bindHTML($('#categories'), () => Object.entries(areas).map(([kind, [label, symbol]]) => `<button class="category ${category === kind ? 'active' : ''}" data-area="${kind}" aria-pressed="${category === kind}">${icon(symbol)}${label}<span class="category-count">${kind === 'catalog' ? data?.devices.length ?? 0 : all.filter(entry => entry.kind === kind).length}</span></button>`).join(''));
         bindText($('#list-label'), () => areas[category][0]);
         const search = $('#search').value.trim().toLocaleLowerCase(locale());
-        const options = category === 'catalog' ? (data?.devices ?? []).map(device => ({key: device.key, title: device.name, subtitle: t("ui.text.db1b0c15", {p1: device.target.system ?? data.module.baseTopic, p2: device.target.id})}))
+        const options = category === 'catalog' ? sortedDevices().map(device => ({key: device.key, title: device.name, subtitle: t("ui.text.db1b0c15", {p1: device.target.system ?? data.module.baseTopic, p2: device.target.id})}))
             : all.filter(entry => entry.kind === category).map(entry => ({key: entryKey(entry), title: entry.name,
                 subtitle: entry.kind === 'sequence' ? t("ui.steps.af057682", {p1: entry.actions.length}) : (entry.triggers ?? []).map(triggerSummary).join(t("ui.or.5f15b341")), enabled: entry.enabled}));
         const visible = options.filter(entry => `${entry.title} ${entry.subtitle}`.toLocaleLowerCase(locale()).includes(search) && matchesRuleState(entry, stateFilter));
@@ -228,7 +232,7 @@ import {installNativeEmbedding} from './embedding.js';
     function selectEntry(key) { selected = key; selectedPart = null; render(); }
     function chooseArea(area) {
         category = area; selectedPart = null;
-        selected = category === 'catalog' ? data?.devices[0]?.key : entryKeyOrNull(entries().find(entry => entry.kind === category));
+        selected = category === 'catalog' ? sortedDevices()[0]?.key : entryKeyOrNull(entries().find(entry => entry.kind === category));
         render();
     }
     const entryKeyOrNull = entry => entry ? entryKey(entry) : null;
@@ -336,7 +340,7 @@ import {installNativeEmbedding} from './embedding.js';
             } else if (!current()) {
                 const first = entries().find(entry => entry.kind === category) ?? entries()[0];
                 if (category !== 'catalog' && first) category = first.kind;
-                selected = category === 'catalog' ? data.devices[0]?.key : entryKeyOrNull(first);
+                selected = category === 'catalog' ? sortedDevices()[0]?.key : entryKeyOrNull(first);
                 selectedPart = null;
             }
             render();
