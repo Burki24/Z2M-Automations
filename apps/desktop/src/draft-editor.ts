@@ -2,9 +2,9 @@ import {createHash, randomUUID} from 'node:crypto';
 import type {ProjectService} from './project-service.js';
 import type {MqttReader} from './mqtt-reader.js';
 import {exact, validId, type ProjectSystem, type Configuration} from './project.js';
-import {editorDevices, checkCapabilities, digestPattern, uniqueTopic, type Entry} from './draft-validation.js';
+import {editorDevices, checkCapabilities, checkedDocument, digestPattern, uniqueTopic, type Entry} from './draft-validation.js';
 
-const routes = ['create', 'edit', 'create-yaml', 'edit-yaml', 'sequence', 'manage', 'permissions-status', 'permissions', 'import', 'export', 'adopt', 'editor-state'] as const;
+const routes = ['create', 'edit', 'create-yaml', 'edit-yaml', 'sequence', 'manage', 'permissions-status', 'permissions', 'import', 'export', 'adopt', 'editor-state', 'check-draft'] as const;
 export interface DesignerCommand {route: typeof routes[number]; systemId: string; generation: number; fingerprint: string; payload: Entry}
 export const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export function validDesignerCommand(value: unknown): value is DesignerCommand {
@@ -84,6 +84,13 @@ export class DraftEditor {
   }
   command(command: DesignerCommand): Entry {
     const payload = command.payload;
+    if (command.route === 'check-draft') {
+      if (!exact(payload, [])) throw new Error('invalidRequest');
+      const system = this.system(command);
+      if (this.projects.hasPendingInput()) throw new Error('applyFirst');
+      checkedDocument(system.configuration);
+      return {ok: true};
+    }
     if (command.route === 'editor-state') {
       if (!exact(payload, ['pending']) || typeof payload['pending'] !== 'boolean' || !this.projects.active
         || command.generation !== this.projects.generation() + 1 || !this.projects.data().systems.some(system => system.id === command.systemId)) throw new Error('draftStale');

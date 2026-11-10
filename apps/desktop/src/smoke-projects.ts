@@ -9,43 +9,48 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     const field = (id, value) => { const element = document.querySelector('#project-' + id); element.value = value; element.dispatchEvent(new Event('input', {bubbles: true})); return element; };
     const click = id => document.querySelector('#project-' + id).click();
     const projectPanel = document.querySelector('#local-project');
-    const mqttPanel = document.querySelector('#mqtt-panel');
-    mqttPanel.open = true;
-    document.querySelector('#mqtt-setupBroker').click();
-    assert(projectPanel.open && document.activeElement.id === 'project-new', 'broker shortcut without a project');
-    click('new'); await wait(async () => (await state()).active);
+    const section = key => document.querySelector('#desktop-setup-' + key);
+    document.querySelector('#desktop-new-project').click();
+    assert(section('file').open && !document.querySelector('#desktop-view-setup').hidden, 'new project opens file setup');
+    await wait(async () => (await state()).active);
     await wait(() => !document.querySelector('#project-projectName-form').hidden);
     field('name', 'Synthetic portable project'); click('applyName');
     await wait(async () => (await state()).project.name === 'Synthetic portable project');
     await wait(() => !document.querySelector('#local-project').hasAttribute('aria-busy'));
+    section('brokers').querySelector('summary').click();
+    assert(!section('file').open, 'setup only expands the selected group');
     field('brokerName', 'Synthetic broker');
-    projectPanel.open = false;
-    document.querySelector('#mqtt-setupBroker').click();
-    assert(projectPanel.open && document.activeElement.id === 'project-brokerChoice', 'broker shortcut with a project');
+    document.querySelector('#desktop-nav-automations').click();
+    assert(projectPanel.closest('#desktop-view-setup').hidden, 'setup must leave the automation workspace');
+    document.querySelector('#desktop-setup-system').click();
+    assert(section('brokers').open, 'system setup starts at the missing broker');
     assert(document.querySelector('#project-brokerName').value === 'Synthetic broker', 'broker shortcut changed pending input'); field('host', 'broker.invalid'); field('port', '1883'); click('applyBroker');
     await wait(async () => (await state()).project.brokers.length === 1);
     await wait(() => !document.querySelector('#local-project').hasAttribute('aria-busy'));
     const brokerId = (await state()).project.brokers[0].id;
+    section('systems').querySelector('summary').click();
     field('systemName', 'Synthetic system'); field('systemBroker', brokerId); field('topic', 'synthetic'); click('applySystem');
     await wait(async () => (await state()).project.systems.length === 1);
     await wait(() => !document.querySelector('#local-project').hasAttribute('aria-busy'));
-    const systemId = (await state()).project.systems[0].id;
-    const picker = document.querySelector('#project-draftSystem'); picker.value = systemId; picker.dispatchEvent(new Event('change', {bubbles: true}));
-    field('draftName', 'Unfinished local rule');
+    const systemFormChoice = document.querySelector('#project-systemChoice');
+    systemFormChoice.value = ''; systemFormChoice.dispatchEvent(new Event('change', {bubbles: true}));
+    field('systemName', 'Second synthetic system'); field('systemBroker', brokerId); field('topic', 'synthetic-other'); click('applySystem');
+    await wait(async () => (await state()).project.systems.length === 2);
+    await wait(() => !projectPanel.hasAttribute('aria-busy'));
+    section('file').querySelector('summary').click();
+    field('name', 'Unfinished project name');
     const language = document.querySelector('#designer-language'); language.value = 'en'; language.dispatchEvent(new Event('change', {bubbles: true}));
     await wait(() => document.documentElement.lang === 'en');
-    assert(document.querySelector('#project-draftName').value === 'Unfinished local rule', 'language discarded form');
+    assert(document.querySelector('#project-name').value === 'Unfinished project name', 'language discarded form');
     click('refresh'); await wait(() => !document.querySelector('#local-project').hasAttribute('aria-busy'));
-    assert(document.querySelector('#project-draftName').value === 'Unfinished local rule', 'refresh discarded form');
-    click('newDraft'); await wait(async () => (await state()).project.systems[0].configuration.automations.length === 1);
-    await wait(() => !document.querySelector('#local-project').hasAttribute('aria-busy'));
-    const ruleId = (await state()).project.systems[0].configuration.automations[0].id;
-    assert((await state()).project.systems[0].configuration.automations[0].enabled === false, 'new rule enabled');
-    document.querySelector('#project-draftChoice').value = ruleId; field('draftName', 'Disabled copy'); click('copyDraft');
-    await wait(async () => (await state()).project.systems[0].configuration.automations.length === 2);
-    await wait(() => !document.querySelector('#local-project').hasAttribute('aria-busy'));
+    assert(document.querySelector('#project-name').value === 'Unfinished project name', 'refresh discarded form');
+    field('name', 'Synthetic portable project'); click('applyName');
+    await wait(() => !projectPanel.hasAttribute('aria-busy'));
+    assert(!document.querySelector('#project-newDraft') && !document.querySelector('#mqtt-system'), 'duplicate draft creation and system selection were removed');
     click('save'); await wait(async () => !(await state()).dirty);
     assert((await state()).hasPath, 'file not saved');
+    assert(section('file').querySelector('.setup-feedback').textContent.includes('Synthetic portable project'), 'the save message identifies the project');
+    section('brokers').querySelector('summary').click();
     assert(document.querySelector('#project-brokerChoice').value === brokerId, 'credential target is the selected broker');
     assert(document.querySelector('#project-broker-form').nextElementSibling.id === 'project-credentials-form', 'credentials follow broker settings');
     field('credentialMode', 'session'); click('storeCredentials');
@@ -70,6 +75,7 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     const snapshot = await bridge.snapshot();
     assert(!snapshot.status.mqttConnected && !snapshot.status.executing && !snapshot.capabilities.operationControls && snapshot.editAllowed, 'offline isolation');
     document.dispatchEvent(new Event('z2ma-project-changed'));
+    section('file').open = true;
     click('refresh'); await wait(() => !document.querySelector('#local-project').hasAttribute('aria-busy'));
     field('name', 'Pending across renderer reload');
     await state();
@@ -83,8 +89,8 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     restored = await view.executeJavaScript("document.querySelector('#project-name')?.value === 'Pending across renderer reload'");
   }
   if (!restored) throw new Error('Unfinished project input lost across renderer reload.');
-  await view.executeJavaScript("document.querySelector('#local-project').open = true;");
-  // Exercise keyboard traversal and wheel scrolling on the expanded project panel.
+  await view.executeJavaScript("document.querySelector('#desktop-nav-setup').click(); document.querySelector('#desktop-setup-file').open = true;");
+  // Exercise keyboard traversal in the project's setup section.
   view.focus();
   await view.executeJavaScript("document.querySelector('#project-name').focus(); document.querySelector('#project-name').value = 'Keyboard draft';");
   view.sendInputEvent({type: 'keyDown', keyCode: 'Tab'});
@@ -96,20 +102,6 @@ export async function smokeProjects(view: WebContents): Promise<void> {
   }
   if (!focused) throw new Error('Project keyboard focus order failed: ' + await view.executeJavaScript('document.activeElement.id'));
   await view.executeJavaScript(`(async () => {
-    document.activeElement.blur(); window.scrollTo(0,0);
-    window.projectWheelReceived = false;
-    document.addEventListener('wheel', () => { window.projectWheelReceived = true; }, {once: true});
-    await new Promise(resolve => setTimeout(resolve, 100));
-  })()`);
-  view.sendInputEvent({type: 'mouseMove', x: 100, y: 100});
-  view.sendInputEvent({type: 'mouseWheel', x: 100, y: 100, deltaY: -400, deltaX: 0, canScroll: true});
-  let scrolled = false;
-  for (let attempt = 0; attempt < 30 && !scrolled; attempt++) {
-    await new Promise(resolve => setTimeout(resolve, 30));
-    scrolled = await view.executeJavaScript('window.scrollY > 0');
-  }
-  if (!scrolled) throw new Error('Project wheel scrolling failed: ' + await view.executeJavaScript("JSON.stringify({received: window.projectWheelReceived, y: scrollY, height: document.documentElement.scrollHeight, viewport: innerHeight})"));
-  await view.executeJavaScript(`(async () => {
     document.querySelector('#project-applyName').click();
     for (let i = 0; i < 100 && document.querySelector('#local-project').hasAttribute('aria-busy'); i++) {
       await new Promise(resolve => setTimeout(resolve, 20));
@@ -118,5 +110,5 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     if (result.state.project.name !== 'Keyboard draft') throw new Error('Keyboard draft was not applied');
     window.scrollTo(0,0);
   })()`);
-  console.log('DESKTOP_PROJECTS_OK portable/drafts/backup/credentials/offline');
+  console.log('DESKTOP_PROJECTS_OK setup-navigation/portable/backup/credentials/offline');
 }

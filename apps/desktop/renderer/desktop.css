@@ -1,10 +1,17 @@
-/* D1 exposes only implemented offline capabilities. The shared layout stays canonical. */
+/* The desktop shell hosts the shared list, canvas, inspector and editor. */
+.desktop-foundation .preview-label,
+.desktop-foundation .preview-notice,
+.desktop-foundation .status-strip,
+.desktop-foundation #new-automation-button,
+.desktop-foundation #validate-button,
+.desktop-foundation .draft-wizard-entry,
+.desktop-foundation .designer-menu,
+.desktop-foundation .canvas-footer > span:last-child,
 .desktop-foundation:not(.desktop-editable) #new-automation-button,
 .desktop-foundation:not(.desktop-editable) #new-sequence-button,
 .desktop-foundation:not(.desktop-editable) #edit-automation-button,
 .desktop-foundation:not(.desktop-editable) .entry-tools,
 .desktop-foundation:not(.desktop-editable) .inspector-edit,
-.desktop-foundation:not(.desktop-editable) .designer-menu,
 .desktop-foundation .designer-controls { display: none !important; }
 .desktop-foundation .app-header select {
   background: var(--surface-soft);
@@ -15,18 +22,62 @@
 }
 .desktop-foundation .app-header .brand-mark { background: transparent; flex-shrink: 0; }
 .desktop-foundation .app-header .brand-mark img { width: 100%; height: 100%; }
-.desktop-debug { margin: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: .75rem; }
-.desktop-debug summary { cursor: pointer; font-weight: 600; }
+.desktop-navigation {
+  position: sticky; top: 0; z-index: 12;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: .6rem 1rem; padding: .6rem clamp(.75rem, 2vw, 1.5rem);
+  border-bottom: 1px solid var(--line); background: var(--surface);
+}
+.desktop-navigation nav, .desktop-context { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; min-width: 0; }
+.desktop-navigation [aria-current="page"] { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+.desktop-context .system-selector { padding: 0; background: transparent; border: 0; min-width: 0; gap: .4rem; }
+.desktop-context .system-selector select { width: min(20rem, 100%); min-width: 0; }
+.desktop-foundation:not(.desktop-has-system) .system-selector, .desktop-context .system-selector > span { display: none; }
+#desktop-connection { color: var(--muted); font-size: .875rem; }
+#desktop-connection[data-connected="true"] { color: var(--success); }
+.desktop-view { min-width: 0; }
+#desktop-view-setup, #desktop-view-operation { width: min(68rem, 100%); margin: 1rem auto; padding-inline: clamp(.65rem, 2vw, 1.25rem); }
+.desktop-card, .desktop-project, .desktop-debug {
+  margin-block-end: .75rem; padding: clamp(.75rem, 1.6vw, 1rem); border: 1px solid var(--line);
+  border-radius: .75rem; background: var(--surface); overflow-wrap: anywhere;
+}
+.desktop-card summary, .desktop-project summary, .desktop-debug summary { cursor: pointer; font-weight: 650; }
+.desktop-card h1 { font-size: 1.25rem; margin: 0; }
+.desktop-card p { margin: .6rem 0; }
+.desktop-card p:empty, .desktop-foundation .designer-feedback:has(#feedback:empty) { display: none; }
+.desktop-card [data-tone="error"] { color: var(--danger); }
+.desktop-card [data-tone="success"] { color: var(--success); }
+.desktop-welcome { width: min(40rem, calc(100% - 2rem)); margin: 2rem auto; }
+.desktop-workbar {
+  position: sticky; top: var(--desktop-nav-height, 3.5rem); z-index: 11;
+  padding: .65rem clamp(.65rem, 2vw, 1.25rem); background: var(--page); border-bottom: 1px solid var(--line);
+}
+.desktop-foundation { scroll-margin-block-start: var(--desktop-nav-height, 3.5rem); }
+html:has(.desktop-foundation) { scroll-padding-block-start: calc(var(--desktop-nav-height, 3.5rem) + var(--desktop-workbar-height, 0px) + .75rem); }
+.desktop-review, #draft-exchange { margin: .75rem clamp(.65rem, 2vw, 1.25rem); }
+.desktop-review p:first-of-type { margin-block-start: 0; }
+.desktop-connection-actions { margin-block-start: .6rem; }
+.desktop-findings { display: grid; gap: .4rem; padding: 0; list-style: none; max-height: 13rem; overflow: auto; }
+.desktop-findings li {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem;
+  padding: .6rem; border-radius: .5rem; background: var(--danger-soft); color: var(--ink);
+}
+.desktop-findings li span { display: block; }
+.desktop-no-entry .workspace > .inspector { display: none; }
+.desktop-no-entry .workspace > .canvas { grid-column: 2 / -1; min-height: 0; }
+.desktop-foundation .canvas-heading:has(#entry-subtitle:empty) #entry-subtitle { display: none; }
+.desktop-foundation .workspace .navigation { position: static; }
+.desktop-foundation .designer-feedback { padding-bottom: .65rem; }
+.desktop-view fieldset { min-width: 0; padding: .8rem; margin: .75rem 0; border: 1px solid var(--line); border-radius: .6rem; }
+.desktop-view legend { font-weight: 600; padding-inline: .25rem; }
+.desktop-checkbox { display: flex; align-items: center; gap: .5rem; margin-block-end: .7rem; }
+.desktop-checkbox input { width: 1.15rem; height: 1.15rem; flex: none; }
+.desktop-tls { margin-block-start: 1rem; }
+.setup-feedback { padding: .6rem .75rem; background: var(--surface-soft); border-radius: .5rem; }
 .desktop-debug-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: .75rem 0; }
 .desktop-debug ol { max-height: 14rem; overflow: auto; padding-inline-start: 2rem; }
 .desktop-debug li { padding: .3rem 0; overflow-wrap: anywhere; }
 
-.desktop-foundation:not(.desktop-stored-view) #desktop-switch-to-draft { display: none; }
-.desktop-foundation .preview-notice { display: flex; flex-wrap: wrap; }
-.desktop-foundation .system-selector > span { display: none; }
-.desktop-project { margin: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: .75rem; }
-.desktop-project, .desktop-debug { background: var(--surface); }
-.desktop-project summary { cursor: pointer; font-weight: 600; }
 .project-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .project-form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; margin-block: 1rem; padding-block: .75rem; border-top: 1px solid var(--line); }
 #project-credentials-form { margin-block-start: 0; margin-inline-start: .75rem; border-top: 0; border-inline-start: 2px solid var(--line); padding-inline-start: .75rem; }
@@ -35,7 +86,15 @@
 .project-form label { display: flex; flex-direction: column; gap: .3rem; min-width: 0; flex: 1 1 12rem; }
 .project-form input, .project-form select { min-width: 0; width: 100%; max-width: 100%; padding: .5rem; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--line-strong); border-radius: .3rem; }
 .project-form input[type=checkbox] { width: 1.5rem; height: 1.5rem; }
-.desktop-project button { padding: .5rem .75rem; font: inherit; cursor: pointer; }
-.desktop-project :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.desktop-view button { max-width: 100%; overflow-wrap: anywhere; }
 .mqtt-overview { padding-inline-start: 1.5rem; max-height: 20rem; overflow-y: auto; }
 .mqtt-overview li { padding: .4rem 0; overflow-wrap: anywhere; }
+.mqtt-overview:empty { display: none; }
+
+@media (max-width: 760px) {
+  .desktop-navigation { align-items: stretch; }
+  .desktop-navigation nav { flex: 1 1 auto; }
+  .desktop-navigation nav button { flex: 1 1 auto; padding-inline: .5rem; }
+  .desktop-context .system-selector select { width: min(13rem, 60vw); }
+  .desktop-workbar .project-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

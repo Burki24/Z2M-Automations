@@ -4,13 +4,34 @@ import {fileURLToPath} from 'node:url';
 import {mkdtempSync, readFileSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, resolve, sep} from 'node:path';
-import {startPeer} from '../tests/support/mqtt-peer.mjs';
+import {createHash} from 'node:crypto';
+import {parse} from 'yaml';
+import {startPeer, remoteFixture} from '../tests/support/mqtt-peer.mjs';
 const require = createRequire(import.meta.url);
 const binary = process.env.Z2MA_SMOKE_BINARY || require('electron');
 const args = process.env.Z2MA_SMOKE_BINARY ? ['--smoke-test'] : [fileURLToPath(new URL('../apps/desktop', import.meta.url)), '--smoke-test'];
 const environment = {...process.env}; delete environment.ELECTRON_RUN_AS_NODE;
 const profile = mkdtempSync(join(tmpdir(), 'z2ma-smoke-'));
-const peer = await startPeer();
+function stoppedFixture(name) {
+  const fixture = remoteFixture(name);
+  const {session, stored_revision: revision, checksum} = fixture.status;
+  Object.assign(fixture.status, {executing: false, extension_build: 'a'.repeat(64), execution_version: 1,
+    execution: {protocol_version: 1, execution_version: 1, session, revision, checksum, sequence: 0, runs: []}});
+  Object.assign(fixture.editor, fixture.status);
+  return fixture;
+}
+const peer = await startPeer({
+  systems: new Map([['synthetic', stoppedFixture('Synthetic remote rule')], ['synthetic-other', stoppedFixture('Other stored rule')]]),
+  reply({operation, request, response, publish}) {
+    if (operation === 'validate') {
+      const draft = parse(request.yaml);
+      const checksum = createHash('sha256').update(request.yaml).digest('hex');
+      response.data = {valid: draft.automations.every(rule => rule.enabled === false), revision: draft.revision, checksum,
+        automation_count: draft.automations.length, executing: false};
+    }
+    publish();
+  }
+});
 environment.Z2MA_SMOKE_MQTT_PORT = String(peer.port);
 environment.Z2MA_SMOKE_PROFILE = profile;
 const child = spawn(binary, args, {windowsHide: true, env: environment, stdio: ['ignore', 'pipe', 'pipe']});
@@ -38,7 +59,10 @@ child.on('exit', async code => {
     else console.error('The application exited without saving the expected project changes.');
   }
   cleanup();
-  const readOnly = peer.publications.every(value => /\/symcon\/automations\/request\/(status|editor)$/.test(value.topic) && !value.retain && value.qos === 0);
+  const readOnly = peer.publications.every(value => /\/symcon\/automations\/request\/(status|editor|validate)$/.test(value.topic) && !value.retain && value.qos === 0);
+  const validations = peer.publications.filter(value => value.topic.endsWith('/request/validate'));
   await peer.close();
-  process.exitCode = !timedOut && saved && readOnly && peer.publications.length >= 3 && code === 0 && output.includes('DESKTOP_SMOKE_OK') && output.includes('DESKTOP_PROJECTS_OK') && output.includes('DESKTOP_MQTT_OK') && output.includes('DESKTOP_DRAFTS_OK') && output.includes('DESKTOP_LAYOUT_OK') ? 0 : 1;
+  process.exitCode = !timedOut && saved && readOnly && validations.length === 1
+    && validations[0].topic === 'synthetic/symcon/automations/request/validate'
+    && code === 0 && output.includes('DESKTOP_SMOKE_OK') && output.includes('DESKTOP_PROJECTS_OK') && output.includes('DESKTOP_MQTT_OK') && output.includes('DESKTOP_DRAFTS_OK') && output.includes('DESKTOP_LAYOUT_OK') ? 0 : 1;
 });

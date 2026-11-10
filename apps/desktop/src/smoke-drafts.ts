@@ -12,9 +12,6 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     await bridge.selectSystem(systemId);
     await bridge.network({action: 'connect', id: project.systems[0].brokerId});
     await wait(async () => (await bridge.network({action: 'status', id: ''})).state.systems[0].fresh);
-    for (const rule of project.systems[0].configuration.automations) {
-      assert((await bridge.project({action: 'draft', systemId, operation: 'delete', ruleId: rule.id, name: rule.name})).ok, 'remove offline smoke placeholder');
-    }
     const data = await bridge.snapshot(); const ctx = data.workspaceContext;
     const command = (route, payload) => bridge.designer({route, systemId, generation: ctx.generation, fingerprint: ctx.fingerprint,
       payload: {requestId: crypto.randomUUID(), context: data.createContext, ...payload}});
@@ -96,19 +93,66 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     await wait(async () => (await bridge.snapshot()).configuration.automations.some(rule => rule.name === 'Form smoke rule' && !rule.enabled));
     await wait(() => !document.querySelector('#edit-dialog').open);
     await wait(() => !Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.')));
-    await wait(() => document.querySelector('#workflow-stored').textContent.includes('Revision 3'));
-    assert(document.querySelector('#workflow-system').textContent === (await bridge.snapshot()).desktop.systemName, 'status shows the wrong system');
-    assert(document.querySelector('#workflow-project').textContent.includes('ungespeicherte Änderungen'), 'status omitted the unsaved project');
-    document.querySelector('#workflow-next').click();
-    assert(document.querySelector('#mqtt-panel').open && document.querySelector('#mqtt-system').value === context.systemId, 'next step did not open the selected system');
-    assert(document.activeElement.id === 'mqtt-validate', 'next step did not focus the draft check');
-    document.querySelector('#mqtt-validate').click();
+    const review = document.querySelector('#desktop-draft-review');
+    const check = document.querySelector('#mqtt-validate');
+    const transfer = document.querySelector('#mqtt-store');
+    const message = document.querySelector('#desktop-review-message');
     const findings = document.querySelector('#mqtt-validation-issues');
-    await wait(() => !document.querySelector('#mqtt-panel').hasAttribute('aria-busy'), 'Validation request did not finish');
-    assert(!findings.hidden, 'validation details missing. ' + document.querySelector('#mqtt-panel [role=status]').textContent);
+    const project = (await bridge.project({action: 'status'})).state.project;
+    const brokerId = project.systems[0].brokerId;
+    const picker = document.querySelector('#designer-system');
+    const connected = () => document.querySelector('#desktop-connection').dataset.connected === 'true';
+    const disconnect = async () => {
+      assert((await bridge.network({action: 'disconnect', id: brokerId})).ok, 'disconnect before local check');
+      document.dispatchEvent(new Event('z2ma-project-changed'));
+      await wait(() => !connected() && !document.querySelector('#mqtt-connect').hidden);
+    };
+    const connect = async () => {
+      document.querySelector('#mqtt-connect').click();
+      await wait(async () => connected() && (await bridge.snapshot()).status.confirmed && !review.hasAttribute('aria-busy'), 'Inline connection did not read the selected system');
+    };
+    const checkDraft = async () => {
+      await wait(() => !check.disabled && !picker.disabled);
+      check.click();
+      await wait(() => !review.hasAttribute('aria-busy'), 'Draft check did not finish');
+    };
+    await disconnect();
+    assert(transfer.disabled, 'the transfer is offered only after a successful Z2M check');
+    await checkDraft();
+    assert(!findings.hidden && !document.querySelector('#desktop-view-automations').hidden, 'validation must remain in Automations: ' + message.textContent);
     const incompleteRule = [...findings.children].map(row => row.textContent).filter(line => line.includes('Concurrent draft'));
     assert(incompleteRule.length === 2 && incompleteRule.some(line => line.includes('Füge mindestens einen Auslöser hinzu.'))
       && incompleteRule.some(line => line.includes('Füge mindestens eine Aktion hinzu.')), 'validation omitted the older rule or its missing entries');
+    picker.value = project.systems[1].id; picker.dispatchEvent(new Event('change'));
+    await wait(async () => !picker.disabled && findings.hidden && (await bridge.snapshot()).workspaceContext.systemId === project.systems[1].id);
+    picker.value = context.systemId; picker.dispatchEvent(new Event('change'));
+    await wait(async () => !picker.disabled && (await bridge.snapshot()).workspaceContext.systemId === context.systemId);
+    await checkDraft();
+    await connect();
+    const correction = [...findings.children].find(row => row.textContent.includes('Füge mindestens einen Auslöser hinzu.')).querySelector('button');
+    correction.click();
+    await wait(() => document.querySelector('#edit-dialog').open, 'The result did not open the correct draft');
+    assert(name().value === 'Concurrent draft' && document.activeElement.closest('[data-section]')?.dataset.section === 'triggers'
+      && document.activeElement.dataset.draftField === 'add', 'correction should focus Add trigger in the affected draft');
+    document.activeElement.click();
+    set(document.querySelector('[data-section="triggers"] fieldset select'), 'time');
+    document.querySelector('[data-section="actions"] [data-draft-field="add"]').click();
+    set(document.querySelector('[data-section="actions"] fieldset select'), 'sequence');
+    set(document.querySelector('[data-section="actions"] [data-draft-field="type"]').closest('fieldset').querySelectorAll('select')[1], result.state.sequenceId);
+    click('submit');
+    await wait(() => !document.querySelector('#edit-dialog').open && findings.hidden);
+    assert(transfer.disabled, 'editing alone does not authorize a transfer');
+    await disconnect();
+    await checkDraft();
+    assert(message.textContent.includes('Entwurf lokal geprüft.') && transfer.disabled, 'an offline check must explain the next step: ' + message.textContent);
+    await connect();
+    await checkDraft();
+    assert(message.textContent.includes('hat den Entwurf') && !transfer.disabled, 'the Z2M check must unlock the separate transfer: ' + message.textContent);
+    assert(JSON.stringify((await bridge.project({action: 'status'})).state.project.systems[0].stored) === JSON.stringify(stored), 'review changed stored Zigbee2MQTT data');
+    const corrected = (await bridge.snapshot()).configuration.automations.find(rule => rule.name === 'Concurrent draft');
+    await bridge.project({action: 'draft', systemId: context.systemId, operation: 'rename', ruleId: corrected.id, name: 'Corrected draft'});
+    document.dispatchEvent(new Event('z2ma-project-changed'));
+    await wait(() => transfer.disabled && message.textContent.includes('hat sich geändert.'));
   })()`);
   const yaml = importDraft(await readFile(exportPath));
   const [existing, added] = yaml.automations;
@@ -117,5 +161,5 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     || !Array.isArray(actions) || (actions[0] as {sequence_id?: string} | undefined)?.sequence_id !== yaml.sequences[0]?.['id']) {
     throw new Error('Exported YAML lost the existing rule, new disabled rule or sequence');
   }
-  console.log('DESKTOP_DRAFTS_OK local/editor/reload/language/sequence/isolated/validation-feedback/yaml-export');
+  console.log('DESKTOP_DRAFTS_OK local/editor/reload/language/sequence/yaml-export/scoped-review/correction/separate-transfer');
 }

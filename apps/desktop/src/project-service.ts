@@ -66,10 +66,10 @@ export class ProjectService {
   hasPendingInput(): boolean { return this.pending || this.editorPending; }
   isDirty(): boolean { return this.dirty || this.pending || this.editorPending; }
   editorState(pending: boolean): void { this.editorPending = pending; }
-  async state(): Promise<unknown> {
+  async state(canceled = false): Promise<unknown> {
     const credentials: Record<string, string> = {};
     for (const broker of this.project.brokers) credentials[broker.id] = await this.vault.status(this.project.id, broker);
-    return {active: this.active, epoch: this.epoch, project: this.data(), dirty: this.isDirty(), hasPath: this.file.hasPath(), protectedAvailable: await this.vault.protectedAvailable(), credentials};
+    return {active: this.active, epoch: this.epoch, project: this.data(), dirty: this.isDirty(), hasPath: this.file.hasPath(), protectedAvailable: await this.vault.protectedAvailable(), credentials, ...(canceled ? {canceled: true} : {})};
   }
   private replace(project: Project): void {
     this.vault.clearSession(); this.epoch++; this.project = project; this.active = true; this.dirty = false; this.pending = false; this.editorPending = false; this.selected = project.systems[0]?.id ?? '';
@@ -85,11 +85,11 @@ export class ProjectService {
       case 'editing': this.pending = true; return this.state();
       case 'edited': this.pending = false; return this.state();
       case 'new':
-        if (this.isDirty() && !await this.dialogs.confirmDiscard()) return this.state();
+        if (this.isDirty() && !await this.dialogs.confirmDiscard()) return this.state(true);
         this.file.clear(); this.replace(newProject('Z2M-Automations')); this.dirty = true; break;
       case 'open': {
-        if (this.isDirty() && !await this.dialogs.confirmDiscard()) return this.state();
-        const path = await this.dialogs.chooseOpen(); if (!path) return this.state();
+        if (this.isDirty() && !await this.dialogs.confirmDiscard()) return this.state(true);
+        const path = await this.dialogs.chooseOpen(); if (!path) return this.state(true);
         const nextFile = new ProjectFile(); const next = await nextFile.load(path);
         this.replace(next); this.file = nextFile; break;
       }
@@ -97,13 +97,13 @@ export class ProjectService {
         if (!this.active) throw new Error('noProject');
         if (this.pending || this.editorPending) throw new Error('applyFirst');
         const destination = command.action === 'save' && this.file.hasPath() ? undefined : await this.dialogs.chooseSave();
-        if (destination === null) return this.state();
+        if (destination === null) return this.state(true);
         if (command.action === 'export') { await this.file.export(this.project, destination!); }
         else { await this.file.save(this.project, destination); this.dirty = false; }
         break;
       }
       case 'restore':
-        if (!await this.dialogs.confirmRestore()) return this.state();
+        if (!await this.dialogs.confirmRestore()) return this.state(true);
         this.replace(await this.file.restore()); this.dirty = true; break;
       default: {
         if (!this.active) throw new Error('noProject');
@@ -155,7 +155,7 @@ export class ProjectService {
     if (input.mode === 'remove') await this.vault.remove(this.project.id, broker);
     else {
       const secret = await this.dialogs.chooseCredentials(input.source);
-      if (!secret) return this.state();
+      if (!secret) return this.state(true);
       await this.vault.store(this.project.id, broker, {...secret, brokerId: broker.id, mode: input.mode});
     }
     return this.state();

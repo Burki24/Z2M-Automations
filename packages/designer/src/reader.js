@@ -70,7 +70,7 @@ import {installNativeEmbedding} from './embedding.js';
     bindText($('#inspector-fields'), () => t("ui.details.of.the.selected.block.e9029868"));
 
     function entries() {
-        const rules = (data?.configuration?.automations ?? []).map(rule => ({...rule, kind: rule.triggers?.some(trigger => trigger.type === 'device') ? 'device' : 'time'}));
+        const rules = (data?.configuration?.automations ?? []).map(rule => ({...rule, kind: Array.isArray(rule.triggers) && rule.triggers.some(trigger => trigger?.type === 'device') ? 'device' : 'time'}));
         const sequences = (data?.configuration?.sequences ?? []).map(sequence => ({...sequence, kind: 'sequence'}));
         return [...rules, ...sequences];
     }
@@ -145,7 +145,7 @@ import {installNativeEmbedding} from './embedding.js';
         const visible = options.filter(entry => `${entry.title} ${entry.subtitle}`.toLocaleLowerCase(locale()).includes(search) && matchesRuleState(entry, stateFilter));
         bindText($('#list-count'), () => `${visible.length} / ${options.length}`);
         bindHTML($('#entry-list'), () => visible.map(entry => `<button class="entry ${selected === entry.key ? 'active' : ''}" data-entry="${esc(entry.key)}" aria-pressed="${selected === entry.key}"><span class="entry-title-row"><strong>${esc(entry.title)}</strong>${entry.enabled !== undefined ? `<span class="enabled-dot ${entry.enabled ? 'on' : ''}" title="${t("draft.in")} ${entry.enabled ? t("ui.enabled.aae668f6") : t("ui.disabled.1fa013fd")}"></span>` : ''}</span><small>${esc(entry.subtitle)}</small></button>`).join('')
-            || `<p class="empty-list">${t("ui.no.matching.entries.this.view.ca6ab1c2")}</p>`);
+            || `<p class="empty-list">${t(isDesktop() ? 'desktop.emptyCategory' : "ui.no.matching.entries.this.view.ca6ab1c2")}</p>`);
     }
 
     function card(kind, index, title, summary, tag = '') {
@@ -161,12 +161,19 @@ import {installNativeEmbedding} from './embedding.js';
 
     function renderFlow() {
         const entry = current();
+        const desktopEmpty = isDesktop() && !entry;
+        const emptyDraft = desktopEmpty && data?.desktop?.source === 'draft' && !entries().length && category !== 'catalog';
+        if (isDesktop()) document.body.classList.toggle('desktop-no-entry', !entry);
         bindText($('#entry-type'), () => areas[category][0].toUpperCase());
-        bindText($('#entry-title'), () => entry?.name ?? t("ui.no.selection.146bfc6e"));
+        bindText($('#entry-title'), () => entry?.name ?? t(emptyDraft ? 'desktop.emptyDraft' : desktopEmpty ? 'desktop.emptyCategory' : "ui.no.selection.146bfc6e"));
         detailsButton.disabled = !entry;
         bindText($('#entry-subtitle'), () => entry ? category === 'catalog' ? t("ui.loaded.properties.channels.and.scenes.0c23a181") : entry.kind === 'sequence' ? t("ui.reusable.action.sequence.in.local.d55beb51")
-            : t("rule.summary", {state: entry.enabled ? t("ui.enabled.aae668f6") : t("ui.disabled.1fa013fd"), count: entry.actions.length}) : t("ui.select.an.existing.entry.on.e1b9ca5a"));
-        if (!entry) { bindHTML($('#flow'), () => `<p class="sequence-note">${t("ui.existing.rules.and.device.data.91262889")}</p>`); return; }
+            : t("rule.summary", {state: entry.enabled ? t("ui.enabled.aae668f6") : t("ui.disabled.1fa013fd"), count: entry.actions?.length ?? 0}) : desktopEmpty ? '' : t("ui.select.an.existing.entry.on.e1b9ca5a"));
+        if (!entry) {
+            bindHTML($('#flow'), () => `<p class="sequence-note">${t(emptyDraft ? 'desktop.emptyDraftHelp'
+                : desktopEmpty ? 'desktop.emptyCategoryHelp' : "ui.existing.rules.and.device.data.91262889")}</p>`);
+            return;
+        }
         if (category === 'catalog') {
             bindHTML($('#flow'), () => section(t("ui.properties.and.channels.51118126"), 'when', entry.properties.map((meta, index) => card('properties', index, meta.label, meta.id,
                 meta.writable ? t("ui.controllable.in.symcon.87a0a2ce") : meta.readable ? t("ui.read.only.e7c58c99") : t("ui.unavailable.as.an.action.a3d93cf1"))).join('')));
@@ -262,7 +269,7 @@ import {installNativeEmbedding} from './embedding.js';
                 bindText($('#runtime-status'), () => t(!data.status.confirmed ? 'mqtt.operationUnknown' : data.status.executing ? 'mqtt.operationActive' : 'mqtt.operationStopped'));
                 bindText($('.canvas-footer > span:last-child'), () => t('mqtt.draftsSeparate'));
                 bindText($('#entry-subtitle'), () => data.module.name + ' · ' + data.desktop.systemName);
-                $('#issues').hidden = true; message(() => t('mqtt.draftsSeparate')); return;
+                $('#issues').hidden = true; return;
             }
             bindText($('.preview-notice strong'), () => t('desktop.offline'));
             bindText($('.preview-notice > span:last-child'), () => t('desktop.notice'));
@@ -302,7 +309,7 @@ import {installNativeEmbedding} from './embedding.js';
     async function load(preferredRule = '', preferredSequence = '') {
         if (busy) return false;
         busy = true; $('#validate-button').disabled = true;
-        message(() => (t("ui.reading.existing.module.data.no.53b451b0")));
+        if (!isDesktop()) message(() => (t("ui.reading.existing.module.data.no.53b451b0")));
         try {
             if (!isDesktop() && !/^[a-f0-9]{64}$/.test(token)) throw new Error('access');
             const controller = new AbortController();
@@ -344,6 +351,7 @@ import {installNativeEmbedding} from './embedding.js';
                 selectedPart = null;
             }
             render();
+            if (isDesktop()) document.dispatchEvent(new CustomEvent('z2ma-designer-view', {detail: data}));
             return true;
         } catch (error) {
             const text = error.message === 'access' ? t("ui.read.access.is.missing.or.e380a485") : t("ui.module.data.could.not.be.80c47bf5");
@@ -386,6 +394,18 @@ import {installNativeEmbedding} from './embedding.js';
     updateLayout = installLayout({getData: () => data});
     onLanguageChange(() => { paintStatus(); render(); updateTransfers(); updateRuntime(); updateCatalog(); updateLayout(); });
     render();
-    if (isDesktop()) document.addEventListener('z2ma-project-changed', () => { if (busy) projectReloadPending = true; else void load(); });
+    if (isDesktop()) {
+        document.addEventListener('z2ma-project-changed', () => { if (busy) projectReloadPending = true; else void load(); });
+        document.addEventListener('z2ma-open-draft-issue', event => {
+            const {systemId: owner, revision, kind, id, path, message: reason} = event.detail;
+            if (data?.desktop?.source !== 'draft' || systemId !== owner || data.desktop.draftRevision !== revision || document.querySelector('dialog[open]')) return;
+            const entry = entries().find(item => item.id === id && (item.kind === 'sequence') === (kind === 'sequences'));
+            if (!entry) return;
+            category = entry.kind; selected = entryKey(entry); selectedPart = null;
+            stateFilter = 'all'; $('#search').value = '';
+            render();
+            if (editing.openFinding(entry, path, reason)) event.preventDefault();
+        });
+    }
     embedding.ready.then(load);
 })();

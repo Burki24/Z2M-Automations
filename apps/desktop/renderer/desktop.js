@@ -1,15 +1,21 @@
 import {installTransport} from './transport.js';
 import {t, bindText, onLanguageChange, formatDate} from './localization.js';
 import {installProjects} from './projects.js';
-import {installNetwork, validationSummary} from './network.js';
+import {installNetwork} from './network.js';
+import {validationSummary} from './draft-review.js';
 import {installDraftExchange} from './drafts.js';
+import {installDesktopWorkspace} from './desktop-workspace.js';
 
 const bridge = window.z2maDesktop;
-document.addEventListener('z2ma-editor-pending', async event => {
-    const view = await bridge.snapshot(); const context = view.workspaceContext;
-    if (!view.desktop.project || !context?.systemId) return;
-    await bridge.designer({route: 'editor-state', systemId: context.systemId, generation: context.generation,
-        fingerprint: context.fingerprint, payload: {pending: event.detail === true}});
+let editorState = Promise.resolve();
+document.addEventListener('z2ma-editor-pending', event => {
+    const pending = event.detail === true;
+    editorState = editorState.then(async () => {
+        const view = await bridge.snapshot(); const context = view.workspaceContext;
+        if (!view.desktop.project || !context?.systemId) return;
+        await bridge.designer({route: 'editor-state', systemId: context.systemId, generation: context.generation,
+            fingerprint: context.fingerprint, payload: {pending}});
+    }).catch(() => {});
 });
 installTransport({kind: 'desktop', request: async (input, init = {}) => {
     const url = new URL(input, location.href);
@@ -105,10 +111,18 @@ async function installTheme() {
     else document.querySelector('.app-header .toolbar').append(label);
 }
 try {
-    const openBrokerSetup = await installProjects(bridge);
-    await installNetwork(bridge, openBrokerSetup);
-    installDraftExchange(bridge);
+    const workspace = installDesktopWorkspace();
+    await installProjects(bridge, workspace);
+    installDraftExchange(bridge, workspace);
+    const updateNetwork = installNetwork(bridge, workspace, () => editorState);
+    panel.name = 'desktop-setup';
+    workspace.setup.append(panel);
+    document.addEventListener('z2ma-designer-view', event => {
+        workspace.update(event.detail);
+        updateNetwork(event.detail);
+    });
     await import('./reader.js');
+    workspace.mountDesigner();
     await installTheme();
     const view = await bridge.snapshot();
     const caption = document.querySelector('.brand-copy strong') ?? document.querySelector('.brand strong');

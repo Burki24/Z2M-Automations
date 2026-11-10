@@ -318,6 +318,9 @@ async function open(): Promise<void> {
       const bridge = window.z2maDesktop;
       const header = document.querySelector('.app-header');
       await wait(() => header.querySelector('.brand-mark img')?.naturalWidth > 0);
+      const automationView = document.querySelector('#desktop-view-automations');
+      if (!automationView || automationView.hidden || !document.querySelector('#desktop-view-setup')?.hidden
+        || !document.querySelector('#desktop-view-operation')?.hidden) throw new Error('Automations must be the initial workspace with setup and operation separated');
       if (!(header.compareDocumentPosition(document.querySelector('#local-project')) & Node.DOCUMENT_POSITION_FOLLOWING)) throw new Error('Desktop header is below project controls');
       const theme = document.querySelector('#desktop-theme');
       for (const value of ['dark', 'light', 'system']) {

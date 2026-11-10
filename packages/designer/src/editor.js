@@ -69,11 +69,16 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         if (value.length <= 131072) { try { sessionStorage.setItem(pendingKey, value); } catch {} }
     }
     for (const event of ['input', 'change', 'click']) $('form').addEventListener(event, () => queueMicrotask(remember));
-    dialog.addEventListener('close', () => {
-        if (!isDesktop()) return;
-        try { if (pendingKey) sessionStorage.removeItem(pendingKey); } catch {}
+    function clearPending() {
+        if (!pendingKey) return;
+        try { sessionStorage.removeItem(pendingKey); } catch {}
         pendingKey = ''; document.dispatchEvent(new CustomEvent('z2ma-editor-pending', {detail: false}));
-    });
+    }
+    function closeEditor() {
+        dialog.close();
+        clearPending();
+    }
+    dialog.addEventListener('close', clearPending);
     const hint = value => {
         $('message').hidden = !value;
         bindText($('message'), value ?? '');
@@ -82,6 +87,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
     function field(parent, label, value, set, options = {}) {
         const wrap = node('label', undefined, 'field'); wrap.append(node('span', label));
         const input = document.createElement(options.choices ? 'select' : 'input'); input.id = 'edit-field-' + (++serial);
+        if (isDesktop() && options.field) input.dataset.draftField = options.field;
         bindAttribute(input, 'aria-label', label);
         if (options.choices) {
             const choices = () => options.choices();
@@ -105,32 +111,33 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         });
         wrap.append(input); parent.append(wrap); return input;
     }
-    const number = (parent, label, object, key, initial = 0, min = 0, max = 86400, step = 1) => field(parent, label, object[key] ?? initial, text => { object[key] = text === '' ? null : Number(text); }, {type: 'number', min, max, step});
-    const time = (parent, label, object, key) => field(parent, label, object[key], text => { object[key] = text.length === 5 ? text + ':00' : text; }, {type: 'time', step: 1});
-    const zone = (parent, object) => field(parent, () => (t("ui.time.zone.00507b23")), object.timezone, text => { object.timezone = text; });
-    const check = (parent, label, object, key) => field(parent, label, object[key] ?? false, value => { object[key] = value; }, {type: 'checkbox'});
+    const number = (parent, label, object, key, initial = 0, min = 0, max = 86400, step = 1) => field(parent, label, object[key] ?? initial, text => { object[key] = text === '' ? null : Number(text); }, {type: 'number', min, max, step, field: key});
+    const time = (parent, label, object, key) => field(parent, label, object[key], text => { object[key] = text.length === 5 ? text + ':00' : text; }, {type: 'time', step: 1, field: key});
+    const zone = (parent, object) => field(parent, () => (t("ui.time.zone.00507b23")), object.timezone, text => { object.timezone = text; }, {field: 'timezone'});
+    const check = (parent, label, object, key) => field(parent, label, object[key] ?? false, value => { object[key] = value; }, {type: 'checkbox', field: key});
     function button(parent, text, action, disabled = false) {
         const result = node('button', text); result.type = 'button'; result.disabled = disabled; result.addEventListener('click', action); parent.append(result); return result;
     }
     function propertyValue(parent, property, side, value, set) {
         if (!property) { parent.append(node('p', () => (t("ui.select.a.device.and.property.a74928e2")), 'field-help')); return; }
+        const key = side === 'source' ? 'value' : property.sceneEndpoint !== undefined ? 'scene_id' : 'values';
         if (property.type === 'numeric') {
             field(parent, () => (t("ui.value.7e347daa") + (property.unit ? ' (' + property.unit + ')' : '')), value, text => set(text === '' ? null : Number(text)), {type: 'number', step: side === 'target' ? property.step ?? 'any' : 'any',
-                ...(side === 'target' ? {min: property.minimum, max: property.maximum} : {})});
+                field: key, ...(side === 'target' ? {min: property.minimum, max: property.maximum} : {})});
         } else if (property.type === 'color') {
-            field(parent, () => (t("ui.colour.a952c8f7")), value?.hex ?? '#ffffff', text => set({hex: text}), {type: 'color'});
+            field(parent, () => (t("ui.colour.a952c8f7")), value?.hex ?? '#ffffff', text => set({hex: text}), {type: 'color', field: key});
         } else {
             const values = side === 'target' ? property.actionValues : property.values;
             field(parent, () => (t("ui.value.7e347daa")), valueIndex(property, side, value) < 0 ? '' : String(valueIndex(property, side, value)), text => {
                 if (text === '') { set(undefined); return; }
                 set(creationValue(property, side, text));
-            }, {choices: () => [['', t("ui.select.value.c40f9e84")], ...values.map((v, index) => [String(index), property.sceneNames?.[v] ?? property.valueLabels?.find(entry => same(entry.value, v))?.label ?? valueLabel(v)])]});
+            }, {field: key, choices: () => [['', t("ui.select.value.c40f9e84")], ...values.map((v, index) => [String(index), property.sceneNames?.[v] ?? property.valueLabels?.find(entry => same(entry.value, v))?.label ?? valueLabel(v)])]});
         }
     }
     function devicePicker(parent, side, current, set) {
         const box = node('div', undefined, 'edit-device-picker'); parent.append(box);
         const search = field(box, () => (t("ui.search.devices.e2326f44")), '', () => refreshOptions(), {type: 'search', required: false});
-        const select = field(box, () => (t("ui.device.b32db786")), current?.key ?? '', key => { const device = getData().devices.find(entry => entry.key === key); set(device); renderFields(); }, {choices: () => [['', t("ui.select.device.c5925e7a")]]});
+        const select = field(box, () => (t("ui.device.b32db786")), current?.key ?? '', key => { const device = getData().devices.find(entry => entry.key === key); set(device); renderFields(); }, {field: side === 'source' ? 'device' : 'target', choices: () => [['', t("ui.select.device.c5925e7a")]]});
         search.addEventListener('keydown', event => {
             if (event.key !== 'Enter') return;
             event.preventDefault();
@@ -149,9 +156,9 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         const device = getData().devices.find(entry => entry.key === item.device && !entry.target.system && entry.target.type === 'device');
         devicePicker(parent, 'source', device, selected => { item.device = selected?.key ?? ''; item.property = ''; delete item.value; });
         const properties = creationProperties(device, 'source');
-        field(parent, () => (t("ui.property.channel.b524f965")), item.property, property => { item.property = property; delete item.value; renderFields(); }, {choices: () => [['', t("ui.select.property.channel.9718e7d6")], ...properties.map(meta => [meta.id, meta.label])]});
+        field(parent, () => (t("ui.property.channel.b524f965")), item.property, property => { item.property = property; delete item.value; renderFields(); }, {field: 'property', choices: () => [['', t("ui.select.property.channel.9718e7d6")], ...properties.map(meta => [meta.id, meta.label])]});
         const property = properties.find(meta => meta.id === item.property);
-        field(parent, () => (t("ui.comparison.79a63c24")), item.operator, value => { item.operator = value; }, {choices: () => Object.entries(compare).filter(([key]) => property?.type === 'numeric' || ['eq', 'ne'].includes(key))});
+        field(parent, () => (t("ui.comparison.79a63c24")), item.operator, value => { item.operator = value; }, {field: 'operator', choices: () => Object.entries(compare).filter(([key]) => property?.type === 'numeric' || ['eq', 'ne'].includes(key))});
         propertyValue(parent, property, 'source', item.value, value => { if (value === undefined) delete item.value; else item.value = value; });
         if (item.type === 'device') { number(parent, () => (t("ui.minimum.duration.seconds.17226a17")), item, 'for_seconds'); check(parent, () => (t("ui.trigger.only.when.the.value.ee394770")), item, 'on_change'); }
         else check(parent, () => (t("ui.check.only.at.start.a6aa3b78")), item, 'start_only');
@@ -227,7 +234,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         const expanded = new Map([...dialog.querySelectorAll('details[data-section]')].map(element => [element.dataset.section, element.open]));
         serial = 0; const root = $('fields'); root.replaceChildren();
         $('reload').hidden = creatingRule && !stale;
-        field(root, () => sequenceMode ? t("ui.action.sequence.name.8cc6bff8") : t("ui.automation.name.bf8d6866"), working.name, value => { working.name = value; }, {maxLength: 120});
+        field(root, () => sequenceMode ? t("ui.action.sequence.name.8cc6bff8") : t("ui.automation.name.bf8d6866"), working.name, value => { working.name = value; }, {maxLength: 120, field: 'name'});
         const sections = sequenceMode ? [['actions', 'ui.1.actions.in.this.order.91604b88', 'editor.addAction']] : [
             ['triggers', 'editor.when', 'editor.addTrigger'],
             ['conditions', 'editor.onlyIf', 'editor.addCondition'],
@@ -266,7 +273,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
                     }
                     if (item.timezone && replacement.timezone) replacement.timezone = item.timezone;
                     working[section][index] = replacement; renderFields();
-                }, {choices: () => Object.entries(itemKinds)});
+                }, {field: 'type', choices: () => Object.entries(itemKinds)});
                 if (item.type === 'device' || item.type === 'device_value') sourceFields(controls, item);
                 else if (item.type === 'time') { time(controls, () => (t("ui.time.317f0a69")), item, 'at'); zone(controls, item); }
                 else if (item.type === 'sun') {
@@ -285,11 +292,12 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
                 }
             });
             const tools = node('div', undefined, 'edit-row-tools'); details.append(tools);
-            button(tools, () => t(addLabel), () => {
+            const add = button(tools, () => t(addLabel), () => {
                 working[section].push(newItem(section, Object.keys(itemKinds)[0]));
                 renderFields();
                 root.querySelector(`details[data-section="${section}"] > fieldset:last-of-type select`)?.focus();
             }, working[section].length >= (section === 'triggers' ? 8 : 16));
+            if (isDesktop()) add.dataset.draftField = 'add';
             if (section === 'actions' && working.actions.length > 1) {
                 details.append(node('p', () => (t("ui.drag.steps.by.the.move.6d048d37")), 'field-help'));
                 sorting = installActionSorting(details, {getItems: () => working.actions, canMove: () => !busy && dialog.open, onMove: reorder});
@@ -370,8 +378,11 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
     createButton.addEventListener('click', startCreation);
     sidebarCreate.addEventListener('click', startCreation);
     sequenceButton.addEventListener('click', () => { if (getData()?.sequenceCreateAllowed) open({id: '', name: '', actions: []}, true, true); });
-    $('cancel').addEventListener('click', () => { if (!busy) dialog.close(); });
-    dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); });
+    $('cancel').addEventListener('click', () => { if (!busy) closeEditor(); });
+    dialog.addEventListener('cancel', event => {
+        if (busy || isDesktop()) event.preventDefault();
+        if (!busy && isDesktop()) closeEditor();
+    });
     $('reload').addEventListener('click', async () => {
         if (creatingRule) {
             if (busy || !stale) return;
@@ -410,17 +421,21 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         input.removeAttribute('aria-invalid');
         input.removeAttribute('aria-describedby');
     }
+    function markField(input, reason) {
+        clearFieldError(input);
+        const error = node('span', reason, 'edit-field-error');
+        error.id = input.id + '-error';
+        input.parentElement.append(error);
+        input.setAttribute('aria-invalid', 'true');
+        input.setAttribute('aria-describedby', error.id);
+    }
     function validFields() {
         let first;
         for (const input of $('fields').querySelectorAll('input, select')) {
             clearFieldError(input);
             const blank = input.validity.valueMissing || (input.type === 'text' && input.required && !input.value.trim());
             if (!input.willValidate || (!blank && input.validity.valid && !input.selectedOptions?.[0]?.disabled)) continue;
-            const error = node('span', () => t(blank ? 'editor.fieldRequired' : 'editor.fieldInvalid'), 'edit-field-error');
-            error.id = input.id + '-error';
-            input.parentElement.append(error);
-            input.setAttribute('aria-invalid', 'true');
-            input.setAttribute('aria-describedby', error.id);
+            markField(input, () => t(blank ? 'editor.fieldRequired' : 'editor.fieldInvalid'));
             const section = input.closest('details');
             if (section) section.open = true;
             first ??= input;
@@ -472,7 +487,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
                 hint(() => t(result.canceled ? 'editor.exportCanceled' : isDesktop() ? 'editor.exported' : 'editor.downloadStarted'));
                 return;
             }
-            dialog.close(); if (sequenceMode) await onSequenceSaved(result.sequenceId); else if (creatingRule) await onCreated(result.ruleId); else await onEdited(result.ruleId);
+            closeEditor(); if (sequenceMode) await onSequenceSaved(result.sequenceId); else if (creatingRule) await onCreated(result.ruleId); else await onEdited(result.ruleId);
         } catch { hint(() => t(exporting ? 'editor.exportFailed' : 'ui.no.confirmation.from.the.module.7daee70c')); }
         finally {
             clearTimeout(timer); busy = false;
@@ -491,7 +506,26 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         event.preventDefault();
         void apply(!sequenceMode);
     });
-    return {refresh() {
+    function openFinding(entry, path, reason) {
+        if (busy || dialog.open || !(entry.kind === 'sequence' ? getData()?.sequenceAllowed : getData()?.editAllowed)) return false;
+        open(entry);
+        const [section, index, field] = path;
+        const root = $('fields');
+        const group = ['triggers', 'conditions', 'actions'].includes(section) ? root.querySelector(`[data-section="${section}"]`) : null;
+        const row = group?.querySelectorAll(':scope > .edit-row')[Number(index)];
+        if (group) group.open = true;
+        const scope = row ?? (group || root);
+        const key = row ? field : group ? 'add' : section;
+        const input = [...scope.querySelectorAll('[data-draft-field]')].find(element => element.dataset.draftField === key)
+            ?? row?.querySelector('[data-draft-field="type"]') ?? group?.querySelector('summary');
+        const details = input?.closest('details');
+        if (details) details.open = true;
+        if (input?.matches('input, select') && input.dataset.draftField === key) markField(input, reason);
+        input?.focus();
+        hint(reason);
+        return true;
+    }
+    return {openFinding, refresh() {
         if (isDesktop() && getData()?.desktop?.project) {
             const key = editorKey();
             if (!dialog.open && !recovered.has(key)) {
