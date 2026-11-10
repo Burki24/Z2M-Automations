@@ -28,13 +28,13 @@ export interface ExchangeDialogs {
 export class DraftExchange {
   constructor(private readonly projects: ProjectService, private readonly editor: DraftEditor, private readonly dialogs: ExchangeDialogs) {}
   async command(command: DesignerCommand): Promise<{ok: true; canceled?: boolean}> {
-    const system = this.editor.system(command);
-    if (Object.keys(command.payload).length) throw new Error('invalidRequest');
-    if (command.route === 'export') {
+    if (['export', 'create-yaml', 'edit-yaml'].includes(command.route)) {
       const bytes = exportDraft(this.editor.export(command)); const path = await this.dialogs.chooseExport();
       if (!path) return {ok: true, canceled: true};
       this.editor.system(command); await this.projects.exportBytes(path, bytes); return {ok: true};
     }
+    const system = this.editor.system(command);
+    if (Object.keys(command.payload).length) throw new Error('invalidRequest');
     let source: string | null = null; let configuration: Configuration;
     if (command.route === 'adopt') {
       if (!system.stored) throw new Error('noStored');

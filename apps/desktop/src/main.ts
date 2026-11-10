@@ -88,7 +88,7 @@ async function designer(command: DesignerCommand): Promise<unknown> {
   const context = {operation: 'draft' as const, ...(typeof command.payload['requestId'] === 'string' ? {transaction: command.payload['requestId']} : {})};
   debug.record('draftRequest', command.systemId, undefined, context);
   try {
-    const result = await (['import', 'export', 'adopt'].includes(command.route) ? exchange.command(command) : drafts.command(command));
+    const result = await (['import', 'export', 'adopt', 'create-yaml', 'edit-yaml'].includes(command.route) ? exchange.command(command) : drafts.command(command));
     debug.record('draftCompleted', command.systemId, undefined, context); return result;
   } catch (error) { debug.record('draftRejected', command.systemId, undefined, context); throw error; }
 }
@@ -219,7 +219,8 @@ async function open(): Promise<void> {
     return reviewDialog('runtime_' + action, detail);
   });
   exchange = new DraftExchange(projects, drafts, {
-    chooseImport: () => chooseDraft('importDraft', 'yaml', true), chooseExport: () => chooseDraft('exportDraft', 'yaml', false),
+    chooseImport: () => chooseDraft('importDraft', 'yaml', true),
+    chooseExport: () => smoke ? Promise.resolve(join(app.getPath('userData'), 'synthetic-automations.yaml')) : chooseDraft('exportDraft', 'yaml', false),
     chooseBackup: () => chooseDraft('backupDraft', 'z2ma', false),
     confirm: async summary => {
       if (!window || smoke) return false;
@@ -270,10 +271,10 @@ async function open(): Promise<void> {
     return projects.serialize(async () => {
       try { return {ok: true, state: await handle(channel, args[0])}; }
       catch (error) {
-        if (channel === 'network' && error instanceof DraftValidationError) {
-          const {id} = args[0] as NetworkCommand;
+        if ((channel === 'network' || channel === 'designer') && error instanceof DraftValidationError) {
+          const id = channel === 'network' ? (args[0] as NetworkCommand).id : (args[0] as DesignerCommand).systemId;
           const configuration = projects.data().systems.find(system => system.id === id)?.configuration;
-          debug.record('projectFailed', id, undefined, {operation: 'validate'});
+          debug.record('projectFailed', id, undefined, {operation: channel === 'network' ? 'validate' : 'draft'});
           return {ok: false, error: error.message, validation: error.feedback(configuration)};
         }
         debug.record('projectFailed');
@@ -369,7 +370,7 @@ async function open(): Promise<void> {
     console.log('DESKTOP_SMOKE_OK ' + JSON.stringify(result));
     await smokeProjects(view);
     await smokeNetwork(view, Number(process.env['Z2MA_SMOKE_MQTT_PORT']));
-    await smokeDrafts(view);
+    await smokeDrafts(view, join(app.getPath('userData'), 'synthetic-automations.yaml'));
     for (const width of [360, 1920, 3840]) {
       window.setContentSize(width, 900);
       for (const theme of ['light', 'dark'] as const) {

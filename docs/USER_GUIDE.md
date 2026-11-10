@@ -28,9 +28,11 @@ acceptance target. Development packages are unsigned.
 3. Connect to the broker and read the system. The status row shows the selected
    system, local draft, stored Z2M revision, operation and project file separately.
    Its shortcut opens the relevant connection or review controls.
-4. Select **New automation as draft** in the automation list. The wizard shows
-   the target system and guides you through the trigger, optional conditions,
-   actions and review. Add the rule disabled, then save the project to keep it.
+4. Select **New automation as draft** in the automation list. Check the system
+   shown in the form and enter a name, a trigger, any optional conditions and
+   the actions. **Create YAML** checks the input and saves the complete draft
+   for that system to a YAML file, with the new rule disabled. Use **Add to
+   draft disabled** and save the project to keep the rule in the project.
 5. Install the bundled extension only on the intended system when needed.
    Validate the draft, then confirm storage. Regular validation stores disabled
    rules. For automatic operation, change the intended enabled flags, validate

@@ -119,6 +119,38 @@ test('adopting stored state requires a private backup and never changes stored d
   assert.deepEqual(s.system().stored, before.stored); assert.equal(s.system().configuration.automations[0].enabled, false);
   assert.equal(s.system().configuration.automations[0].id, 'remote-rule');
 });
+test('form YAML exports the complete selected draft without saving or replacing any project data', async t => {
+  const s = await setup();
+  const dir = await mkdtemp(join(tmpdir(), 'z2ma-form-')); t.after(() => rm(dir, {recursive: true, force: true}));
+  const path = join(dir, 'automations.yaml');
+  const existing = s.send('create', {rule: s.rule()});
+  s.send('edit', {ruleId: existing.ruleId, changes: {enabled: true}});
+  const before = s.service.data();
+  const draft = before.systems[0].configuration;
+  const payload = {requestId: randomUUID(), context: s.editor.context(s.system())};
+  const create = s.command('create-yaml', {...payload, rule: {...s.rule(), name: 'New from form'}});
+  const dialogs = {chooseImport: async () => null, chooseExport: async () => null, chooseBackup: async () => null, confirm: async () => true};
+  const exchange = new DraftExchange(s.service, s.editor, dialogs);
+  assert.deepEqual(await exchange.command(create), {ok: true, canceled: true});
+  await assert.rejects(readFile(path), {code: 'ENOENT'});
+  dialogs.chooseExport = async () => path;
+  await exchange.command(create);
+  const exported = importDraft(await readFile(path));
+  assert.equal(exported.revision, draft.revision + 1);
+  assert.deepEqual(exported.automations[0], draft.automations[0]);
+  assert.equal(exported.automations[1].name, 'New from form');
+  assert.equal(exported.automations[1].enabled, false);
+  await exchange.command(s.command('edit-yaml', {...payload, ruleId: existing.ruleId, changes: {name: 'Edited for export'}}));
+  const edited = importDraft(await readFile(path));
+  assert.deepEqual(edited.automations, [{...draft.automations[0], name: 'Edited for export'}]);
+  assert.deepEqual(s.service.data(), before);
+  dialogs.chooseExport = async () => {
+    s.send('edit', {ruleId: existing.ruleId, changes: {name: 'Changed while choosing a file'}});
+    return path;
+  };
+  await assert.rejects(exchange.command(create), /draftStale/);
+  assert.deepEqual(importDraft(await readFile(path)), edited);
+});
 test('the consumed schema artifact matches its recorded provenance', async () => {
   const base = new URL('../apps/desktop/schema/', import.meta.url); const provenance = JSON.parse(await readFile(new URL('provenance.json', base)));
   assert.equal(createHash('sha256').update(await readFile(new URL('automations.schema.json', base))).digest('hex'), provenance.sha256);

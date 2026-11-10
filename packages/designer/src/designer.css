@@ -214,6 +214,11 @@ dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(2px); }
 @media (max-width: 700px) { .creation-columns { grid-template-columns: minmax(0, 1fr); } .creation-dialog { padding: 18px; } .creation-dialog .dialog-actions button { width: 100%; } }
 .rule-edit-dialog .edit-section { border: 1px solid var(--line); border-radius: 9px; margin: 18px 0; padding: 15px; min-width: 0; }
 .rule-edit-dialog summary { cursor: pointer; font-weight: 600; }
+.rule-edit-dialog [data-section="triggers"] > summary { color: var(--when); }
+.rule-edit-dialog [data-section="conditions"] > summary { color: var(--condition); }
+.rule-edit-dialog [data-section="actions"] > summary { color: var(--action); }
+.rule-edit-dialog [aria-invalid="true"] { border-color: var(--danger); }
+.rule-edit-dialog .edit-field-error { color: var(--danger); font-size: .875rem; }
 .rule-edit-dialog .edit-row { margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
 .rule-edit-dialog .action-order-handle { cursor: grab; margin-left: 12px; padding: 5px 10px; font-size: .9375rem; }
 .rule-edit-dialog .action-order-handle:active { cursor: grabbing; }
@@ -230,9 +235,25 @@ dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(2px); }
 .rule-edit-dialog .field.edit-check { display: flex; flex-direction: row-reverse; justify-content: flex-end; align-items: center; gap: 9px; }
 .rule-edit-dialog input[type="checkbox"] { width: 20px; height: 20px; flex: 0 0 auto; }
 .rule-edit-dialog .edit-preserved, .rule-edit-dialog #edit-message { padding: 12px; border-radius: 8px; background: var(--surface-soft); overflow-wrap: anywhere; }
+.rule-edit-dialog #edit-message { white-space: pre-line; }
+.rule-edit-dialog { scroll-padding-block-end: 6rem; }
+.rule-edit-dialog .dialog-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    padding-block: .75rem .25rem;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+}
 .module-designer .canvas-heading { flex-wrap: wrap; gap: 10px; }
 .module-designer .entry-tools { flex-wrap: wrap; }
-@media (max-width: 700px) { .rule-edit-dialog .edit-row-fields, .rule-edit-dialog .edit-device-picker { grid-template-columns: minmax(0, 1fr); } .rule-edit-dialog .edit-section { padding: 9px; } }
+@media (max-width: 700px) {
+    .rule-edit-dialog { scroll-padding-block-end: 9rem; }
+    .rule-edit-dialog .edit-row-fields, .rule-edit-dialog .edit-device-picker { grid-template-columns: minmax(0, 1fr); }
+    .rule-edit-dialog .edit-section { padding: 9px; }
+    .rule-edit-dialog .dialog-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rule-edit-dialog .dialog-actions :is(#edit-reload, #edit-submit:not(.primary)) { grid-column: 1 / -1; }
+}
 dialog h2 { font-size: 1.3125rem; margin: 9px 0 23px; }
 dialog p { font-size: .9375rem; line-height: 1.7; color: var(--muted); }
 .dialog-actions { display: flex; gap: 9px; justify-content: flex-end; margin-top: 22px; }

@@ -26,6 +26,13 @@ function validationReason(issue) {
   return t('validation.reason.' + issue.reason, issue.limit === undefined ? {} : {limit: formatNumber(issue.limit)});
 }
 
+export function validationSummary(details) {
+  const issues = details?.issues ?? [];
+  const messages = issues.slice(0, 4).map(issue => validationLocation(issue) + ' · ' + validationReason(issue));
+  if (details?.truncated || issues.length > messages.length) messages.push(t('validation.more'));
+  return messages.join('\n');
+}
+
 export async function installNetwork(bridge, openBrokerSetup) {
   const panel = document.createElement('details'); panel.className = 'desktop-project'; panel.id = 'mqtt-panel';
   const title = document.createElement('summary'); bindText(title, () => t('mqtt.title')); panel.append(title);
