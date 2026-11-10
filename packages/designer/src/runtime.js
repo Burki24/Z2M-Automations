@@ -111,7 +111,11 @@ export function installRuntime({getData, reload, isLoading = () => false, messag
             if (!current(data)) return;
             if (getData() !== data || view.fingerprint !== data.workspaceContext.fingerprint) { await reload(); return; }
             data.runtime = view;
-            data.status = {...data.status, confirmed: view.confirmed, executing: view.executing, activeRevision: view.activeRevision, storedRevision: view.storedRevision};
+            data.status = {...data.status, confirmed: view.confirmed, executing: view.executing, activeRevision: view.activeRevision};
+            if (view.confirmed && view.storedRevision != null) {
+                data.status.storedConfirmed = true;
+                data.status.storedRevision = view.storedRevision;
+            }
             onStatus(data.status);
         } catch (error) {
             if (current(data)) message(() => (error.name === 'AbortError' ? t("ui.still.awaiting.confirmation.nothing.will.0bd206ce") : error.message));

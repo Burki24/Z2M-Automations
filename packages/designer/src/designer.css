@@ -53,6 +53,13 @@ svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width:
 .preview-notice { display: flex; align-items: center; gap: 9px; padding: 10px 24px; background: var(--warning-soft); color: var(--warning); border-bottom: 1px solid var(--line-strong); font-size: .9375rem; }
 .preview-notice strong { white-space: nowrap; }
 .notice-dot { width: 7px; height: 7px; background: var(--warning); border-radius: 50%; flex-shrink: 0; }
+/* Shared draft entry and workflow summary in the full designer. */
+.draft-wizard-entry { padding: 0 1rem .75rem; }
+.draft-wizard-entry button { width: 100%; white-space: normal; }
+.draft-wizard-entry p { margin: .5rem 0 0; }
+.workflow-system { overflow-wrap: anywhere; }
+.workflow-project { color: var(--muted); }
+.workflow-next { min-height: 2rem; padding-block: .25rem; }
 .status-strip { display: flex; flex-wrap: wrap; gap: 9px 14px; align-items: center; min-height: 51px; padding: 9px 24px; font-size: .875rem; }
 .status-chip { border: 1px solid var(--line); background: var(--surface); padding: 5px 8px; border-radius: 6px; font-weight: 600; }
 .status-chip.dirty { border-color: var(--line-strong); color: var(--warning); background: var(--warning-soft); }

@@ -143,6 +143,19 @@ export async function installNetwork(bridge, openBrokerSetup) {
     finally { draftShortcut.disabled = false; }
   });
   document.querySelector('#draft-status').after(draftShortcut);
+  document.addEventListener('z2ma-workflow-next', event => {
+    const {systemId, next} = event.detail;
+    const system = state.systems.find(item => item.id === systemId);
+    if (!system || busy) return;
+    if (systems.value !== system.id) {
+      systems.value = system.id;
+      systems.dispatchEvent(new Event('change'));
+    }
+    brokers.value = system.brokerId;
+    panel.open = true;
+    const target = {review: '#mqtt-validate', read: '#mqtt-refresh', connect: '#mqtt-connect'}[next];
+    if (target) panel.querySelector(target).focus();
+  });
   const caution = document.createElement('p'); bindText(caution, () => t('mqtt.tlsHelp')); panel.append(caution);
   document.querySelector('#local-project').after(panel);
   document.addEventListener('z2ma-project-changed', () => { if (!emitting) void refresh(); });

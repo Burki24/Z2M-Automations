@@ -1,6 +1,12 @@
 import {designerRequest as fetch} from './transport.js';
 import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse} from './localization.js';
 import {createUUID} from './identity.js';
+export function selectedSystemName(data) {
+    const id = data?.workspaceContext?.systemId;
+    return data?.desktop?.systemName || data?.workspace?.systems?.find(system => (system.systemId ?? system.binding?.systemId) === id)?.name
+        || data?.module?.baseTopic || data?.module?.name || '';
+}
+
 /* Explicit system identity accompanies every local draft write. */
 export function systemHeaders(data) {
     const context = data?.workspaceContext;

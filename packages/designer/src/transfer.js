@@ -38,7 +38,7 @@ export function installTransfers({getData, reload, isLoading = () => false, mess
     const actions = document.createElement('div'); actions.className = 'transfer-actions';
     const buttons = {};
     for (const [action, text] of [['validate', t("ui.validate.draft.in.z2m.dc5dee26")], ['store', t("ui.save.validated.draft.in.z2m.a3205ccc")], ['status', t("ui.refresh.transfer.status.efafc952")]]) {
-        const button = document.createElement('button'); button.type = 'button'; bindText(button, () => text);
+        const button = document.createElement('button'); button.type = 'button'; button.setAttribute('data-transfer-action', action); bindText(button, () => text);
         button.addEventListener('click', () => send(action)); buttons[action] = button; actions.append(button);
     }
     const note = document.createElement('p'); note.className = 'field-help';
@@ -75,6 +75,10 @@ export function installTransfers({getData, reload, isLoading = () => false, mess
             // A stale read must never replace the model of a newer local edit.
             if (getData() !== data) { await reload(); return; }
             data.transfer = view;
+            if (typeof view.receiverConfirmed === 'boolean') {
+                data.status = {...data.status, storedConfirmed: view.receiverConfirmed,
+                    storedRevision: view.storedRevision ?? data.status?.storedRevision};
+            }
             if (view.fingerprint !== data.workspaceContext.fingerprint) await reload();
             else paint();
         } catch (error) {

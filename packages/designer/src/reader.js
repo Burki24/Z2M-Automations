@@ -257,7 +257,8 @@ import {installNativeEmbedding} from './embedding.js';
             if (data.desktop?.project) {
                 bindText($('.preview-notice strong'), () => t('mqtt.title'));
                 bindText($('.preview-notice > span:last-child'), () => t('mqtt.draftsSeparate'));
-                bindText($('#draft-status'), () => t(data.desktop.source === 'stored' ? 'mqtt.storedRevision' : 'mqtt.localRevision', {revision: data.configuration.revision}));
+                bindText($('#draft-status'), () => Number.isInteger(data.desktop.draftRevision)
+                    ? t('mqtt.localRevision', {revision: data.desktop.draftRevision}) : t('workflow.noSystem'));
                 bindText($('#runtime-status'), () => t(!data.status.confirmed ? 'mqtt.operationUnknown' : data.status.executing ? 'mqtt.operationActive' : 'mqtt.operationStopped'));
                 bindText($('.canvas-footer > span:last-child'), () => t('mqtt.draftsSeparate'));
                 bindText($('#entry-subtitle'), () => data.module.name + ' · ' + data.desktop.systemName);
@@ -367,7 +368,7 @@ import {installNativeEmbedding} from './embedding.js';
         return false;
     }, summaries: {triggers: triggerSummary, conditions: conditionSummary, actions: actionSummary}, onCreated: async ruleId => {
         const refreshed = await load(ruleId);
-        message(() => (refreshed ? t(isDesktop() ? "wizard.created" : "ui.new.automation.added.disabled.to.6f562419")
+        message(() => (refreshed ? t(isDesktop() ? "wizard.created" : "wizard.createdSymcon")
             : t("ui.the.automation.was.added.to.9cc3bca1")));
     }, onEdited: async ruleId => {
         const refreshed = await load(ruleId);

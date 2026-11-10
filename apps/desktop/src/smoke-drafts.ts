@@ -83,6 +83,12 @@ export async function smokeDrafts(view: WebContents): Promise<void> {
     click('submit');
     await wait(async () => (await bridge.snapshot()).configuration.automations.some(rule => rule.name === 'Wizard smoke rule' && !rule.enabled));
     await wait(() => !document.querySelector('#edit-dialog').open);
+    await wait(() => document.querySelector('#workflow-stored').textContent.includes('Revision 3'));
+    assert(document.querySelector('#workflow-system').textContent === (await bridge.snapshot()).desktop.systemName, 'status shows the wrong system');
+    assert(document.querySelector('#workflow-project').textContent.includes('ungespeicherte Änderungen'), 'status omitted the unsaved project');
+    document.querySelector('#workflow-next').click();
+    assert(document.querySelector('#mqtt-panel').open && document.querySelector('#mqtt-system').value === context.systemId, 'next step did not open the selected system');
+    assert(document.activeElement.id === 'mqtt-validate', 'next step did not focus the draft check');
   })()`);
   console.log('DESKTOP_DRAFTS_OK local/editor/reload/language/sequence/isolated');
 }

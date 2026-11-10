@@ -2,7 +2,7 @@ import {designerRequest as fetch, isDesktop} from './transport.js';
 import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse, sortByName} from './localization.js';
 /* Shared rule editor: complete creation and cloned, field-scoped editing stay local to the draft. */
 import {creationDevices, creationProperties, creationValue, requestIdentity} from './creator.js';
-import {systemHeaders} from './workspace.js';
+import {selectedSystemName, systemHeaders} from './workspace.js';
 import {moveAction, installActionSorting} from './action-order.js';
 
 const copy = value => structuredClone(value);
@@ -27,13 +27,14 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
     const createButton = document.createElement('button');
     createButton.id = 'new-automation-button'; createButton.className = 'primary'; bindText(createButton, () => t("ui.new.automation.9643f89c"));
     document.querySelector('.toolbar').prepend(createButton);
-    const sidebarCreate = isDesktop() ? createButton.cloneNode(false) : null;
-    if (sidebarCreate) {
-        sidebarCreate.id = 'draft-wizard-start';
-        bindText(sidebarCreate, () => t('wizard.entry'));
-        const entry = document.createElement('div'); entry.className = 'draft-wizard-entry'; entry.append(sidebarCreate);
-        document.querySelector('.navigation .panel-heading').after(entry);
-    }
+    const sidebarCreate = createButton.cloneNode(false);
+    sidebarCreate.id = 'draft-wizard-start';
+    bindText(sidebarCreate, () => t('wizard.entry'));
+    const entry = document.createElement('div'); entry.className = 'draft-wizard-entry';
+    const entryNotice = document.createElement('p'); entryNotice.id = 'draft-wizard-notice'; entryNotice.className = 'field-help';
+    sidebarCreate.setAttribute('aria-describedby', entryNotice.id);
+    entry.append(sidebarCreate, entryNotice);
+    document.querySelector('.navigation .panel-heading').after(entry);
     const editButton = document.createElement('button');
     editButton.id = 'edit-automation-button'; bindText(editButton, () => t("ui.edit.automation.ac46d0d5"));
     document.querySelector('.entry-tools').prepend(editButton);
@@ -46,11 +47,13 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
     const $ = name => dialog.querySelector('#edit-' + name);
     let original; let working; let context; let requestId; let busy = false; let serial = 0; let sequenceMode = false; let creatingSequence = false; let creatingRule = false; let boundHeaders = {}; let sorting;
     let wizardStep = 0;
+    let wizardSystem = '';
+    let wizardTopic = '';
     let wizardStale = false;
     let startingWizard = false;
     const wizardSteps = ['start', 'triggers', 'conditions', 'actions', 'review'];
     const wizardLabels = {start: 'wizard.start', triggers: 'wizard.triggers', conditions: 'wizard.conditions', actions: 'wizard.actions', review: 'wizard.review'};
-    const inWizard = () => isDesktop() && creatingRule;
+    const inWizard = () => creatingRule;
     let pendingKey = ''; const recovered = new Set();
     const editorKey = () => getData()?.desktop?.project ? 'z2ma.desktop.editor.' + getData().desktop.projectId + '.' + getData().workspaceContext.systemId : '';
     function remember() {
@@ -207,11 +210,12 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             root.append(heading);
         }
         if (step === 'start') {
-            root.append(node('p', () => t('wizard.system', {name: getData().desktop.systemName}), 'field-help'));
+            root.append(node('p', () => t('wizard.system', {name: wizardSystem}), 'field-help'));
             root.append(node('p', () => t('wizard.localOnly'), 'field-help'));
             return;
         }
         if (step === 'review') {
+            root.append(node('p', () => t('wizard.system', {name: wizardSystem}), 'field-help'));
             root.append(node('p', working.name));
             for (const section of ['triggers', 'conditions', 'actions']) {
                 root.append(node('h4', () => t(wizardLabels[section])));
@@ -303,6 +307,8 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         if (creatingRule) { working.triggers = [newItem('triggers', 'device')]; working.actions = [newItem('actions', 'set')]; }
         context = getData().createContext; requestId = requestIdentity();
         boundHeaders = systemHeaders(getData());
+        wizardSystem = selectedSystemName(getData());
+        wizardTopic = getData()?.module?.baseTopic ?? '';
         bindText($('title'), () => sequenceMode ? (creatingSequence ? t("ui.new.action.sequence.cc6b663e") : t("ui.edit.action.sequence.2e8a0548")) : creatingRule ? t("ui.new.automation.40e06b5f") : t("ui.edit.automation.ac46d0d5"));
         bindText(dialog.querySelector('.eyebrow'), () => sequenceMode ? t('editor.sequenceEyebrow') : creatingRule ? t('editor.newEyebrow') : t("ui.existing.automation.3d70df71"));
         $('usage').hidden = !sequenceMode;
@@ -314,7 +320,8 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             : t("ui.all.fields.are.prefilled.only.138f6007"))));
         bindText($('submit'), () => creatingRule ? t("ui.add.to.draft.disabled.aea3e1b7") : creatingSequence ? t("ui.apply.action.sequence.to.draft.e6ecbfcd") : t("ui.apply.changes.to.draft.1e42a9b6"));
         $('submit').disabled = !canSave();
-        if (!dialog.open) dialog.showModal(); $('fields').querySelector('input')?.focus();
+        if (!dialog.open) dialog.showModal();
+        $('fields').querySelector(inWizard() ? 'h3' : 'input')?.focus();
         if (isDesktop()) { pendingKey = editorKey(); remember(); document.dispatchEvent(new CustomEvent('z2ma-editor-pending', {detail: true})); }
     }
     editButton.addEventListener('click', () => { const entry = getRule(); if (entry?.triggers || entry?.kind === 'sequence') open(entry); });
@@ -328,7 +335,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         } finally { startingWizard = false; }
     }
     createButton.addEventListener('click', startWizard);
-    sidebarCreate?.addEventListener('click', startWizard);
+    sidebarCreate.addEventListener('click', startWizard);
     bindText($('back'), () => t('wizard.back'));
     bindText($('next'), () => t('wizard.next'));
     function moveWizard(delta) {
@@ -355,11 +362,13 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             busy = true;
             $('reload').disabled = true;
             try {
-                if (await reload() && editorKey() === pendingKey && getData()?.createAllowed) {
+                if (await reload() && (!isDesktop() || editorKey() === pendingKey) && getData()?.createAllowed) {
                     const headers = systemHeaders(getData());
                     if (headers['X-Z2MA-System-ID'] === boundHeaders['X-Z2MA-System-ID']
-                        && headers['X-Z2MA-Generation'] === boundHeaders['X-Z2MA-Generation']) {
+                        && headers['X-Z2MA-Generation'] === boundHeaders['X-Z2MA-Generation']
+                        && (getData().module?.baseTopic ?? '') === wizardTopic) {
                         context = getData().createContext; boundHeaders = headers;
+                        wizardSystem = selectedSystemName(getData());
                         wizardStale = false; renderFields(); remember();
                         hint(() => t('wizard.refreshed'));
                         (wizardStep === wizardSteps.length - 1 ? $('submit') : $('next')).focus();
@@ -395,11 +404,11 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             const response = await fetch(endpoint, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Z2MA-Read-Token': location.hash.slice(1), ...boundHeaders}, body: JSON.stringify(payload), credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal});
             const text = await response.text(); if (text.length > 4096) throw new Error('transport'); const result = localizeResponse(JSON.parse(text));
             if (!response.ok) {
-                if (inWizard() && result.error === 'draftStale') {
+                if (inWizard() && (isDesktop() ? result.error === 'draftStale' : response.status === 409)) {
                     wizardStale = true;
                     bindText($('reload'), () => t('wizard.refresh'));
                     $('reload').hidden = false;
-                    hint(() => t('wizard.stale'));
+                    hint(() => isDesktop() ? t('wizard.stale') : result.message || t('wizard.stale'));
                 } else hint(() => (result.message || t("ui.the.change.could.not.be.dbe4cffb")));
                 return;
             }
@@ -430,10 +439,11 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
                 } catch { /* Invalid temporary editor state is never applied to a project. */ }
             }
         }
-        if (sidebarCreate) {
-            const data = getData();
-            sidebarCreate.disabled = !(data?.desktop?.project && data.workspaceContext?.systemId && (data.createAllowed || data.desktop.source === 'stored'));
-        }
+        const data = getData();
+        const fromStored = isDesktop() && data?.desktop?.project && data.workspaceContext?.systemId && data.desktop.source === 'stored';
+        sidebarCreate.disabled = !data?.createAllowed && !fromStored;
+        entryNotice.hidden = !data || !sidebarCreate.disabled;
+        bindText(entryNotice, () => data?.createNotice || t(isDesktop() ? 'wizard.setupNeeded' : 'wizard.noDraft'));
         createButton.disabled = !getData()?.createAllowed;
         createButton.title = getData()?.createNotice || t("ui.create.a.complete.automation.as.dfe84ce2");
         const sequence = getRule()?.kind === 'sequence';

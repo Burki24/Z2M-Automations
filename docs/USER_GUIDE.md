@@ -25,17 +25,21 @@ acceptance target. Development packages are unsigned.
    a native dialog outside the project renderer and uses Zenity on Ubuntu.
    If the Linux keyring is unavailable, unlock it or choose session-only
    storage explicitly.
-3. Connect to the broker and read the system. The draft and the stored Z2M
-   revision are separate. Local edits need to be applied and the project saved.
-4. Install the bundled extension only on the intended system when needed.
+3. Connect to the broker and read the system. The status row shows the selected
+   system, local draft, stored Z2M revision, operation and project file separately.
+   Its shortcut opens the relevant connection or review controls.
+4. Select **New automation as draft** in the automation list. The wizard shows
+   the target system and guides you through the trigger, optional conditions,
+   actions and review. Add the rule disabled, then save the project to keep it.
+5. Install the bundled extension only on the intended system when needed.
    Validate the draft, then confirm storage. Regular validation stores disabled
    rules. For automatic operation, change the intended enabled flags, validate
    those flags, store the revision and explicitly activate the system.
-5. Use **Z2M operation** to start a stored rule once, stop a run or stop the
+6. Use **Z2M operation** to start a stored rule once, stop a run or stop the
    entire system. Enable restart recovery only if the system should resume
    automatic operation after Z2M restarts. Closing the desktop app disconnects
    its broker client. The extension continues running.
-6. Use **Desktop diagnostics** to start a one-minute recording. Select
+7. Use **Desktop diagnostics** to start a one-minute recording. Select
    **Open recording** after events arrive to inspect the current session's
    recording.
 

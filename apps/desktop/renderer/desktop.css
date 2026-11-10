@@ -15,8 +15,6 @@
 }
 .desktop-foundation .app-header .brand-mark { background: transparent; flex-shrink: 0; }
 .desktop-foundation .app-header .brand-mark img { width: 100%; height: 100%; }
-.draft-wizard-entry { padding: 0 1rem .75rem; }
-.draft-wizard-entry button { width: 100%; }
 .desktop-debug { margin: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: .75rem; }
 .desktop-debug summary { cursor: pointer; font-weight: 600; }
 .desktop-debug-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: .75rem 0; }
