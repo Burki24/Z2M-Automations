@@ -49,7 +49,33 @@ export async function smokeDrafts(view: WebContents): Promise<void> {
     if (!result.ok) throw new Error('Sequence not saved: ' + JSON.stringify(result));
     const stored = (await bridge.project({action: 'status'})).state.project.systems[0].stored;
     if (stored.configuration.automations[0].name !== 'Synthetic remote rule') throw new Error('Local edit changed stored state');
+    const assert = (value, message) => { if (!value) throw new Error('Draft wizard smoke: ' + message); };
+    assert((await bridge.network({action: 'view', id: context.systemId, source: 'stored'})).ok, 'select stored view');
     document.dispatchEvent(new Event('z2ma-project-changed'));
+    await wait(() => document.body.classList.contains('desktop-stored-view'));
+    document.querySelector('#draft-wizard-start').click();
+    await wait(() => document.querySelector('#edit-dialog').open);
+    const click = id => document.querySelector('#edit-' + id).click();
+    const set = (element, value) => {
+      element.value = value;
+      element.dispatchEvent(new Event(element.tagName === 'SELECT' ? 'change' : 'input', {bubbles: true}));
+    };
+    assert((await bridge.snapshot()).desktop.source === 'draft', 'wizard did not switch to draft');
+    click('next');
+    set(document.querySelector('#edit-fields input'), 'Wizard smoke rule');
+    set(document.querySelector('[data-section="triggers"] fieldset select'), 'time');
+    click('next');
+    click('back');
+    assert(document.querySelector('#edit-fields input').value === 'Wizard smoke rule', 'wizard lost name');
+    click('next');
+    click('next');
+    set(document.querySelector('[data-section="actions"] fieldset select'), 'sequence');
+    set(document.querySelectorAll('[data-section="actions"] fieldset select')[1], result.state.sequenceId);
+    click('next');
+    assert(!document.querySelector('#edit-submit').hidden, 'wizard did not reach review');
+    click('submit');
+    await wait(async () => (await bridge.snapshot()).configuration.automations.some(rule => rule.name === 'Wizard smoke rule' && !rule.enabled));
+    await wait(() => !document.querySelector('#edit-dialog').open);
   })()`);
   console.log('DESKTOP_DRAFTS_OK local/editor/reload/language/sequence/isolated');
 }

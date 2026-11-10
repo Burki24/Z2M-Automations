@@ -23,10 +23,17 @@ const kinds = localizeRecord(() => ({triggers: {device: t("ui.device.event.704e0
 const dayNames = localizeRecord(() => ([t("ui.mon.d23e867e"), t("ui.tue.16ab7287"), t("ui.wed.d8f33a13"), t("ui.thu.30094e0b"), t("ui.fri.eed8f901"), t("ui.sat.a951efc7"), t("ui.sun.fb1df1a2")]));
 const valueLabel = value => typeof value === 'boolean' ? (value ? t("ui.yes.detected.f51e55b6") : t("ui.no.not.detected.2e04e05d")) : ({ON: t("ui.on.b9a637bc"), OFF: t("ui.off.f0ce9450"), TOGGLE: t("ui.toggle.77fec02e")}[value] ?? String(value ?? t("ui.no.value.36bac452")));
 
-export function installEditing({getData, getRule, reload, onCreated, onEdited, onSequenceSaved, summaries}) {
+export function installEditing({getData, getRule, reload, switchToDraft, onCreated, onEdited, onSequenceSaved, summaries}) {
     const createButton = document.createElement('button');
     createButton.id = 'new-automation-button'; createButton.className = 'primary'; bindText(createButton, () => t("ui.new.automation.9643f89c"));
     document.querySelector('.toolbar').prepend(createButton);
+    const sidebarCreate = isDesktop() ? createButton.cloneNode(false) : null;
+    if (sidebarCreate) {
+        sidebarCreate.id = 'draft-wizard-start';
+        bindText(sidebarCreate, () => t('wizard.entry'));
+        const entry = document.createElement('div'); entry.className = 'draft-wizard-entry'; entry.append(sidebarCreate);
+        document.querySelector('.navigation .panel-heading').after(entry);
+    }
     const editButton = document.createElement('button');
     editButton.id = 'edit-automation-button'; bindText(editButton, () => t("ui.edit.automation.ac46d0d5"));
     document.querySelector('.entry-tools').prepend(editButton);
@@ -34,15 +41,20 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
     document.querySelector('.toolbar').prepend(sequenceButton);
     const dialog = document.createElement('dialog');
     dialog.id = 'edit-dialog'; dialog.className = 'creation-dialog rule-edit-dialog'; dialog.setAttribute('aria-labelledby', 'edit-title');
-    bindHTML(dialog, () => `<form id="edit-form"><span class="eyebrow">${t("ui.existing.automation.3d70df71")}</span><h2 id="edit-title">${t("ui.edit.automation.ac46d0d5")}</h2><p>${t("ui.changes.affect.only.the.local.44d7d6b3")}</p><p id="edit-usage" hidden></p><div id="edit-fields"></div><p id="edit-message" role="status" aria-live="polite"></p><div class="dialog-actions"><button type="button" id="edit-reload">${t("ui.reload.and.discard.input.56f16c4b")}</button><button type="button" id="edit-cancel">${t("ui.cancel.f7ff1178")}</button><button type="submit" id="edit-submit" class="primary">${t("ui.apply.changes.to.draft.1e42a9b6")}</button></div></form>`);
+    bindHTML(dialog, () => `<form id="edit-form"><span class="eyebrow">${t("ui.existing.automation.3d70df71")}</span><h2 id="edit-title">${t("ui.edit.automation.ac46d0d5")}</h2><p>${t("ui.changes.affect.only.the.local.44d7d6b3")}</p><p id="edit-usage" hidden></p><div id="edit-fields"></div><p id="edit-message" role="status" aria-live="polite"></p><div class="dialog-actions"><button type="button" id="edit-reload">${t("ui.reload.and.discard.input.56f16c4b")}</button><button type="button" id="edit-cancel">${t("ui.cancel.f7ff1178")}</button><button type="button" id="edit-back" hidden></button><button type="button" id="edit-next" class="primary" hidden></button><button type="submit" id="edit-submit" class="primary">${t("ui.apply.changes.to.draft.1e42a9b6")}</button></div></form>`);
     document.body.append(dialog);
     const $ = name => dialog.querySelector('#edit-' + name);
     let original; let working; let context; let requestId; let busy = false; let serial = 0; let sequenceMode = false; let creatingSequence = false; let creatingRule = false; let boundHeaders = {}; let sorting;
+    let wizardStep = 0;
+    let startingWizard = false;
+    const wizardSteps = ['start', 'triggers', 'conditions', 'actions', 'review'];
+    const wizardLabels = {start: 'wizard.start', triggers: 'wizard.triggers', conditions: 'wizard.conditions', actions: 'wizard.actions', review: 'wizard.review'};
+    const inWizard = () => isDesktop() && creatingRule;
     let pendingKey = ''; const recovered = new Set();
     const editorKey = () => getData()?.desktop?.project ? 'z2ma.desktop.editor.' + getData().desktop.projectId + '.' + getData().workspaceContext.systemId : '';
     function remember() {
         if (!pendingKey || !dialog.open) return;
-        const value = JSON.stringify({epoch: getData().desktop.epoch, original, working, context, requestId, sequenceMode, creatingSequence, creatingRule, boundHeaders});
+        const value = JSON.stringify({epoch: getData().desktop.epoch, original, working, context, requestId, sequenceMode, creatingSequence, creatingRule, boundHeaders, wizardStep});
         if (value.length <= 131072) { try { sessionStorage.setItem(pendingKey, value); } catch {} }
     }
     for (const event of ['input', 'change', 'click']) $('form').addEventListener(event, () => queueMicrotask(remember));
@@ -183,8 +195,33 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
         const scroll = dialog.scrollTop;
         const expanded = new Map([...dialog.querySelectorAll('details[data-section]')].map(element => [element.dataset.section, element.open]));
         serial = 0; const root = $('fields'); root.replaceChildren();
-        field(root, () => (sequenceMode ? t("ui.action.sequence.name.8cc6bff8") : t("ui.automation.name.bf8d6866")), working.name, value => { working.name = value; }, {maxLength: 120});
-        if (!sequenceMode) {
+        const step = inWizard() ? wizardSteps[wizardStep] : null;
+        $('back').hidden = !step || wizardStep === 0;
+        $('next').hidden = !step || step === 'review';
+        $('submit').hidden = Boolean(step && step !== 'review');
+        $('reload').hidden = Boolean(step);
+        if (step) {
+            const heading = node('h3', () => t('wizard.step', {number: wizardStep + 1, total: wizardSteps.length, title: t(wizardLabels[step])}));
+            heading.tabIndex = -1;
+            root.append(heading);
+        }
+        if (step === 'start') {
+            root.append(node('p', () => t('wizard.system', {name: getData().desktop.systemName}), 'field-help'));
+            root.append(node('p', () => t('wizard.localOnly'), 'field-help'));
+            return;
+        }
+        if (step === 'review') {
+            root.append(node('p', working.name));
+            for (const section of ['triggers', 'conditions', 'actions']) {
+                root.append(node('h4', () => t(wizardLabels[section])));
+                for (const item of working[section]) root.append(node('p', () => summaries[section](item)));
+                if (!working[section].length) root.append(node('p', () => t('wizard.noConditions')));
+            }
+            root.append(node('p', () => t('wizard.localOnly'), 'field-help'));
+            return;
+        }
+        if (!step || step === 'triggers') field(root, () => (sequenceMode ? t("ui.action.sequence.name.8cc6bff8") : t("ui.automation.name.bf8d6866")), working.name, value => { working.name = value; }, {maxLength: 120});
+        if (!sequenceMode && (!step || step === 'triggers')) {
             if (creatingRule) root.append(node('p', () => (t("ui.the.new.rule.is.added.ed2d46e3")), 'field-help'));
             else check(root, () => (t("ui.rule.enabled.in.draft.does.12ebbfe4")), working, 'enabled');
             field(root, () => (t("ui.on.retrigger.7588befa")), working.retrigger ?? 'ignore', value => { working.retrigger = value; }, {choices: () => Object.entries({ignore: t("ui.ignore.0e54a990"), restart: t("ui.restart.from.the.beginning.f723ba35"), extend: t("ui.reset.current.delay.2561f6e5")})});
@@ -193,6 +230,7 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
         }
         const sections = () => sequenceMode ? [['actions', t("ui.1.actions.in.this.order.91604b88")]] : [['triggers', t("ui.1.when.triggers.or.be4b17f7")], ['conditions', t("ui.2.only.if.conditions.and.cf758b2a")], ['actions', t("ui.3.then.actions.in.this.6409acb6")]];
         for (const [section, title] of sections()) {
+            if (step && section !== step) continue;
             const itemKinds = localizeRecord(() => sequenceMode ? Object.fromEntries(Object.entries(kinds.actions).filter(([type]) => type !== 'sequence')) : kinds[section]);
             const details = node('details', undefined, 'edit-section'); details.dataset.section = section; details.open = expanded.get(section) ?? true; details.append(node('summary', () => sections().find(([key]) => key === section)[1])); root.append(details);
             const allowed = sequenceMode ? creatingSequence || getData().sequenceSections?.[original.id] === true : creatingRule || getData().editSections?.[original.id]?.[section] === true;
@@ -257,6 +295,7 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
     const changes = () => sequenceMode ? sequenceChanges(original, working) : ruleChanges(original, working);
     function open(entry, sequence = entry.kind === 'sequence', creating = false) {
         sequenceMode = sequence; creatingSequence = creating && sequence; creatingRule = creating && !sequence;
+        wizardStep = 0;
         original = copy(entry); delete original.kind; working = copy(original);
         if (creatingSequence) working.actions = [newItem('actions', 'set')];
         if (creatingRule) { working.triggers = [newItem('triggers', 'device')]; working.actions = [newItem('actions', 'set')]; }
@@ -278,7 +317,33 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
     }
     editButton.addEventListener('click', () => { const entry = getRule(); if (entry?.triggers || entry?.kind === 'sequence') open(entry); });
     const newRule = () => open({id: '', name: '', enabled: false, retrigger: 'ignore', restart_policy: 'abort', triggers: [], conditions: [], actions: []}, false, true);
-    createButton.addEventListener('click', () => { if (getData()?.createAllowed) newRule(); });
+    async function startWizard() {
+        if (startingWizard || dialog.open) return;
+        startingWizard = true;
+        try {
+            if (isDesktop() && getData()?.desktop?.source === 'stored' && !await switchToDraft()) return;
+            if (getData()?.createAllowed && !dialog.open) newRule();
+        } finally { startingWizard = false; }
+    }
+    createButton.addEventListener('click', startWizard);
+    sidebarCreate?.addEventListener('click', startWizard);
+    bindText($('back'), () => t('wizard.back'));
+    bindText($('next'), () => t('wizard.next'));
+    function moveWizard(delta) {
+        if (busy || !inWizard() || !wizardSteps[wizardStep + delta]) return;
+        if (delta > 0) {
+            const section = $('fields').querySelector('details[data-section]');
+            if (section) section.open = true;
+            if (!$('form').reportValidity()) return;
+        }
+        wizardStep += delta;
+        renderFields();
+        dialog.scrollTop = 0;
+        $('fields').querySelector('h3')?.focus();
+        remember();
+    }
+    $('back').addEventListener('click', () => moveWizard(-1));
+    $('next').addEventListener('click', () => moveWizard(1));
     sequenceButton.addEventListener('click', () => { if (getData()?.sequenceCreateAllowed) open({id: '', name: '', actions: []}, true, true); });
     $('cancel').addEventListener('click', () => { if (!busy) dialog.close(); });
     dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); });
@@ -294,6 +359,7 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
     });
     $('form').addEventListener('submit', async event => {
         event.preventDefault(); if (busy || !canSave()) return;
+        if (inWizard() && wizardStep < wizardSteps.length - 1) { moveWizard(1); return; }
         const payload = creatingRule ? {requestId, context, rule: creationRule(working)} : {requestId, context, [sequenceMode ? 'sequenceId' : 'ruleId']: original.id, changes: changes()};
         const controls = [...dialog.querySelectorAll('button, input, select')].map(element => [element, element.disabled]);
         busy = true; for (const [element] of controls) element.disabled = true; hint(() => (t("ui.checking.changes.and.applying.them.1a7c8c07")));
@@ -319,11 +385,16 @@ export function installEditing({getData, getRule, reload, onCreated, onEdited, o
                         if (saved.epoch === getData().desktop.epoch && saved.original && saved.working && typeof saved.requestId === 'string') {
                             open(saved.original, saved.sequenceMode, saved.creatingSequence || saved.creatingRule);
                             original = saved.original; working = saved.working; context = saved.context; requestId = saved.requestId; boundHeaders = saved.boundHeaders;
+                            if (inWizard() && Number.isInteger(saved.wizardStep) && wizardSteps[saved.wizardStep]) wizardStep = saved.wizardStep;
                             renderFields(); remember();
                         } else sessionStorage.removeItem(key);
                     }
                 } catch { /* Invalid temporary editor state is never applied to a project. */ }
             }
+        }
+        if (sidebarCreate) {
+            const data = getData();
+            sidebarCreate.disabled = !(data?.desktop?.project && data.workspaceContext?.systemId && (data.createAllowed || data.desktop.source === 'stored'));
         }
         createButton.disabled = !getData()?.createAllowed;
         createButton.title = getData()?.createNotice || t("ui.create.a.complete.automation.as.dfe84ce2");

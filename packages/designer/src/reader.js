@@ -354,9 +354,20 @@ import {installNativeEmbedding} from './embedding.js';
             if (projectReloadPending) { projectReloadPending = false; queueMicrotask(() => { void load(); }); }
         }
     }
-    editing = installEditing({getData: () => data, getRule: current, reload: () => load(), summaries: {triggers: triggerSummary, conditions: conditionSummary, actions: actionSummary}, onCreated: async ruleId => {
+    editing = installEditing({getData: () => data, getRule: current, reload: () => load(), switchToDraft: async () => {
+        try {
+            const response = await fetch('/draft-view', {method: 'POST', body: JSON.stringify({systemId: data.workspaceContext.systemId})});
+            if (response.ok && await load() && data.desktop?.source === 'draft') {
+                if (data.createAllowed) return true;
+                message(() => data.createNotice || t('wizard.unavailable'));
+                return false;
+            }
+        } catch { /* The current draft remains available after a failed switch. */ }
+        message(() => t('wizard.unavailable'));
+        return false;
+    }, summaries: {triggers: triggerSummary, conditions: conditionSummary, actions: actionSummary}, onCreated: async ruleId => {
         const refreshed = await load(ruleId);
-        message(() => (refreshed ? t("ui.new.automation.added.disabled.to.6f562419")
+        message(() => (refreshed ? t(isDesktop() ? "wizard.created" : "ui.new.automation.added.disabled.to.6f562419")
             : t("ui.the.automation.was.added.to.9cc3bca1")));
     }, onEdited: async ruleId => {
         const refreshed = await load(ruleId);

@@ -19,6 +19,14 @@ installTransport({kind: 'desktop', request: async (input, init = {}) => {
     let value;
     if (route === '/data' && method === 'GET') value = await bridge.snapshot();
     else if (route === '/select-system' && method === 'POST') value = await bridge.selectSystem(JSON.parse(init.body).systemId);
+    else if (route === '/draft-view' && method === 'POST') {
+        const {systemId} = JSON.parse(init.body);
+        const current = await bridge.snapshot();
+        if (current.workspaceContext?.systemId !== systemId) return new Response(null, {status: 409});
+        const result = await bridge.network({action: 'view', id: systemId, source: 'draft'});
+        if (!result.ok) return new Response(null, {status: 409});
+        value = {ok: true};
+    }
     else if (route === '/language' && method === 'POST') value = await bridge.language(JSON.parse(init.body));
     else if (['/create', '/edit', '/sequence', '/manage', '/permissions', '/permissions-status'].includes(route) && method === (route === '/permissions-status' ? 'GET' : 'POST')) {
         const headers = new Headers(init.headers);
