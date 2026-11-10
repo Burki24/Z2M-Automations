@@ -1,4 +1,4 @@
-import type {WebContents} from 'electron';
+import {BrowserWindow, type WebContents} from 'electron';
 import {readFile} from 'node:fs/promises';
 import {importDraft} from './draft-exchange.js';
 
@@ -29,11 +29,43 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     document.querySelector('#edit-automation-button').click();
     await wait(() => document.querySelector('#edit-dialog').open);
     const name = document.querySelector('#edit-fields input'); name.value = 'D4 preserved input'; name.dispatchEvent(new Event('input', {bubbles: true}));
-    const picker = document.querySelector('#designer-language'); picker.value = 'de'; picker.dispatchEvent(new Event('change', {bubbles: true}));
+    const picker = document.querySelector('#edit-dialog [data-language-picker] select'); picker.value = 'de'; picker.dispatchEvent(new Event('change', {bubbles: true}));
     await wait(() => document.documentElement.lang === 'de');
     assert(name.value === 'D4 preserved input', 'language lost draft');
     await wait(() => Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.') && sessionStorage.getItem(key).includes('D4 preserved input')));
   })()`);
+  const window = BrowserWindow.fromWebContents(view);
+  if (!window) throw new Error('Draft smoke requires a desktop window.');
+  const {width, height} = window.getContentBounds();
+  try {
+    for (const [w, h] of [[width, height], [360, 500]] as const) {
+      window.setContentSize(w, h);
+      await view.executeJavaScript(`(async () => {
+        const narrow = ${w <= 700};
+        for (let attempt = 0; (innerWidth <= 700) !== narrow && attempt < 60; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 25));
+        }
+        if ((innerWidth <= 700) !== narrow) throw new Error('Draft dialog viewport did not resize.');
+        const dialog = document.querySelector('#edit-dialog');
+        const content = dialog.querySelector('#edit-content');
+        const footer = dialog.querySelector('.dialog-actions');
+        const top = footer.getBoundingClientRect().top;
+        if (!content || content.clientHeight < 60 || dialog.scrollHeight > dialog.clientHeight + 1) {
+          throw new Error('The draft form must scroll inside the dialog, above its footer.');
+        }
+        content.scrollTop = content.scrollHeight;
+        if ((narrow && !content.scrollTop) || footer.getBoundingClientRect().top !== top
+          || content.getBoundingClientRect().bottom > top + 1
+          || footer.getBoundingClientRect().bottom > dialog.getBoundingClientRect().bottom + 1
+          || dialog.querySelector('#edit-export-help').getBoundingClientRect().bottom > top + 1) {
+          throw new Error('The draft footer must stay visible and leave the last form content reachable.');
+        }
+        content.scrollTop = 0;
+      })()`);
+    }
+  } finally {
+    window.setContentSize(width, height);
+  }
   const loaded = new Promise<void>(resolve => view.once('did-finish-load', resolve)); view.reload(); await loaded;
   await view.executeJavaScript(`(async () => {
     const bridge = window.z2maDesktop;

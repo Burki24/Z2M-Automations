@@ -10,7 +10,7 @@ export function actionDropPosition(from, target, after) {
     return position - (from < position ? 1 : 0);
 }
 
-export function installActionSorting(container, {getItems, canMove, onMove}) {
+export function installActionSorting(container, {getItems, canMove, onMove, scrollArea}) {
     const mime = 'application/x-z2ma-action-order';
     const listeners = []; let source = null; let original = null; let disposed = false;
     const listen = (element, type, callback) => { element.addEventListener(type, callback); listeners.push(() => element.removeEventListener(type, callback)); };
@@ -40,11 +40,11 @@ export function installActionSorting(container, {getItems, canMove, onMove}) {
         const after = event.clientY > row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2;
         container.querySelectorAll('[data-action-index]').forEach(item => item.classList.remove('drop-before', 'drop-after'));
         row.classList.add(after ? 'drop-after' : 'drop-before');
-        const dialog = container.closest('dialog');
-        if (dialog) {
-            const box = dialog.getBoundingClientRect();
-            if (event.clientY < box.top + 36) dialog.scrollTop -= 24;
-            else if (event.clientY > box.bottom - 36) dialog.scrollTop += 24;
+        const scroller = scrollArea ?? container.closest('dialog');
+        if (scroller) {
+            const box = scroller.getBoundingClientRect();
+            if (event.clientY < box.top + 36) scroller.scrollTop -= 24;
+            else if (event.clientY > box.bottom - 36) scroller.scrollTop += 24;
         }
     });
     listen(container, 'drop', event => {

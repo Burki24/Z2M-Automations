@@ -42,12 +42,15 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
     document.querySelector('.toolbar').prepend(sequenceButton);
     const dialog = document.createElement('dialog');
     dialog.id = 'edit-dialog'; dialog.className = 'creation-dialog rule-edit-dialog'; dialog.setAttribute('aria-labelledby', 'edit-title');
+    const desktop = isDesktop();
     bindHTML(dialog, () => `<form id="edit-form" novalidate>
+        ${desktop ? '<div id="edit-content">' : ''}
         <span class="eyebrow"></span><h2 id="edit-title"></h2>
         <p id="edit-system" class="field-help"></p><p id="edit-usage" hidden></p>
         <div id="edit-fields"></div>
         <p id="edit-message" role="status" aria-live="polite" hidden></p>
         <p id="edit-export-help" class="field-help">${t('editor.exportHelp')}</p>
+        ${desktop ? '</div>' : ''}
         <div class="dialog-actions">
             <button type="button" id="edit-reload">${t("ui.reload.and.discard.input.56f16c4b")}</button>
             <button type="button" id="edit-submit">${t("ui.apply.changes.to.draft.1e42a9b6")}</button>
@@ -55,8 +58,10 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             <button type="submit" id="edit-export" class="primary" aria-describedby="edit-export-help">${t('editor.export')}</button>
         </div>
     </form>`);
+    if (desktop) dialog.querySelector('.dialog-actions').prepend(dialog.querySelector('[data-language-picker]'));
     document.body.append(dialog);
     const $ = name => dialog.querySelector('#edit-' + name);
+    const scrollArea = $('content') ?? dialog;
     let original; let working; let context; let requestId; let busy = false; let serial = 0; let sequenceMode = false; let creatingSequence = false; let creatingRule = false; let boundHeaders = {}; let sorting;
     let boundTopic = '';
     let stale = false;
@@ -230,7 +235,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
     }
     function renderFields() {
         sorting?.dispose(); sorting = null;
-        const scroll = dialog.scrollTop;
+        const scroll = scrollArea.scrollTop;
         const expanded = new Map([...dialog.querySelectorAll('details[data-section]')].map(element => [element.dataset.section, element.open]));
         serial = 0; const root = $('fields'); root.replaceChildren();
         $('reload').hidden = creatingRule && !stale;
@@ -300,7 +305,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             if (isDesktop()) add.dataset.draftField = 'add';
             if (section === 'actions' && working.actions.length > 1) {
                 details.append(node('p', () => (t("ui.drag.steps.by.the.move.6d048d37")), 'field-help'));
-                sorting = installActionSorting(details, {getItems: () => working.actions, canMove: () => !busy && dialog.open, onMove: reorder});
+                sorting = installActionSorting(details, {getItems: () => working.actions, canMove: () => !busy && dialog.open, onMove: reorder, scrollArea});
             }
         }
         if (!sequenceMode) {
@@ -313,7 +318,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             settings.append(node('p', () => t('restart.help'), 'field-help'));
             root.append(settings);
         }
-        dialog.scrollTop = scroll;
+        scrollArea.scrollTop = scroll;
     }
     function reorder(from, to) {
         const next = moveAction(working.actions, from, to);
@@ -492,12 +497,12 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         finally {
             clearTimeout(timer); busy = false;
             for (const [element, disabled] of controls) element.disabled = disabled;
-            if (dialog.open && (exporting || stale)) {
+            if (dialog.open && (desktop || exporting || stale)) {
                 $('message').scrollIntoView({block: 'nearest'});
                 if (stale) {
                     $('submit').disabled = $('export').disabled = true;
                     $('reload').focus({preventScroll: true});
-                } else $('export').focus({preventScroll: true});
+                } else if (exporting) $('export').focus({preventScroll: true});
             }
         }
     }
