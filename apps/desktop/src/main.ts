@@ -20,6 +20,7 @@ import {connect} from 'mqtt';
 import {smokeNetwork} from './smoke-network.js';
 import {DraftEditor, type DesignerCommand} from './draft-editor.js';
 import {DraftExchange} from './draft-exchange.js';
+import {DraftValidationError} from './draft-feedback.js';
 import {ExtensionTransfer, bundledExtension} from './extension-transfer.js';
 import {smokeDrafts} from './smoke-drafts.js';
 
@@ -103,7 +104,7 @@ async function network(command: NetworkCommand): Promise<unknown> {
     }
     case 'runtimeStatus': void reader.refresh(command.id).catch(() => {}); break;
     case 'validateEnabled': case 'validate': case 'store': case 'install': case 'checkTransfer': {
-      if (smoke) throw new Error('invalidRequest');
+      if (smoke && command.action !== 'validate') throw new Error('invalidRequest');
       try {
         const outcome = await transfers.command(command.action, command.id);
         return {...(reader.state() as object), bundledExtension, outcome};
@@ -265,10 +266,16 @@ async function open(): Promise<void> {
       debug.record('rejected'); throw new Error('Unauthorized desktop request.');
     }
     if (channel !== 'project' && channel !== 'credential' && channel !== 'network' && channel !== 'designer') return handle(channel, args[0]);
-    // No paths, file contents, secrets or raw exception messages leave these operations.
+    // Error responses expose only known codes and bounded, structured validation feedback.
     return projects.serialize(async () => {
       try { return {ok: true, state: await handle(channel, args[0])}; }
       catch (error) {
+        if (channel === 'network' && error instanceof DraftValidationError) {
+          const {id} = args[0] as NetworkCommand;
+          const configuration = projects.data().systems.find(system => system.id === id)?.configuration;
+          debug.record('projectFailed', id, undefined, {operation: 'validate'});
+          return {ok: false, error: error.message, validation: error.feedback(configuration)};
+        }
         debug.record('projectFailed');
         const key = error instanceof Error ? error.message : '';
         return {ok: false, error: ['invalidProject', 'invalidCredentials', 'credentialPromptUnavailable', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferUncertain', 'transferBridge', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly'].includes(key) ? key : 'failed'};

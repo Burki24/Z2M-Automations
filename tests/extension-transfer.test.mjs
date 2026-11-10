@@ -38,6 +38,7 @@ async function setup(t, options = {}) {
         Object.assign(fixture.editor, fixture.status);
         if (!options.loseInstallAck) publish();
       } else if (installed && operation === 'validate') {
+        if (options.validationError) { publish({...response, status: 'error', error: options.validationError}); return; }
         const doc = parse(request.yaml);
         publish({...response, data: {valid: true, revision: doc.revision, checksum: hash(request.yaml), automation_count: doc.automations.length, executing: false}});
       } else if (installed && operation === 'store') {
@@ -92,6 +93,43 @@ test('D5 validates the exact disabled bytes, backs up the prior state and confir
   assert.equal(JSON.parse(await readFile(s.backup, 'utf8')).systems[0].stored.revision, 3);
   assert.ok(s.peer.publications.every(packet => !packet.retain && packet.qos === 0));
   assert.ok(s.debug.read().events.some(event => event.operation === 'store' && event.transaction));
+});
+
+test('validation locates missing entries in older drafts and identifies the actual action field', async t => {
+  const s = await setup(t);
+  const draft = structuredClone(s.draft);
+  draft.automations.push({id: 'old-test', name: 'Old test', enabled: false, triggers: [], conditions: [], actions: []});
+  draft.automations[0].actions[0].values = {};
+  s.projects.replaceDraft(s.id, draft);
+  await assert.rejects(s.command('validate'), error => {
+    assert.equal(error.message, 'draftSchema');
+    assert.deepEqual(error.details, {issues: [
+      {path: '/automations/0/actions/0/values', reason: 'minProperties', limit: 1},
+      {path: '/automations/1/triggers', reason: 'minItems', limit: 1},
+      {path: '/automations/1/actions', reason: 'minItems', limit: 1}
+    ], truncated: false});
+    return true;
+  });
+  assert.equal(s.count('/request/validate'), 0);
+  await assert.rejects(s.command('store'), /transferValidateFirst/);
+  assert.equal(s.count('/request/store'), 0);
+});
+
+test('validation forwards only bounded Z2M details and resolves the rule name locally', async t => {
+  const validationError = {code: 'invalid_semantics', message: 'PRIVATE_REMOTE_MESSAGE', details: {
+    issues: [{path: '/automations/0/conditions/0/timezone', reason: 'timezone', name: 'PRIVATE_REMOTE_NAME'}], truncated: false
+  }};
+  const s = await setup(t, {validationError});
+  await assert.rejects(s.command('validate'), error => {
+    assert.equal(error.message, 'remoteError');
+    assert.deepEqual(error.feedback(s.system().configuration), {issues: [
+      {path: '/automations/0/conditions/0/timezone', reason: 'timezone', name: s.draft.automations[0].name}
+    ], truncated: false});
+    return true;
+  });
+  validationError.details.issues[0].path = '/automations/0/actions/0/values/PRIVATE_REMOTE_FIELD';
+  await assert.rejects(s.command('validate'), error => error.message === 'remoteError' && error.details === undefined);
+  assert.equal(s.count('/request/store'), 0);
 });
 
 test('D5 cancellation consumes validation and a newer remote revision is backed up without being overwritten', async t => {

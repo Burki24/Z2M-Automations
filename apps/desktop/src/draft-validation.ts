@@ -1,10 +1,11 @@
-import Ajv from 'ajv';
+import Ajv, {type ValidateFunction} from 'ajv';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import type {Configuration, Project, ProjectSystem} from './project.js';
 import {validConfiguration} from './project.js';
 import type {MqttReader} from './mqtt-reader.js';
-import type {CatalogProperty} from './mqtt-protocol.js';
+import {record, type CatalogProperty} from './mqtt-protocol.js';
+import {DraftValidationError, schemaDraftDetails} from './draft-feedback.js';
 
 // Values below have passed the pinned schema before semantic inspection.
 export type Entry = Record<string, any>;
@@ -13,6 +14,26 @@ const schema = JSON.parse(readFileSync(join(__dirname, 'schema/automations.schem
 ajv.addSchema(schema);
 const ruleSchema = ajv.compile({$ref: schema.$id + '#/definitions/automation'});
 const sequenceSchema = ajv.compile({$ref: schema.$id + '#/definitions/sequence'});
+let diagnosticValidator: ValidateFunction | undefined;
+
+function diagnosticSchema() {
+  const document = structuredClone(schema);
+  function selectTypedBranch(node: unknown): void {
+    if (!node || typeof node !== 'object') return;
+    if (record(node) && Array.isArray(node['oneOf']) && node['oneOf'].every(branch => {
+      const definition = branch.$ref ? document.definitions[branch.$ref.split('/').at(-1)] : branch;
+      return typeof definition?.properties?.type?.const === 'string';
+    })) {
+      node['type'] = 'object';
+      node['discriminator'] = {propertyName: 'type'};
+    }
+    for (const child of Object.values(node)) selectTypedBranch(child);
+  }
+  selectTypedBranch(document);
+  // The original schema still decides acceptance. This pass reports the selected trigger or action type.
+  return new Ajv({strict: false, allErrors: true, validateFormats: false, discriminator: true}).compile(document);
+}
+
 export const digestPattern = /^[a-f0-9]{64}$/;
 const equal = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 const topic = (value: string): boolean => value.length <= 128 && /^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/.test(value);
@@ -109,7 +130,13 @@ export function checkCapabilities(entry: Entry, sequence: boolean, configuration
 export function checkedDocument(value: unknown): Configuration {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('draftSchema');
   const config = {...value, sequences: (value as Entry)['sequences'] ?? [], mesh_peers: (value as Entry)['mesh_peers'] ?? []};
-  if (!validConfiguration(config) || !ajv.validate(schema.$id, config)) throw new Error('draftSchema');
+  if (!validConfiguration(config)) throw new Error('draftSchema');
+  if (!ajv.validate(schema.$id, config)) {
+    const diagnose = diagnosticValidator ??= diagnosticSchema();
+    diagnose(config);
+    const details = schemaDraftDetails(diagnose.errors ?? []);
+    throw new DraftValidationError('draftSchema', details);
+  }
   for (const entry of config.automations) checkedEntry(entry, false);
   for (const entry of config.sequences) checkedEntry(entry, true);
   for (const rule of config.automations) {

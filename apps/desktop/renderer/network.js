@@ -1,4 +1,30 @@
-import {t, bindText, onLanguageChange, sortByName} from './localization.js';
+import {t, bindText, formatNumber, onLanguageChange, sortByName} from './localization.js';
+
+function validationLocation(issue) {
+  const parts = issue.path ? issue.path.slice(1).split('/') : [];
+  const labels = [];
+  for (let index = 0; index < parts.length; index++) {
+    const field = parts[index];
+    const position = parts[index + 1];
+    let label = /^\d+$/.test(field) ? formatNumber(Number(field) + 1) : t('validation.field.' + field);
+    if (position && /^\d+$/.test(position)) {
+      label = t('validation.position', {label, number: formatNumber(Number(position) + 1)});
+      index++;
+    }
+    labels.push(!labels.length && issue.name ? t('validation.named', {label, name: issue.name}) : label);
+  }
+  return labels.join(' → ') || t('validation.document');
+}
+
+function validationReason(issue) {
+  const field = issue.path.split('/').at(-1);
+  if (issue.reason === 'required' || issue.reason === 'minItems' && issue.limit === 1) {
+    if (field === 'triggers') return t('validation.addTrigger');
+    if (field === 'actions') return t('validation.addAction');
+  }
+  if (issue.reason === 'pattern' && ['at', 'after', 'before'].includes(field)) return t('validation.timeFormat');
+  return t('validation.reason.' + issue.reason, issue.limit === undefined ? {} : {limit: formatNumber(issue.limit)});
+}
 
 export async function installNetwork(bridge, openBrokerSetup) {
   const panel = document.createElement('details'); panel.className = 'desktop-project'; panel.id = 'mqtt-panel';
@@ -9,7 +35,11 @@ export async function installNetwork(bridge, openBrokerSetup) {
   const systemLabel = document.createElement('label'); const systemTitle = document.createElement('span'); bindText(systemTitle, () => t('mqtt.system'));
   const systems = document.createElement('select'); systems.id = 'mqtt-system'; systemLabel.append(systemTitle, systems);
   const controls = document.createElement('div'); controls.className = 'project-form'; controls.append(brokerLabel, systemLabel); panel.append(controls);
-  const feedback = document.createElement('p'); feedback.setAttribute('role', 'status'); panel.append(feedback);
+  const status = document.createElement('div'); status.setAttribute('role', 'status'); panel.append(status);
+  const feedback = document.createElement('p');
+  const findings = document.createElement('ul'); findings.id = 'mqtt-validation-issues'; findings.className = 'mqtt-overview'; findings.hidden = true;
+  const moreFindings = document.createElement('p'); moreFindings.hidden = true; bindText(moreFindings, () => t('validation.more'));
+  status.append(feedback, findings, moreFindings);
   const overview = document.createElement('ul'); overview.className = 'mqtt-overview'; panel.append(overview);
   const catalog = document.createElement('details'); catalog.id = 'mqtt-catalog-view';
   const catalogTitle = document.createElement('summary'); bindText(catalogTitle, () => t('mqtt.catalog')); catalog.append(catalogTitle);
@@ -28,6 +58,30 @@ export async function installNetwork(bridge, openBrokerSetup) {
   const runtimeButtons = new Map();
   let state = {sequence: -1, brokers: [], systems: []}; let busy = false; let poll = false; let emitting = false;
   const changed = () => { emitting = true; document.dispatchEvent(new Event('z2ma-project-changed')); emitting = false; };
+  function clearFindings() {
+    delete findings.dataset.system;
+    findings.replaceChildren();
+    findings.hidden = moreFindings.hidden = true;
+  }
+  function clearOtherSystemFindings() {
+    if (findings.dataset.system && findings.dataset.system !== systems.value) {
+      clearFindings();
+      bindText(feedback, () => '');
+    }
+  }
+  function showFindings(details, systemId) {
+    if (!details?.issues.length) return;
+    findings.dataset.system = systemId;
+    findings.replaceChildren(...details.issues.map(issue => {
+      const row = document.createElement('li');
+      const location = document.createElement('strong'); bindText(location, () => validationLocation(issue));
+      const reason = document.createElement('span'); bindText(reason, () => ' · ' + validationReason(issue));
+      row.append(location, reason);
+      return row;
+    }));
+    findings.hidden = false;
+    moreFindings.hidden = !details.truncated;
+  }
   function options(element, items, label) {
     const identity = JSON.stringify([t(label), items]);
     if (element.dataset.options === identity) return;
@@ -60,6 +114,7 @@ export async function installNetwork(bridge, openBrokerSetup) {
   function paint() {
     options(brokers, state.brokers.map(broker => [broker.id, broker.name + ' · ' + broker.host + ':' + broker.port + (broker.tls ? ' · TLS' : '') + (broker.certificates ? ' · ' + t('mqtt.tlsLoaded') : '')]), 'mqtt.chooseBroker');
     options(systems, state.systems.map(system => [system.id, system.name + ' · ' + system.baseTopic]), 'mqtt.chooseSystem');
+    clearOtherSystemFindings();
     paintRuntime();
     overview.replaceChildren(...state.systems.map(system => {
       const row = document.createElement('li'); const broker = state.brokers.find(broker => broker.id === system.brokerId);
@@ -88,6 +143,7 @@ export async function installNetwork(bridge, openBrokerSetup) {
   async function command(action, source) {
     const id = ['refresh', 'view', 'catalog', 'validate', 'store', 'install', 'checkTransfer', 'validateEnabled', ...runtimeButtons.keys()].includes(action) ? systems.value : brokers.value;
     if (!id || busy) return;
+    clearFindings();
     const rule = rules.value;
     const run = state.systems.find(item => item.id === id)?.runtime?.runs.find(item => item.rule === rule && item.state === 'running')?.run;
     const runtimeFields = action === 'activate' ? {resume: resume.checked} : action === 'run_once' ? {rule} : action === 'stop_rule' ? {rule, run} : {};
@@ -106,7 +162,12 @@ export async function installNetwork(bridge, openBrokerSetup) {
         catalogList.replaceChildren(...devices, ...scenes); catalog.open = true; changed(); return;
       }
       const result = await bridge.network({action, id, ...runtimeFields, ...(source ? {source} : {})});
-      if (!result.ok) { bindText(feedback, () => t('project.' + result.error)); return; }
+      if ((action === 'validate' || action === 'validateEnabled') && systems.value !== id) return;
+      if (!result.ok) {
+        bindText(feedback, () => t('project.' + result.error));
+        showFindings(result.validation, id);
+        return;
+      }
       state = result.state; paint(); changed();
       const outcome = result.state.outcome;
       bindText(feedback, () => t(outcome ? 'project.' + outcome : 'mqtt.requestAccepted'));
@@ -123,7 +184,7 @@ export async function installNetwork(bridge, openBrokerSetup) {
     runtimeButtons.set(action, button); runtimeForm.append(button);
   }
   rules.addEventListener('change', paintRuntime);
-  systems.addEventListener('change', () => { resume.checked = false; rules.value = ''; paintRuntime(); });
+  systems.addEventListener('change', () => { clearOtherSystemFindings(); resume.checked = false; rules.value = ''; paintRuntime(); });
   const setupBroker = document.createElement('button'); setupBroker.type = 'button'; setupBroker.id = 'mqtt-setupBroker';
   bindText(setupBroker, () => t('mqtt.setupBroker'));
   setupBroker.addEventListener('click', openBrokerSetup);

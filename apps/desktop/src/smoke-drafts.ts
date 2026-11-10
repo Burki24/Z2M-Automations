@@ -35,7 +35,7 @@ export async function smokeDrafts(view: WebContents): Promise<void> {
   const loaded = new Promise<void>(resolve => view.once('did-finish-load', resolve)); view.reload(); await loaded;
   await view.executeJavaScript(`(async () => {
     const bridge = window.z2maDesktop;
-    const wait = async predicate => { for (let n = 0; n < 160; n++) { if (await predicate()) return; await new Promise(resolve => setTimeout(resolve, 30)); } throw new Error('Recovered draft timeout'); };
+    const wait = async (predicate, message = 'Recovered draft timeout') => { for (let n = 0; n < 160; n++) { if (await predicate()) return; await new Promise(resolve => setTimeout(resolve, 30)); } throw new Error(message); };
     await wait(() => document.querySelector('#edit-dialog')?.open && document.querySelector('#edit-fields input')?.value === 'D4 preserved input');
     if ((await bridge.project({action: 'save'})).ok) throw new Error('Open editor was silently omitted from save');
     document.querySelector('#edit-form').requestSubmit();
@@ -83,12 +83,20 @@ export async function smokeDrafts(view: WebContents): Promise<void> {
     click('submit');
     await wait(async () => (await bridge.snapshot()).configuration.automations.some(rule => rule.name === 'Wizard smoke rule' && !rule.enabled));
     await wait(() => !document.querySelector('#edit-dialog').open);
+    await wait(() => !Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.')));
     await wait(() => document.querySelector('#workflow-stored').textContent.includes('Revision 3'));
     assert(document.querySelector('#workflow-system').textContent === (await bridge.snapshot()).desktop.systemName, 'status shows the wrong system');
     assert(document.querySelector('#workflow-project').textContent.includes('ungespeicherte Änderungen'), 'status omitted the unsaved project');
     document.querySelector('#workflow-next').click();
     assert(document.querySelector('#mqtt-panel').open && document.querySelector('#mqtt-system').value === context.systemId, 'next step did not open the selected system');
     assert(document.activeElement.id === 'mqtt-validate', 'next step did not focus the draft check');
+    document.querySelector('#mqtt-validate').click();
+    const findings = document.querySelector('#mqtt-validation-issues');
+    await wait(() => !document.querySelector('#mqtt-panel').hasAttribute('aria-busy'), 'Validation request did not finish');
+    assert(!findings.hidden, 'validation details missing. ' + document.querySelector('#mqtt-panel [role=status]').textContent);
+    const incompleteRule = [...findings.children].map(row => row.textContent).filter(line => line.includes('Concurrent draft'));
+    assert(incompleteRule.length === 2 && incompleteRule.some(line => line.includes('Füge mindestens einen Auslöser hinzu.'))
+      && incompleteRule.some(line => line.includes('Füge mindestens eine Aktion hinzu.')), 'validation omitted the older rule or its missing entries');
   })()`);
-  console.log('DESKTOP_DRAFTS_OK local/editor/reload/language/sequence/isolated');
+  console.log('DESKTOP_DRAFTS_OK local/editor/reload/language/sequence/isolated/validation-feedback');
 }

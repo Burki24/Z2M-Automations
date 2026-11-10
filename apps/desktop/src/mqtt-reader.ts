@@ -6,6 +6,7 @@ import {exact, validId} from './project.js';
 import type {Credentials} from './credentials.js';
 import type {Diagnostics} from './diagnostics.js';
 import {extensionPrefix, readOperations, statusData, editorData, executionData, record, type Execution, type RemoteRead, type RemoteStatus} from './mqtt-protocol.js';
+import {DraftValidationError, readDraftDetails} from './draft-feedback.js';
 
 export const runtimeActions = ['activate', 'deactivate', 'run_once', 'stop_rule'] as const;
 export type RuntimeAction = typeof runtimeActions[number];
@@ -193,7 +194,13 @@ export class MqttReader {
       connection.pending.delete(value['transaction']); clearTimeout(pending.timer);
       this.debug.record('mqttReply', system.id, undefined, {operation: pending.operation, transaction: value['transaction']});
       if (value['status'] === 'ok' && record(value['data'])) pending.resolve(value['data']);
-      else pending.reject(new Error('remoteError'));
+      else {
+        const error = value['error'];
+        const details = pending.operation === 'validate' && value['status'] === 'error' && record(error)
+          && typeof error['code'] === 'string' && ['invalid_schema', 'invalid_semantics', 'invalid_yaml', 'scene_unavailable'].includes(error['code'])
+          ? readDraftDetails(error['details']) : null;
+        pending.reject(details ? new DraftValidationError('remoteError', details) : new Error('remoteError'));
+      }
     });
     client.connect();
   }
