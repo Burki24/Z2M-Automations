@@ -73,6 +73,13 @@ export async function smokeDrafts(view: WebContents): Promise<void> {
     set(document.querySelectorAll('[data-section="actions"] fieldset select')[1], result.state.sequenceId);
     click('next');
     assert(!document.querySelector('#edit-submit').hidden, 'wizard did not reach review');
+    assert((await bridge.project({action: 'draft', systemId: context.systemId, operation: 'new', ruleId: '', name: 'Concurrent draft'})).ok, 'simulate a changed draft');
+    click('submit');
+    await wait(() => !document.querySelector('#edit-reload').hidden && !document.querySelector('#edit-reload').disabled);
+    assert(document.querySelector('#edit-dialog').open && document.querySelector('#edit-submit').disabled, 'wizard did not pause on stale context');
+    click('reload');
+    await wait(() => !document.querySelector('#edit-submit').disabled);
+    assert(document.querySelector('#edit-fields').textContent.includes('Wizard smoke rule'), 'refresh lost wizard input');
     click('submit');
     await wait(async () => (await bridge.snapshot()).configuration.automations.some(rule => rule.name === 'Wizard smoke rule' && !rule.enabled));
     await wait(() => !document.querySelector('#edit-dialog').open);

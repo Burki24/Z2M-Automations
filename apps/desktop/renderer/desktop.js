@@ -32,7 +32,7 @@ installTransport({kind: 'desktop', request: async (input, init = {}) => {
         const headers = new Headers(init.headers);
         const result = await bridge.designer({route: route.slice(1), systemId: headers.get('X-Z2MA-System-ID'),
             generation: Number(headers.get('X-Z2MA-Generation')), fingerprint: headers.get('X-Z2MA-Fingerprint'), payload: method === 'POST' ? JSON.parse(init.body) : {}});
-        if (!result.ok) return new Response(JSON.stringify({ok: false, message: t('project.' + result.error)}), {status: 409});
+        if (!result.ok) return new Response(JSON.stringify({ok: false, error: result.error, message: t('project.' + result.error)}), {status: 409});
         value = result.state;
         document.dispatchEvent(new Event('z2ma-project-changed'));
     }

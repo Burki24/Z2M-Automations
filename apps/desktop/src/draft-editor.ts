@@ -18,7 +18,12 @@ export class DraftEditor {
   context(system: ProjectSystem): string {
     const project = this.projects.data();
     return digest([project.id, this.projects.generation(), system.id, system.brokerId, system.baseTopic, system.configuration,
-      project.systems.map(owner => [owner.id, owner.baseTopic, owner.brokerId, owner.configuration.mesh_peers, this.reader.current(owner.id)])]);
+      project.systems.map(owner => {
+        const remote = this.reader.current(owner.id);
+        // Runtime status and execution results do not change the draft's available targets.
+        return [owner.id, owner.baseTopic, owner.brokerId, owner.configuration.mesh_peers,
+          remote && {fresh: remote.fresh, devices: remote.devices, scenes: remote.scenes}];
+      })]);
   }
   view(system: ProjectSystem): Entry {
     const configuration = system.configuration; const context = this.context(system);

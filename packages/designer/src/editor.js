@@ -41,11 +41,12 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
     document.querySelector('.toolbar').prepend(sequenceButton);
     const dialog = document.createElement('dialog');
     dialog.id = 'edit-dialog'; dialog.className = 'creation-dialog rule-edit-dialog'; dialog.setAttribute('aria-labelledby', 'edit-title');
-    bindHTML(dialog, () => `<form id="edit-form"><span class="eyebrow">${t("ui.existing.automation.3d70df71")}</span><h2 id="edit-title">${t("ui.edit.automation.ac46d0d5")}</h2><p>${t("ui.changes.affect.only.the.local.44d7d6b3")}</p><p id="edit-usage" hidden></p><div id="edit-fields"></div><p id="edit-message" role="status" aria-live="polite"></p><div class="dialog-actions"><button type="button" id="edit-reload">${t("ui.reload.and.discard.input.56f16c4b")}</button><button type="button" id="edit-cancel">${t("ui.cancel.f7ff1178")}</button><button type="button" id="edit-back" hidden></button><button type="button" id="edit-next" class="primary" hidden></button><button type="submit" id="edit-submit" class="primary">${t("ui.apply.changes.to.draft.1e42a9b6")}</button></div></form>`);
+    bindHTML(dialog, () => `<form id="edit-form"><span class="eyebrow">${t("ui.existing.automation.3d70df71")}</span><h2 id="edit-title">${t("ui.edit.automation.ac46d0d5")}</h2><p>${isDesktop() ? t('wizard.desktopDraftOnly') : t("ui.changes.affect.only.the.local.44d7d6b3")}</p><p id="edit-usage" hidden></p><div id="edit-fields"></div><p id="edit-message" role="status" aria-live="polite"></p><div class="dialog-actions"><button type="button" id="edit-reload">${t("ui.reload.and.discard.input.56f16c4b")}</button><button type="button" id="edit-cancel">${t("ui.cancel.f7ff1178")}</button><button type="button" id="edit-back" hidden></button><button type="button" id="edit-next" class="primary" hidden></button><button type="submit" id="edit-submit" class="primary">${t("ui.apply.changes.to.draft.1e42a9b6")}</button></div></form>`);
     document.body.append(dialog);
     const $ = name => dialog.querySelector('#edit-' + name);
     let original; let working; let context; let requestId; let busy = false; let serial = 0; let sequenceMode = false; let creatingSequence = false; let creatingRule = false; let boundHeaders = {}; let sorting;
     let wizardStep = 0;
+    let wizardStale = false;
     let startingWizard = false;
     const wizardSteps = ['start', 'triggers', 'conditions', 'actions', 'review'];
     const wizardLabels = {start: 'wizard.start', triggers: 'wizard.triggers', conditions: 'wizard.conditions', actions: 'wizard.actions', review: 'wizard.review'};
@@ -199,7 +200,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         $('back').hidden = !step || wizardStep === 0;
         $('next').hidden = !step || step === 'review';
         $('submit').hidden = Boolean(step && step !== 'review');
-        $('reload').hidden = Boolean(step);
+        $('reload').hidden = Boolean(step && !wizardStale);
         if (step) {
             const heading = node('h3', () => t('wizard.step', {number: wizardStep + 1, total: wizardSteps.length, title: t(wizardLabels[step])}));
             heading.tabIndex = -1;
@@ -295,7 +296,8 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
     const changes = () => sequenceMode ? sequenceChanges(original, working) : ruleChanges(original, working);
     function open(entry, sequence = entry.kind === 'sequence', creating = false) {
         sequenceMode = sequence; creatingSequence = creating && sequence; creatingRule = creating && !sequence;
-        wizardStep = 0;
+        wizardStep = 0; wizardStale = false;
+        bindText($('reload'), () => t("ui.reload.and.discard.input.56f16c4b"));
         original = copy(entry); delete original.kind; working = copy(original);
         if (creatingSequence) working.actions = [newItem('actions', 'set')];
         if (creatingRule) { working.triggers = [newItem('triggers', 'device')]; working.actions = [newItem('actions', 'set')]; }
@@ -348,6 +350,30 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
     $('cancel').addEventListener('click', () => { if (!busy) dialog.close(); });
     dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); });
     $('reload').addEventListener('click', async () => {
+        if (inWizard()) {
+            if (busy || !wizardStale) return;
+            busy = true;
+            $('reload').disabled = true;
+            try {
+                if (await reload() && editorKey() === pendingKey && getData()?.createAllowed) {
+                    const headers = systemHeaders(getData());
+                    if (headers['X-Z2MA-System-ID'] === boundHeaders['X-Z2MA-System-ID']
+                        && headers['X-Z2MA-Generation'] === boundHeaders['X-Z2MA-Generation']) {
+                        context = getData().createContext; boundHeaders = headers;
+                        wizardStale = false; renderFields(); remember();
+                        hint(() => t('wizard.refreshed'));
+                        (wizardStep === wizardSteps.length - 1 ? $('submit') : $('next')).focus();
+                        return;
+                    }
+                }
+                hint(() => t('wizard.refreshFailed'));
+            } finally {
+                busy = false;
+                $('reload').disabled = false;
+                $('submit').disabled = wizardStale || !canSave();
+            }
+            return;
+        }
         if (busy || (Object.keys(changes()).length && !confirm(t("ui.discard.your.input.and.load.d4dbc666")))) return;
         if (await reload()) {
             if (creatingSequence) { open({id: '', name: '', actions: []}, true, true); return; }
@@ -358,7 +384,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         else hint(() => (t("ui.the.view.could.not.be.3bee7031")));
     });
     $('form').addEventListener('submit', async event => {
-        event.preventDefault(); if (busy || !canSave()) return;
+        event.preventDefault(); if (busy || wizardStale || !canSave()) return;
         if (inWizard() && wizardStep < wizardSteps.length - 1) { moveWizard(1); return; }
         const payload = creatingRule ? {requestId, context, rule: creationRule(working)} : {requestId, context, [sequenceMode ? 'sequenceId' : 'ruleId']: original.id, changes: changes()};
         const controls = [...dialog.querySelectorAll('button, input, select')].map(element => [element, element.disabled]);
@@ -368,10 +394,22 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             const endpoint = new URL(sequenceMode ? 'sequence' : creatingRule ? 'create' : 'edit', location.href); endpoint.hash = '';
             const response = await fetch(endpoint, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Z2MA-Read-Token': location.hash.slice(1), ...boundHeaders}, body: JSON.stringify(payload), credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal});
             const text = await response.text(); if (text.length > 4096) throw new Error('transport'); const result = localizeResponse(JSON.parse(text));
-            if (!response.ok) { hint(() => (result.message || t("ui.the.change.could.not.be.dbe4cffb"))); return; }
+            if (!response.ok) {
+                if (inWizard() && result.error === 'draftStale') {
+                    wizardStale = true;
+                    bindText($('reload'), () => t('wizard.refresh'));
+                    $('reload').hidden = false;
+                    hint(() => t('wizard.stale'));
+                } else hint(() => (result.message || t("ui.the.change.could.not.be.dbe4cffb")));
+                return;
+            }
             dialog.close(); if (sequenceMode) await onSequenceSaved(result.sequenceId); else if (creatingRule) await onCreated(result.ruleId); else await onEdited(result.ruleId);
         } catch { hint(() => (t("ui.no.confirmation.from.the.module.7daee70c"))); }
-        finally { clearTimeout(timer); busy = false; for (const [element, disabled] of controls) element.disabled = disabled; }
+        finally {
+            clearTimeout(timer); busy = false;
+            for (const [element, disabled] of controls) element.disabled = disabled;
+            if (wizardStale && dialog.open) { $('submit').disabled = true; $('reload').focus(); }
+        }
     });
     return {refresh() {
         if (isDesktop() && getData()?.desktop?.project) {
