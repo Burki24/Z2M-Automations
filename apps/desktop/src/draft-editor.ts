@@ -4,7 +4,7 @@ import type {MqttReader} from './mqtt-reader.js';
 import {exact, validId, type ProjectSystem, type Configuration} from './project.js';
 import {editorDevices, checkCapabilities, checkedDocument, digestPattern, uniqueTopic, type Entry} from './draft-validation.js';
 
-const routes = ['create', 'edit', 'create-yaml', 'edit-yaml', 'sequence', 'manage', 'permissions-status', 'permissions', 'import', 'export', 'adopt', 'editor-state', 'check-draft'] as const;
+const routes = ['create', 'edit', 'sequence', 'manage', 'permissions-status', 'permissions', 'import', 'export', 'adopt', 'editor-state', 'check-draft'] as const;
 export interface DesignerCommand {route: typeof routes[number]; systemId: string; generation: number; fingerprint: string; payload: Entry}
 export const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export function validDesignerCommand(value: unknown): value is DesignerCommand {
@@ -40,7 +40,8 @@ export class DraftEditor {
   system(command: DesignerCommand): ProjectSystem {
     if (!this.projects.active) throw new Error('noProject');
     const system = this.projects.data().systems.find(system => system.id === command.systemId);
-    if (!system || command.generation !== this.projects.generation() + 1 || command.route !== 'adopt' && this.reader.source(system.id) !== 'draft'
+    const requiresDraftView = command.route !== 'adopt' && command.route !== 'export';
+    if (!system || command.generation !== this.projects.generation() + 1 || requiresDraftView && this.reader.source(system.id) !== 'draft'
       || command.fingerprint !== this.context(system)) throw new Error('draftStale');
     return system;
   }
@@ -138,26 +139,12 @@ export class DraftEditor {
     if (key) { this.replies.set(key, {signature, reply: structuredClone(reply)}); if (this.replies.size > 32) this.replies.delete(this.replies.keys().next().value!); }
     return reply;
   }
-  private nextRevision(system: ProjectSystem): number {
+  save(system: ProjectSystem, configuration: Configuration): void {
     const revision = system.configuration.revision + 1;
     if (!Number.isSafeInteger(revision)) throw new Error('draftLimit');
-    return revision;
-  }
-  save(system: ProjectSystem, configuration: Configuration): void {
-    configuration.revision = this.nextRevision(system);
+    configuration.revision = revision;
     this.projects.replaceDraft(system.id, configuration);
     this.reader.reconcile(this.projects.data(), this.projects.generation());
     this.reader.view(system.id, 'draft');
-  }
-  export(command: DesignerCommand): Configuration {
-    const system = this.system(command);
-    const {route, payload} = command;
-    if (route === 'export' && exact(payload, [])) return system.configuration;
-    if (route !== 'create-yaml' && route !== 'edit-yaml') throw new Error('invalidRequest');
-    if (!validId(payload['requestId']) || String(payload['requestId']).startsWith('example') || payload['context'] !== this.context(system)) throw new Error('draftStale');
-    const configuration = structuredClone(system.configuration);
-    this.applyEntry(route === 'create-yaml' ? 'create' : 'edit', payload, system, configuration);
-    configuration.revision = this.nextRevision(system);
-    return configuration;
   }
 }

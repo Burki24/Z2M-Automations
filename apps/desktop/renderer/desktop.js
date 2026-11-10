@@ -34,7 +34,7 @@ installTransport({kind: 'desktop', request: async (input, init = {}) => {
         value = {ok: true};
     }
     else if (route === '/language' && method === 'POST') value = await bridge.language(JSON.parse(init.body));
-    else if (['/create', '/edit', '/create-yaml', '/edit-yaml', '/sequence', '/manage', '/permissions', '/permissions-status'].includes(route) && method === (route === '/permissions-status' ? 'GET' : 'POST')) {
+    else if (['/create', '/edit', '/sequence', '/manage', '/permissions', '/permissions-status'].includes(route) && method === (route === '/permissions-status' ? 'GET' : 'POST')) {
         const headers = new Headers(init.headers);
         const result = await bridge.designer({route: route.slice(1), systemId: headers.get('X-Z2MA-System-ID'),
             generation: Number(headers.get('X-Z2MA-Generation')), fingerprint: headers.get('X-Z2MA-Fingerprint'), payload: method === 'POST' ? JSON.parse(init.body) : {}});

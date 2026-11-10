@@ -13,8 +13,7 @@
 .desktop-foundation:not(.desktop-editable) .entry-tools,
 .desktop-foundation:not(.desktop-editable) .inspector-edit,
 .desktop-foundation .designer-controls { display: none !important; }
-.desktop-foundation .app-header select,
-.desktop-foundation .rule-edit-dialog .designer-language select {
+.desktop-foundation .app-header select {
   background: var(--surface-soft);
   color: var(--ink);
   border: 1px solid var(--line-strong);
@@ -31,10 +30,6 @@
 }
 .desktop-foundation .rule-edit-dialog .dialog-actions {
   position: static; flex: none; align-items: center; margin: 0; padding: .65rem clamp(.9rem, 2vw, 1.6rem);
-}
-.desktop-foundation .rule-edit-dialog .designer-language { margin-inline-end: auto; }
-@media (max-width: 700px) {
-  .desktop-foundation .rule-edit-dialog .designer-language { grid-column: 1 / -1; }
 }
 .desktop-foundation { display: flex; flex-direction: column; min-height: 100dvh; }
 .desktop-shell {

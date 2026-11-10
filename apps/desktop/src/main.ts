@@ -88,7 +88,7 @@ async function designer(command: DesignerCommand): Promise<unknown> {
   const context = {operation: 'draft' as const, ...(typeof command.payload['requestId'] === 'string' ? {transaction: command.payload['requestId']} : {})};
   debug.record('draftRequest', command.systemId, undefined, context);
   try {
-    const result = await (['import', 'export', 'adopt', 'create-yaml', 'edit-yaml'].includes(command.route) ? exchange.command(command) : drafts.command(command));
+    const result = await (['import', 'export', 'adopt'].includes(command.route) ? exchange.command(command) : drafts.command(command));
     debug.record('draftCompleted', command.systemId, undefined, context); return result;
   } catch (error) { debug.record('draftRejected', command.systemId, undefined, context); throw error; }
 }
@@ -318,6 +318,12 @@ async function open(): Promise<void> {
       const bridge = window.z2maDesktop;
       const header = document.querySelector('.app-header');
       await wait(() => header.querySelector('.brand-mark img')?.naturalWidth > 0);
+      if (!document.querySelector('#desktop-view-draft #draft-export') || document.querySelector('#edit-export')) {
+        throw new Error('Desktop YAML export belongs only in the starting point step.');
+      }
+      if (!header.querySelector('#designer-language') || document.querySelectorAll('[data-language-picker]').length !== 1) {
+        throw new Error('The desktop header must be the sole language picker.');
+      }
       const navigation = document.querySelector('.desktop-steps');
       const stepTargets = [...(navigation?.querySelectorAll('ol button') ?? [])].map(button => button.getAttribute('aria-controls'));
       if (stepTargets.join(',') !== ['project', 'broker', 'system', 'connection', 'draft', 'automations', 'review', 'transfer'].map(key => 'desktop-view-' + key).join(',')) {

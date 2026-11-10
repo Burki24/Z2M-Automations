@@ -49,19 +49,24 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         <p id="edit-system" class="field-help"></p><p id="edit-usage" hidden></p>
         <div id="edit-fields"></div>
         <p id="edit-message" role="status" aria-live="polite" hidden></p>
-        <p id="edit-export-help" class="field-help">${t('editor.exportHelp')}</p>
+        ${desktop ? '' : `<p id="edit-export-help" class="field-help">${t('editor.exportHelp')}</p>`}
         ${desktop ? '</div>' : ''}
         <div class="dialog-actions">
             <button type="button" id="edit-reload">${t("ui.reload.and.discard.input.56f16c4b")}</button>
             <button type="button" id="edit-submit">${t("ui.apply.changes.to.draft.1e42a9b6")}</button>
             <button type="button" id="edit-cancel">${t("ui.cancel.f7ff1178")}</button>
-            <button type="submit" id="edit-export" class="primary" aria-describedby="edit-export-help">${t('editor.export')}</button>
+            ${desktop ? '' : `<button type="submit" id="edit-export" class="primary" aria-describedby="edit-export-help">${t('editor.export')}</button>`}
         </div>
     </form>`);
-    if (desktop) dialog.querySelector('.dialog-actions').prepend(dialog.querySelector('[data-language-picker]'));
     document.body.append(dialog);
     const $ = name => dialog.querySelector('#edit-' + name);
     const scrollArea = $('content') ?? dialog;
+    const submit = $('submit');
+    const exportButton = $('export');
+    const setSubmitDisabled = disabled => {
+        submit.disabled = disabled;
+        if (exportButton) exportButton.disabled = disabled;
+    };
     let original; let working; let context; let requestId; let busy = false; let serial = 0; let sequenceMode = false; let creatingSequence = false; let creatingRule = false; let boundHeaders = {}; let sorting;
     let boundTopic = '';
     let stale = false;
@@ -360,12 +365,14 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             : t("ui.no.automation.uses.this.sequence.2be0e305"));
         $('fields').replaceChildren();
         renderFields(); hint();
-        $('export').hidden = $('export-help').hidden = sequenceMode;
-        $('export').type = sequenceMode ? 'button' : 'submit';
-        $('submit').type = sequenceMode ? 'submit' : 'button';
-        $('submit').classList.toggle('primary', sequenceMode);
-        bindText($('submit'), () => creatingRule ? t("ui.add.to.draft.disabled.aea3e1b7") : creatingSequence ? t("ui.apply.action.sequence.to.draft.e6ecbfcd") : t("ui.apply.changes.to.draft.1e42a9b6"));
-        $('submit').disabled = $('export').disabled = !canSave();
+        if (exportButton) {
+            exportButton.hidden = $('export-help').hidden = sequenceMode;
+            exportButton.type = sequenceMode ? 'button' : 'submit';
+        }
+        submit.type = desktop || sequenceMode ? 'submit' : 'button';
+        submit.classList.toggle('primary', desktop || sequenceMode);
+        bindText(submit, () => creatingRule ? t("ui.add.to.draft.disabled.aea3e1b7") : creatingSequence ? t("ui.apply.action.sequence.to.draft.e6ecbfcd") : t("ui.apply.changes.to.draft.1e42a9b6"));
+        setSubmitDisabled(!canSave());
         if (!dialog.open) dialog.showModal();
         $('fields').querySelector('input')?.focus();
         if (isDesktop()) { pendingKey = editorKey(); remember(); document.dispatchEvent(new CustomEvent('z2ma-editor-pending', {detail: true})); }
@@ -407,8 +414,8 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             } finally {
                 busy = false;
                 $('reload').disabled = false;
-                $('submit').disabled = $('export').disabled = stale || !canSave();
-                if (!stale) $('export').focus();
+                setSubmitDisabled(stale || !canSave());
+                if (!stale) (exportButton ?? submit).focus();
             }
             return;
         }
@@ -416,7 +423,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         if (await reload() && sameBinding(systemHeaders(getData()))) {
             if (creatingSequence) { open({id: '', name: '', actions: []}, true, true); return; }
             const entry = (sequenceMode ? getData().configuration?.sequences : getData().configuration?.automations)?.find(item => item.id === original.id);
-            if (entry) open(entry, sequenceMode); else { hint(() => t("ui.this.entry.has.since.been.e34960cd")); $('submit').disabled = $('export').disabled = true; }
+            if (entry) open(entry, sequenceMode); else { hint(() => t("ui.this.entry.has.since.been.e34960cd")); setSubmitDisabled(true); }
         }
         else hint(() => (t("ui.the.view.could.not.be.3bee7031")));
     });
@@ -469,7 +476,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         busy = true; for (const [element] of controls) element.disabled = true;
         hint(() => t(exporting ? 'editor.exporting' : 'ui.checking.changes.and.applying.them.1a7c8c07'));
         const controller = new AbortController();
-        const timer = exporting && isDesktop() ? null : setTimeout(() => controller.abort(), 15000);
+        const timer = setTimeout(() => controller.abort(), 15000);
         try {
             const route = sequenceMode ? 'sequence' : creatingRule ? 'create' : 'edit';
             const endpoint = new URL(exporting ? route + '-yaml' : route, location.href); endpoint.hash = '';
@@ -478,18 +485,17 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             if (text.length > (exporting && response.ok ? 1048576 : 4096)) throw new Error('transport');
             const result = localizeResponse(JSON.parse(text));
             if (!response.ok) {
-                if (!sequenceMode && (isDesktop() ? result.error === 'draftStale' : response.status === 409)) {
+                if (!sequenceMode && (desktop ? result.error === 'draftStale' : response.status === 409)) {
                     stale = true;
                     if (creatingRule) bindText($('reload'), () => t('wizard.refresh'));
                     $('reload').hidden = false;
-                    hint(() => !isDesktop() && result.message ? result.message : t(creatingRule ? 'wizard.stale' : 'editor.staleEdit'));
+                    hint(() => !desktop && result.message ? result.message : t(creatingRule ? 'wizard.stale' : 'editor.staleEdit'));
                 } else hint(() => result.message || t(exporting ? 'editor.exportFailed' : 'ui.the.change.could.not.be.dbe4cffb'));
                 return;
             }
             if (exporting) {
-                if (!isDesktop()) downloadYaml(result.yaml);
-                else if (result.ok !== true) throw new Error('invalid export');
-                hint(() => t(result.canceled ? 'editor.exportCanceled' : isDesktop() ? 'editor.exported' : 'editor.downloadStarted'));
+                downloadYaml(result.yaml);
+                hint(() => t(result.canceled ? 'editor.exportCanceled' : 'editor.downloadStarted'));
                 return;
             }
             closeEditor(); if (sequenceMode) await onSequenceSaved(result.sequenceId); else if (creatingRule) await onCreated(result.ruleId); else await onEdited(result.ruleId);
@@ -500,16 +506,16 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             if (dialog.open && (desktop || exporting || stale)) {
                 $('message').scrollIntoView({block: 'nearest'});
                 if (stale) {
-                    $('submit').disabled = $('export').disabled = true;
+                    setSubmitDisabled(true);
                     $('reload').focus({preventScroll: true});
-                } else if (exporting) $('export').focus({preventScroll: true});
+                } else if (exporting) exportButton.focus({preventScroll: true});
             }
         }
     }
-    $('submit').addEventListener('click', () => { if (!sequenceMode) void apply(false); });
+    if (!desktop) submit.addEventListener('click', () => { if (!sequenceMode) void apply(false); });
     $('form').addEventListener('submit', event => {
         event.preventDefault();
-        void apply(!sequenceMode);
+        void apply(!desktop && !sequenceMode);
     });
     function openFinding(entry, path, reason) {
         if (busy || dialog.open || !(entry.kind === 'sequence' ? getData()?.sequenceAllowed : getData()?.editAllowed)) return false;

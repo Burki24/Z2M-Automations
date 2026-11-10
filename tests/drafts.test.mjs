@@ -88,6 +88,7 @@ test('sequence references, expanded steps and accumulated delay are bounded; del
 test('draft IPC rejects unknown operations, extra routing fields, oversized payloads and stored-view editing', async () => {
   const s = await setup(); const command = s.command('create', {rule: s.rule()});
   assert.equal(validDesignerCommand(command), true);
+  for (const route of ['create-yaml', 'edit-yaml']) assert.equal(validDesignerCommand({...command, route}), false);
   for (const invalid of [{...command, route: 'publish'}, {...command, path: 'private'}, {...command, payload: {value: 'x'.repeat(140000)}}]) assert.equal(validDesignerCommand(invalid), false);
   s.views.set(s.id, 'stored'); assert.throws(() => s.send('create', {rule: s.rule()}), /draftStale/);
   s.views.set(s.id, 'draft'); s.service.editorState(true); await assert.rejects(s.service.command({action: 'save'}), /applyFirst/); s.service.editorState(false);
@@ -119,37 +120,33 @@ test('adopting stored state requires a private backup and never changes stored d
   assert.deepEqual(s.system().stored, before.stored); assert.equal(s.system().configuration.automations[0].enabled, false);
   assert.equal(s.system().configuration.automations[0].id, 'remote-rule');
 });
-test('form YAML exports the complete selected draft without saving or replacing any project data', async t => {
+test('YAML exports the complete local draft without saving or changing the selected source', async t => {
   const s = await setup();
-  const dir = await mkdtemp(join(tmpdir(), 'z2ma-form-')); t.after(() => rm(dir, {recursive: true, force: true}));
+  const dir = await mkdtemp(join(tmpdir(), 'z2ma-export-')); t.after(() => rm(dir, {recursive: true, force: true}));
   const path = join(dir, 'automations.yaml');
   const existing = s.send('create', {rule: s.rule()});
   s.send('edit', {ruleId: existing.ruleId, changes: {enabled: true}});
+  s.send('create', {rule: {...s.rule(), name: 'New local rule'}});
+  s.views.set(s.id, 'stored');
   const before = s.service.data();
   const draft = before.systems[0].configuration;
-  const payload = {requestId: randomUUID(), context: s.editor.context(s.system())};
-  const create = s.command('create-yaml', {...payload, rule: {...s.rule(), name: 'New from form'}});
+  const command = s.command('export');
   const dialogs = {chooseImport: async () => null, chooseExport: async () => null, chooseBackup: async () => null, confirm: async () => true};
   const exchange = new DraftExchange(s.service, s.editor, dialogs);
-  assert.deepEqual(await exchange.command(create), {ok: true, canceled: true});
+  assert.deepEqual(await exchange.command(command), {ok: true, canceled: true});
   await assert.rejects(readFile(path), {code: 'ENOENT'});
   dialogs.chooseExport = async () => path;
-  await exchange.command(create);
+  await exchange.command(command);
   const exported = importDraft(await readFile(path));
-  assert.equal(exported.revision, draft.revision + 1);
-  assert.deepEqual(exported.automations[0], draft.automations[0]);
-  assert.equal(exported.automations[1].name, 'New from form');
-  assert.equal(exported.automations[1].enabled, false);
-  await exchange.command(s.command('edit-yaml', {...payload, ruleId: existing.ruleId, changes: {name: 'Edited for export'}}));
-  const edited = importDraft(await readFile(path));
-  assert.deepEqual(edited.automations, [{...draft.automations[0], name: 'Edited for export'}]);
+  assert.deepEqual(exported, draft);
   assert.deepEqual(s.service.data(), before);
+  assert.equal(s.reader.source(s.id), 'stored');
   dialogs.chooseExport = async () => {
-    s.send('edit', {ruleId: existing.ruleId, changes: {name: 'Changed while choosing a file'}});
+    await s.service.command({action: 'draft', systemId: s.id, operation: 'rename', ruleId: existing.ruleId, name: 'Changed while choosing a file'});
     return path;
   };
-  await assert.rejects(exchange.command(create), /draftStale/);
-  assert.deepEqual(importDraft(await readFile(path)), edited);
+  await assert.rejects(exchange.command(command), /draftStale/);
+  assert.deepEqual(importDraft(await readFile(path)), exported);
 });
 test('the consumed schema artifact matches its recorded provenance', async () => {
   const base = new URL('../apps/desktop/schema/', import.meta.url); const provenance = JSON.parse(await readFile(new URL('provenance.json', base)));

@@ -13,8 +13,9 @@ acceptance target. Development packages are unsigned.
   See [Windows installation](WINDOWS_INSTALLER.md).
 - **Ubuntu.** From a terminal in the directory containing the package, use
   `sudo apt install ./<package>.deb`, replacing the placeholder with the exact
-  file name. Start Z2M-Automations from the application menu. The application
-  language is configurable in the designer.
+  file name. Start Z2M-Automations from the application menu.
+
+Use **Language** in the app header to choose German or English.
 
 ## Work with a project
 
@@ -33,13 +34,13 @@ reading, editing, checking and transfer.
 4. **Connect and read Z2M state.** Read devices and the stored configuration.
    The bundled extension is available under **Z2M extension** when needed.
 5. **Choose a starting point.** Edit the local draft, import a YAML or JSON
-   file, or copy the configuration stored in Z2M into the draft. Copy the
-   stored configuration first if you want to add to existing rules. Replacing
-   a draft requires a project backup.
+   file, or copy the configuration stored in Z2M into the draft. **Export
+   draft YAML** creates an optional file from the selected system's local
+   draft. Copy the stored configuration first if you want to add to existing
+   rules. Replacing a draft requires a project backup.
 6. **Edit automations.** Enter a name, a trigger, optional conditions and
-   actions. **Create YAML** saves the complete draft to a YAML file. **Add to
-   draft disabled** adds the new rule to the local project. Save the project
-   in step 1 to keep those changes.
+   actions. **Add to draft disabled** adds the new rule to the local project.
+   Save the project in step 1 to keep those changes.
 7. **Check draft.** The check is also available directly from step 6. Use a
    finding's **Go to the draft field** button to correct the affected entry.
    An offline check covers the local format. Read the system in step 4 and

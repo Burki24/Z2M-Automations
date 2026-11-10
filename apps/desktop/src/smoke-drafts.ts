@@ -26,12 +26,12 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     await wait(() => [...document.querySelectorAll('#entry-list .entry')].some(element => element.textContent.includes('D4 smoke rule')));
     [...document.querySelectorAll('#entry-list .entry')].find(element => element.textContent.includes('D4 smoke rule')).click();
     await wait(() => document.querySelector('#entry-title').textContent === 'D4 smoke rule');
+    const picker = document.querySelector('#designer-language'); picker.value = 'de'; picker.dispatchEvent(new Event('change', {bubbles: true}));
+    await wait(() => document.documentElement.lang === 'de');
     document.querySelector('#edit-automation-button').click();
     await wait(() => document.querySelector('#edit-dialog').open);
+    assert(document.querySelector('#edit-submit').textContent === 'Änderungen in den Entwurf übernehmen', 'the editor uses the header language');
     const name = document.querySelector('#edit-fields input'); name.value = 'D4 preserved input'; name.dispatchEvent(new Event('input', {bubbles: true}));
-    const picker = document.querySelector('#edit-dialog [data-language-picker] select'); picker.value = 'de'; picker.dispatchEvent(new Event('change', {bubbles: true}));
-    await wait(() => document.documentElement.lang === 'de');
-    assert(name.value === 'D4 preserved input', 'language lost draft');
     await wait(() => Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.') && sessionStorage.getItem(key).includes('D4 preserved input')));
   })()`);
   const window = BrowserWindow.fromWebContents(view);
@@ -57,7 +57,7 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
         if ((narrow && !content.scrollTop) || footer.getBoundingClientRect().top !== top
           || content.getBoundingClientRect().bottom > top + 1
           || footer.getBoundingClientRect().bottom > dialog.getBoundingClientRect().bottom + 1
-          || dialog.querySelector('#edit-export-help').getBoundingClientRect().bottom > top + 1) {
+          || content.querySelector('[data-section="settings"] > summary').getBoundingClientRect().bottom > top + 1) {
           throw new Error('The draft footer must stay visible and leave the last form content reachable.');
         }
         content.scrollTop = 0;
@@ -97,31 +97,23 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     assert((await bridge.snapshot()).desktop.source === 'draft', 'form did not switch to draft');
     const sections = [...document.querySelectorAll('#edit-fields details[data-section]')];
     assert(sections[0].open && !sections[1].open && sections[2].open, 'form sections not initially arranged for entry');
-    click('export');
+    const submit = document.querySelector('#edit-submit');
+    assert(submit.type === 'submit' && submit.classList.contains('primary'), 'adding to the draft is the primary form action');
+    click('submit');
     const name = () => document.querySelector('#edit-fields input');
     assert(name().getAttribute('aria-invalid') === 'true' && document.activeElement === name(), 'missing name not marked and focused');
     set(name(), 'Form smoke rule');
     set(document.querySelector('[data-section="triggers"] fieldset select'), 'time');
     set(document.querySelector('[data-section="actions"] fieldset select'), 'sequence');
     set(document.querySelectorAll('[data-section="actions"] fieldset select')[1], result.state.sequenceId);
-    const beforeExport = (await bridge.snapshot()).configuration;
-    click('export');
-    await wait(() => !document.querySelector('#edit-export').disabled, 'Direct YAML export did not complete');
-    assert(document.querySelector('#edit-message').textContent.includes('YAML-Datei gespeichert.'),
-      'unexpected export status: ' + document.querySelector('#edit-message').textContent);
-    assert(document.querySelector('#edit-dialog').open && name().value === 'Form smoke rule', 'export closed or cleared the form');
-    assert(JSON.stringify((await bridge.snapshot()).configuration) === JSON.stringify(beforeExport), 'export changed the local draft');
     assert((await bridge.project({action: 'draft', systemId: context.systemId, operation: 'new', ruleId: '', name: 'Concurrent draft'})).ok, 'simulate a changed draft');
-    click('export');
-    await wait(() => !document.querySelector('#edit-reload').hidden && !document.querySelector('#edit-reload').disabled);
-    assert(document.querySelector('#edit-dialog').open && document.querySelector('#edit-submit').disabled && document.querySelector('#edit-export').disabled, 'form did not pause on stale context');
-    click('reload');
-    await wait(() => !document.querySelector('#edit-submit').disabled);
-    assert(name().value === 'Form smoke rule', 'refresh lost form input');
-    click('export');
-    await wait(() => !document.querySelector('#edit-export').disabled);
-    assert(document.querySelector('#edit-message').textContent.includes('Concurrent draft'), 'export omitted the invalid existing rule');
     click('submit');
+    await wait(() => !document.querySelector('#edit-reload').hidden && !document.querySelector('#edit-reload').disabled);
+    assert(document.querySelector('#edit-dialog').open && submit.disabled, 'form did not pause on stale context');
+    click('reload');
+    await wait(() => !submit.disabled);
+    assert(name().value === 'Form smoke rule', 'refresh lost form input');
+    document.querySelector('#edit-form').requestSubmit();
     await wait(async () => (await bridge.snapshot()).configuration.automations.some(rule => rule.name === 'Form smoke rule' && !rule.enabled));
     await wait(() => !document.querySelector('#edit-dialog').open);
     await wait(() => !Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.')));
@@ -184,6 +176,20 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     await wait(() => !document.querySelector('#edit-dialog').open && findings.hidden);
     await wait(() => document.querySelector('#feedback').textContent.includes('Änderung im lokalen Entwurf übernommen.'),
       'Correction did not confirm the applied local change');
+    navigate('draft');
+    document.querySelector('#mqtt-stored').click();
+    await wait(() => document.body.classList.contains('desktop-stored-view'));
+    navigate('draft');
+    const exportButton = pane('draft').querySelector('#draft-export');
+    const exportFeedback = exportButton.closest('.desktop-card').querySelector('[role="status"]');
+    const beforeExport = (await bridge.project({action: 'status'})).state.project;
+    assert(!exportButton.hidden && !exportButton.disabled, 'the local draft can be exported from step 5 while viewing stored state');
+    exportButton.click();
+    await wait(() => exportFeedback.textContent.includes('YAML-Datei gespeichert.'), 'Optional YAML export did not complete');
+    assert(JSON.stringify((await bridge.project({action: 'status'})).state.project) === JSON.stringify(beforeExport)
+      && (await bridge.snapshot()).desktop.source === 'stored', 'export changed the project or displayed source');
+    document.querySelector('#mqtt-draft').click();
+    await wait(() => !document.body.classList.contains('desktop-stored-view') && !review.hasAttribute('aria-busy'));
     assert(transfer.disabled, 'editing alone does not authorize a transfer');
     await disconnect();
     await checkDraft();
@@ -203,9 +209,10 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     await wait(() => transfer.disabled && document.querySelector('#desktop-transfer-message').textContent.includes('hat sich geändert.'));
   })()`);
   const yaml = importDraft(await readFile(exportPath));
-  const [existing, added] = yaml.automations;
+  const added = yaml.automations.find(rule => rule['name'] === 'Form smoke rule');
   const actions = added?.['actions'];
-  if (yaml.automations.length !== 2 || existing?.['name'] !== 'D4 preserved input' || added?.['name'] !== 'Form smoke rule' || added['enabled'] !== false
+  if (yaml.automations.length !== 3 || !yaml.automations.some(rule => rule['name'] === 'D4 preserved input')
+    || !yaml.automations.some(rule => rule['name'] === 'Concurrent draft') || added?.['enabled'] !== false
     || !Array.isArray(actions) || (actions[0] as {sequence_id?: string} | undefined)?.sequence_id !== yaml.sequences[0]?.['id']) {
     throw new Error('Exported YAML lost the existing rule, new disabled rule or sequence');
   }
