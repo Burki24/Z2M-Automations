@@ -106,6 +106,13 @@ html:has(.desktop-foundation) { scroll-padding-block-start: calc(var(--desktop-s
 .desktop-debug li { padding: .3rem 0; overflow-wrap: anywhere; }
 
 .project-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.project-overview ul { display: grid; gap: .35rem; margin: .65rem 0 0; padding: 0; list-style: none; }
+.project-overview button {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1.25fr);
+  align-items: center; gap: .6rem; width: 100%; padding: .6rem .75rem; text-align: start;
+}
+.project-overview button > span { color: var(--muted); font-size: .875rem; }
+.project-overview button[aria-current="true"] { border-color: var(--primary); background: var(--primary-soft); }
 .project-form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; margin-block: 1rem; padding-block: .75rem; border-top: 1px solid var(--line); }
 #project-credentials-form { margin-block-start: 0; margin-inline-start: .75rem; border-top: 0; border-inline-start: 2px solid var(--line); padding-inline-start: .75rem; }
 .project-form[hidden] { display: none; }
@@ -126,6 +133,7 @@ html:has(.desktop-foundation) { scroll-padding-block-start: calc(var(--desktop-s
   .desktop-foundation .workspace .canvas-scroll { max-height: 65dvh; overflow-y: auto; }
 }
 @container desktop-page (max-width: 42rem) {
+  .project-overview button { grid-template-columns: minmax(0, 1fr); gap: .2rem; }
   .desktop-foundation .workspace { display: flex; flex-direction: column; gap: .75rem; }
   .desktop-foundation .workspace > .panel { width: 100%; }
   .desktop-foundation .workspace .navigation { max-height: none; }

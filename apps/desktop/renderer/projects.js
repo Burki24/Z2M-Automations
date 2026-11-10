@@ -1,4 +1,4 @@
-import {t, bindText, onLanguageChange, language} from './localization.js';
+import {t, bindText, onLanguageChange, language, sortByName} from './localization.js';
 
 // File paths and credential reads are intentionally absent from the renderer bridge.
 export async function installProjects(bridge, workspace) {
@@ -48,6 +48,8 @@ export async function installProjects(bridge, workspace) {
       }
       if (pending.size) await bridge.project({action: 'editing'});
       paintSecretState();
+      brokerOverview.markSelection();
+      systemOverview.markSelection();
     } catch { /* Never let unavailable or invalid session storage discard the project. */ }
   }
   const refresh = () => document.dispatchEvent(new Event('z2ma-project-changed'));
@@ -93,6 +95,58 @@ export async function installProjects(bridge, workspace) {
     }));
     if (entries.some(([value]) => value === previous)) element.value = previous;
   }
+  function overview(key, card, choice, nameField) {
+    const section = document.createElement('section'); section.className = 'project-overview';
+    const title = document.createElement('h2'); title.id = 'project-' + key + '-overview';
+    const empty = document.createElement('p'); empty.id = 'project-' + key + '-empty';
+    bindText(empty, () => t('desktop.overview.empty.' + key));
+    const list = document.createElement('ul'); list.id = 'project-' + key + '-list'; list.setAttribute('role', 'list');
+    section.setAttribute('aria-labelledby', title.id);
+    section.append(title, empty, list);
+    choice.form.before(section);
+
+    function markSelection() {
+      for (const row of list.querySelectorAll('button')) row.setAttribute('aria-current', String(row.dataset.entryId === choice.value));
+    }
+    function paint(entries) {
+      const signature = JSON.stringify(entries);
+      if (signature !== list.dataset.entries) {
+        list.dataset.entries = signature;
+        bindText(title, () => t('desktop.overview.' + key, {count: entries.length}));
+        empty.hidden = Boolean(entries.length);
+        list.hidden = !entries.length;
+        list.replaceChildren(...entries.map(([id, name, ...details]) => {
+          const item = document.createElement('li');
+          const row = document.createElement('button'); row.type = 'button'; row.dataset.entryId = id;
+          row.setAttribute('aria-controls', choice.form.id);
+          const label = document.createElement('strong'); label.textContent = name; row.append(label);
+          for (const detail of details) {
+            const text = document.createElement('span'); text.textContent = detail; row.append(text);
+          }
+          row.addEventListener('click', () => {
+            if (busy) return;
+            if (choice.value !== id) {
+              choice.value = id;
+              choice.dispatchEvent(new Event('change'));
+            }
+            if (choice.value === id) nameField.focus();
+            else card.querySelector('.setup-feedback').scrollIntoView({block: 'nearest'});
+          });
+          item.append(row);
+          return item;
+        }));
+      }
+      markSelection();
+    }
+    return {paint, markSelection};
+  }
+  function protectSelection(form, choice, card) {
+    if (!pending.has(form)) return false;
+    choice.value = form.dataset.selected ?? '';
+    show(card, 'project.applyFirst');
+    form.before(card.querySelector('.setup-feedback'));
+    return true;
+  }
   function resetForms() {
     for (const element of [nameForm, brokerForm, systemForm, credentialForm]) { element.reset(); element.dataset.selected = ''; }
     pending.clear();
@@ -117,8 +171,15 @@ export async function installProjects(bridge, workspace) {
         rememberForms();
       }
       paint(command.action === 'open');
-      if (command.action === 'broker') { brokerChoice.value = command.broker.id; brokerForm.dataset.selected = command.broker.id; paintSecretState(); }
-      if (command.action === 'system') { systemChoice.value = command.system.id; systemForm.dataset.selected = command.system.id; }
+      if (command.action === 'broker') {
+        brokerChoice.value = brokerForm.dataset.selected = command.broker.id;
+        brokerOverview.markSelection();
+        paintSecretState();
+      }
+      if (command.action === 'system') {
+        systemChoice.value = systemForm.dataset.selected = command.system.id;
+        systemOverview.markSelection();
+      }
       const key = ['save', 'saveAs'].includes(command.action) ? 'save' : command.action;
       show(card, 'desktop.setup.result.' + key, {name: command.broker?.name ?? command.system?.name ?? state.project.name});
       refresh();
@@ -146,12 +207,13 @@ export async function installProjects(bridge, workspace) {
   const brokerName = input(brokerForm, 'brokerName'); const host = input(brokerForm, 'host'); host.maxLength = 253;
   const port = input(brokerForm, 'port', 'number'); port.min = '1'; port.max = '65535'; port.defaultValue = '1883';
   const tls = input(brokerForm, 'tls', 'checkbox');
+  const brokerOverview = overview('broker', brokerGroup, brokerChoice, brokerName);
   brokerChoice.addEventListener('change', () => {
-    // Selecting an existing broker must not discard unfinished fields.
-    if (pending.has(brokerForm)) { brokerChoice.value = brokerForm.dataset.selected ?? ''; show(brokerGroup, 'project.applyFirst'); return; }
+    if (protectSelection(brokerForm, brokerChoice, brokerGroup)) return;
     brokerForm.dataset.selected = brokerChoice.value;
     const broker = state?.project.brokers.find(item => item.id === brokerChoice.value);
     brokerName.value = broker?.name ?? ''; host.value = broker?.host ?? ''; port.value = String(broker?.port ?? 1883); tls.checked = broker?.tls ?? false;
+    brokerOverview.markSelection();
     paintSecretState();
   });
   button(brokerForm, 'applyBroker', () => {
@@ -160,11 +222,13 @@ export async function installProjects(bridge, workspace) {
   const systemForm = form('system', systemGroup); const systemChoice = select(systemForm, 'systemChoice');
   const systemName = input(systemForm, 'systemName'); const systemBroker = select(systemForm, 'systemBroker'); systemBroker.required = true;
   const topic = input(systemForm, 'topic'); topic.maxLength = 256;
+  const systemOverview = overview('system', systemGroup, systemChoice, systemName);
   systemChoice.addEventListener('change', () => {
-    if (pending.has(systemForm)) { systemChoice.value = systemForm.dataset.selected ?? ''; show(systemGroup, 'project.applyFirst'); return; }
+    if (protectSelection(systemForm, systemChoice, systemGroup)) return;
     systemForm.dataset.selected = systemChoice.value;
     const system = state?.project.systems.find(item => item.id === systemChoice.value);
     systemName.value = system?.name ?? ''; systemBroker.value = system?.brokerId ?? ''; topic.value = system?.baseTopic ?? '';
+    systemOverview.markSelection();
   });
   button(systemForm, 'applySystem', () => {
     if (systemForm.reportValidity()) void run({action: 'system', system: {id: systemChoice.value || crypto.randomUUID(), name: systemName.value, brokerId: systemBroker.value, baseTopic: topic.value}}, systemForm);
@@ -210,6 +274,20 @@ export async function installProjects(bridge, workspace) {
     bindText(stateLabel, () => state?.active
       ? t(state.dirty ? 'desktop.fileUnsaved' : 'desktop.fileSaved', {name: state.project.name}) : t('desktop.noProjectHelp'));
   }
+  function paintOverviews() {
+    const {brokers, systems} = state.project;
+    const sortedSystems = sortByName(systems);
+    brokerOverview.paint(sortByName(brokers).map(({id, name, host, port, tls}) => {
+      const address = (host.includes(':') ? '[' + host + ']' : host) + ':' + port;
+      const assigned = sortedSystems.filter(system => system.brokerId === id).map(system => system.name);
+      return [id, name, address + ' · ' + t(tls ? 'desktop.overview.tls' : 'desktop.overview.plain'),
+        assigned.length ? t('desktop.overview.assigned', {names: assigned.join(', ')}) : t('desktop.overview.unassigned')];
+    }));
+    systemOverview.paint(sortedSystems.map(({id, name, brokerId, baseTopic}) => [
+      id, name, t('desktop.overview.brokerName', {name: brokers.find(broker => broker.id === brokerId)?.name ?? ''}),
+      t('desktop.overview.baseTopic', {topic: baseTopic})
+    ]));
+  }
   function paint(open = false) {
     paintFileState();
     workspace.updateProject(state, open);
@@ -222,6 +300,7 @@ export async function installProjects(bridge, workspace) {
     options(brokerChoice, state.project.brokers.map(broker => [broker.id, broker.name]), 'newBroker');
     options(systemChoice, state.project.systems.map(system => [system.id, system.name]), 'newSystem');
     options(systemBroker, state.project.brokers.map(broker => [broker.id, broker.name]), 'chooseBroker');
+    paintOverviews();
     const previous = mode.value;
     options(mode, [['session', t('project.session')], ...(state.protectedAvailable ? [['protected', t('project.protected')]] : [])], 'chooseMode');
     mode.value = previous === 'protected' && !state.protectedAvailable ? '' : previous;

@@ -9,7 +9,10 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     const field = (id, value) => { const element = document.querySelector('#project-' + id); element.value = value; element.dispatchEvent(new Event('input', {bubbles: true})); return element; };
     const click = id => document.querySelector('#project-' + id).click();
     const projectPanel = document.querySelector('#local-project');
+    const brokerPanel = document.querySelector('#desktop-setup-brokers');
     const systemPanel = document.querySelector('#desktop-setup-systems');
+    const brokers = () => [...brokerPanel.querySelectorAll('#project-broker-list button')];
+    const systems = () => [...systemPanel.querySelectorAll('#project-system-list button')];
     const pane = key => document.querySelector('#desktop-view-' + key);
     const navigate = key => document.querySelector('#desktop-nav-' + key).click();
     const next = (from, to) => pane(from).querySelector('.desktop-step-body > [data-step="' + to + '"]');
@@ -26,6 +29,7 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     await wait(() => !projectPanel.hasAttribute('aria-busy'), 'complete rename');
     next('project', 'broker').click();
     assert(pane('project').hidden && !pane('broker').hidden, 'setup shows only the selected step');
+    assert(brokerPanel.querySelector('#project-broker-empty')?.getClientRects().length, 'empty broker overview is visible');
     field('brokerName', 'Synthetic broker');
     navigate('automations');
     assert(pane('broker').hidden && pane('automations').querySelector('.desktop-step-body').hidden, 'automation step requires a configured system');
@@ -35,7 +39,9 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     await wait(async () => (await state()).project.brokers.length === 1, 'apply broker');
     await wait(() => !next('broker', 'system').hidden, 'show next system step');
     const brokerId = (await state()).project.brokers[0].id;
+    assert(brokers().length === 1 && brokers()[0].textContent.includes('broker.invalid:1883'), 'applied broker appears in the overview');
     next('broker', 'system').click();
+    assert(systemPanel.querySelector('#project-system-empty')?.getClientRects().length, 'empty system overview is visible');
     field('systemName', 'Synthetic system'); field('systemBroker', brokerId); field('topic', 'synthetic'); click('applySystem');
     await wait(async () => (await state()).project.systems.length === 1, 'apply first system');
     await wait(() => !systemPanel.hasAttribute('aria-busy'), 'complete first system');
@@ -44,6 +50,39 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     field('systemName', 'Second synthetic system'); field('systemBroker', brokerId); field('topic', 'synthetic-other'); click('applySystem');
     await wait(async () => (await state()).project.systems.length === 2, 'apply second system');
     await wait(() => !systemPanel.hasAttribute('aria-busy'), 'complete second system');
+    for (let number = 8; number >= 2; number--) {
+      const brokerId = crypto.randomUUID();
+      const result = await bridge.project({action: 'broker', broker: {
+        id: brokerId, name: 'Broker ' + number, host: 'broker' + number + '.invalid', port: 8883, tls: true
+      }});
+      assert(result.ok, 'create broker fixture ' + number);
+      if (number >= 3) {
+        const result = await bridge.project({action: 'system', system: {
+          id: crypto.randomUUID(), name: 'System ' + number, brokerId, baseTopic: 'synthetic-' + number
+        }});
+        assert(result.ok, 'create system fixture ' + number);
+      }
+    }
+    document.dispatchEvent(new Event('z2ma-project-changed'));
+    await wait(() => brokers().length === 8 && systems().length === 8, 'show all eight brokers and systems');
+    const listed = brokers();
+    assert(listed.map(row => row.querySelector('strong').textContent).join(',') ===
+      'Broker 2,Broker 3,Broker 4,Broker 5,Broker 6,Broker 7,Broker 8,Synthetic broker', 'broker overview is alphabetical');
+    assert(listed[7].textContent.includes('Second synthetic system') && listed[7].textContent.includes('Synthetic system'), 'broker overview identifies assigned systems');
+    const listedSystems = systems();
+    assert(listedSystems.map(row => row.querySelector('strong').textContent).join(',') ===
+      'Second synthetic system,Synthetic system,System 3,System 4,System 5,System 6,System 7,System 8', 'system overview is alphabetical');
+    const lastSystem = listedSystems[7];
+    assert(lastSystem.textContent.includes('Broker 8') && lastSystem.textContent.includes('synthetic-8'), 'system overview shows the broker and base topic');
+    lastSystem.click();
+    assert(lastSystem.getAttribute('aria-current') === 'true' && document.activeElement.id === 'project-systemName'
+      && document.querySelector('#project-topic').value === 'synthetic-8', 'selecting a system opens its saved settings');
+    field('topic', 'unfinished-topic');
+    listedSystems[0].click();
+    assert(lastSystem.getAttribute('aria-current') === 'true' && document.querySelector('#project-topic').value === 'unfinished-topic',
+      'selecting a different system preserves pending input');
+    field('topic', 'synthetic-8'); click('applySystem');
+    await wait(() => !systemPanel.hasAttribute('aria-busy'), 'apply system form');
     next('system', 'connection').click();
     assert(!pane('connection').hidden && (await bridge.snapshot()).status.mqttConnected === false, 'navigating to connection stays offline');
     navigate('project');
@@ -62,6 +101,19 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     assert((await state()).hasPath, 'file not saved');
     assert(projectPanel.querySelector('.setup-feedback').textContent.includes('Synthetic portable project'), 'the save message identifies the project');
     navigate('broker');
+    const lastAdded = brokers()[6];
+    lastAdded.click();
+    assert(lastAdded.getAttribute('aria-current') === 'true' && document.activeElement.id === 'project-brokerName'
+      && document.querySelector('#project-host').value === 'broker8.invalid'
+      && document.querySelector('#project-port').value === '8883' && document.querySelector('#project-tls').checked,
+      'selecting a broker opens its saved settings');
+    field('brokerName', 'Unfinished broker');
+    brokers()[7].click();
+    assert(lastAdded.getAttribute('aria-current') === 'true' && document.querySelector('#project-brokerName').value === 'Unfinished broker',
+      'selecting a different broker preserves pending input');
+    field('brokerName', 'Broker 8'); click('applyBroker');
+    await wait(() => !brokerPanel.hasAttribute('aria-busy'), 'apply broker form');
+    brokers()[7].click();
     assert(document.querySelector('#project-brokerChoice').value === brokerId, 'credential target is the selected broker');
     assert(document.querySelector('#project-broker-form').nextElementSibling.id === 'project-credentials-form', 'credentials follow broker settings');
     field('credentialMode', 'session'); click('storeCredentials');
@@ -75,6 +127,7 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     navigate('project');
     click('open');
     await wait(() => !pane('automations').hidden, 'open saved project into Automations');
+    assert(brokers().length === 8 && systems().length === 8, 'reopening the project restores both overviews');
     assert((await state()).project.name === 'Later draft', 'restore wrote disk');
     assert((await state()).credentials[brokerId] === 'none', 'session retained after reopen');
     const manual = await bridge.credential({brokerId, mode: 'session', source: 'manual'});
