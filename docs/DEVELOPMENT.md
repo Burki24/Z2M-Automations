@@ -27,34 +27,53 @@ dependencies. A complete `dpkg-query` installed-state check skips network access
 when all four build packages are present; a built DEB is never skipped this way.
 Updates use `--error-on=any`: failed indexes cannot silently reuse old metadata.
 Only transient acquisition failures are retried, at most twice per mirror and
-phase with a one-second delay. Runner-mirror calls have a 30-second limit;
-official calls have up to three minutes for cold indexes, within a shared
-six-minute acquisition budget plus bounded process shutdown. Signature, hash,
-TLS verification, dependency and process failures remain terminal.
+phase with a one-second delay. Calls have up to three minutes for cold indexes
+within a shared six-minute acquisition budget plus bounded process shutdown.
+The remaining budget is divided between the selected mirrors, so a stalled first
+mirror cannot consume the fallback's time. Signature, hash, TLS verification,
+dependency and process failures remain terminal.
 
 Before necessary acquisition, read-only probes run in the same sudo environment
-as APT. They check Azure's IPv4 DNS and both official HTTPS InRelease endpoints.
-APT uses IPv4 only when both IPv4 HTTPS probes succeed. Failed Azure DNS plus
-successful official probes selects the official route immediately. Probe success
-does not replace APT's signature/hash checks. Each probe has its own short timeout.
+as APT. They report Azure's IPv4 DNS result and probe the noble, noble-updates and
+noble-security HTTPS InRelease files on the official Ubuntu servers and the
+independently hosted [kernel.org](https://mirrors.kernel.org/) and
+[OSU Open Source Lab](https://ftp.osuosl.org/pub/ubuntu/) mirrors. Each curl probe
+has a three-second connection limit and eight-second total limit; logs distinguish
+DNS lookup, TCP connection and TLS handshake timings. Only complete, reachable
+repositories qualify, with at most two selected. IPv4 is selected only after the
+IPv4 HTTPS probes succeed. If none qualifies, acquisition fails before APT starts.
+HTTPS probes do not replace APT's signature/hash verification.
 
-After transient runner-mirror failures, the helper checks fresh signed metadata
-from `archive.ubuntu.com` and `security.ubuntu.com` over verified HTTPS. Its
-Ubuntu 24.04 x64 deb822 sources use the installed Ubuntu archive keyring and
-isolated lists under `RUNNER_TEMP`, limited to main/universe in noble, updates
-and security. Translation and DEP-11 indexes are unnecessary for these packages
-and disabled. System sources and third-party repositories are not rewritten.
-A verified fallback is reused in later job steps through
-`GITHUB_ENV`. Packages are downloaded before one `--no-download` installation,
+All candidates use isolated Ubuntu 24.04 x64 deb822 sources and the installed
+Ubuntu archive signing key, limited to main/universe in noble, updates and
+security. No trust key is added for a mirror. Unreachable runner sources and
+unrelated third-party repositories are excluded without rewriting system files.
+Translation and DEP-11 indexes are unnecessary and disabled. A repository ID is
+remembered through `GITHUB_ENV` only after APT verifies its signed metadata; the
+next step re-probes that selection.
+
+Sources, package lists and downloads use a random directory directly under
+`/tmp`, outside potentially private runner-home ancestors. Only the two partial
+download directories are owned by `_apt`. Before APT starts, actual `_apt` checks
+verify directory traversal, partial-directory writes and source/keyring reads.
+The built DEB is copied there with mode 0644, checked against the original with
+SHA-256 and read-checked as `_apt`; the original artifact remains unchanged.
+No runner-home permissions are broadened. An unexpected root-download fallback
+is treated as a permission failure, including when APT exits with status zero.
+Packages are downloaded before one `--no-download` installation,
 limited to two minutes. Install/configuration failures are never replayed. The
 existing installed-app smoke, removal checks and success-only artifact upload
 remain mandatory. Bounded diagnostics include phase, mirror, attempts, byte counts,
-error categories and the last eight APT index events. Hosts/suites/index types
+error categories, an explicit unsandboxed-download warning flag, access-check
+scopes and the last eight APT index events. Hosts/suites/index types
 are allowlisted; private URLs, paths, process output and credentials are not
 echoed. Synthetic tests and real subprocess output checks cover readiness,
-routing, retry/fallback and failure paths. Actual privileged APT execution and
-the original runner stall still require a fresh Ubuntu CI run; local Windows
-tests and successful mirror probes alone do not establish that result.
+routing, retry/fallback, identical package staging and failure paths. A native
+Linux CI regression test proves that `_apt` cannot read through a private ancestor
+and can access the new sources, caches and staged package without changing it.
+Actual privileged APT installation and the original runner stall still require
+a fresh Ubuntu CI run; local Windows tests and successful mirror/signature
+checks alone do not establish that result.
 
 verify builds the canonical designer and TypeScript backend, checks UTF-8/LF,
 matching catalog keys/parameters, markup/key references, generated asset hashes,
