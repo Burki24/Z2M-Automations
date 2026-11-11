@@ -30,6 +30,11 @@ on Windows; on Linux it is mapped onto the CI Xvfb display for image capture
 (a local Linux run briefly shows a window). It checks the real
 preload/renderer, system switching, language/input preservation, diagnostics and
 light/dark layouts. Its local screenshot is apps/desktop/out/smoke.png.
+Draft smoke labels every wait and saves bounded state diagnostics plus a
+screenshot as apps/desktop/out/smoke-failure.* on failure. CI uploads these
+separately when a job fails. The shared-broker fixture delays the second system's
+catalog response to exercise independent read timing. Draft editing waits for
+all assigned system reads and a matching rendered context.
 
 D2 adds real temporary project save/reopen/backup/restore, draft lifecycle,
 main-only credential file import, OS-protected storage when available and keyboard/

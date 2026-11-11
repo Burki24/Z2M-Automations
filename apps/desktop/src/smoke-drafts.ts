@@ -1,17 +1,92 @@
 import {BrowserWindow, type WebContents} from 'electron';
-import {readFile} from 'node:fs/promises';
+import {readFile, mkdir, writeFile} from 'node:fs/promises';
+import {dirname} from 'node:path';
 import {importDraft} from './draft-exchange.js';
 
-export async function smokeDrafts(view: WebContents, exportPath: string): Promise<void> {
-  await view.executeJavaScript(`(async () => {
+const rendererHelpers = `
     const bridge = window.z2maDesktop;
-    const wait = async predicate => { for (let n = 0; n < 160; n++) { if (await predicate()) return; await new Promise(resolve => setTimeout(resolve, 30)); } throw new Error('Draft UI timeout'); };
+    const wait = async (predicate, step) => {
+      for (let n = 0; n < 160; n++) {
+        if (await predicate()) return;
+        await new Promise(resolve => setTimeout(resolve, 30));
+      }
+      throw new Error('Draft smoke timed out: ' + step);
+    };
+    const refreshView = async step => {
+      const expected = await bridge.snapshot();
+      let rendered = false;
+      const onView = ({detail}) => {
+        rendered = detail.workspaceContext?.systemId === expected.workspaceContext?.systemId
+          && detail.createContext === expected.createContext && detail.desktop?.source === expected.desktop?.source;
+      };
+      document.addEventListener('z2ma-designer-view', onView);
+      try {
+        document.dispatchEvent(new Event('z2ma-project-changed'));
+        await wait(() => rendered && !document.querySelector('#validate-button').disabled, step);
+      } finally { document.removeEventListener('z2ma-designer-view', onView); }
+    };
+`;
+
+export async function smokeDrafts(view: WebContents, exportPath: string): Promise<void> {
+  try { await verifyDrafts(view, exportPath); }
+  catch (error) {
+    try {
+      const diagnostics = await view.executeJavaScript(`(async () => {
+        const snapshot = await window.z2maDesktop.snapshot();
+        const network = (await window.z2maDesktop.network({action: 'status', id: ''})).state;
+        const dialog = document.querySelector('#edit-dialog');
+        const text = selector => document.querySelector(selector)?.textContent.slice(0, 400) ?? '';
+        return {
+          ready: document.readyState, language: document.documentElement.lang, viewport: [innerWidth, innerHeight],
+          selected: snapshot.workspaceContext?.systemId, epoch: snapshot.desktop?.epoch, source: snapshot.desktop?.source,
+          editor: {exists: Boolean(dialog), open: dialog?.open, inputPreserved: dialog?.querySelector('#edit-fields input')?.value === 'D4 preserved input',
+            submitDisabled: dialog?.querySelector('#edit-submit')?.disabled, reloadVisible: Boolean(dialog?.querySelector('#edit-reload:not([hidden])')),
+            invalidFields: [...(dialog?.querySelectorAll('[aria-invalid="true"]') ?? [])].map(field => field.dataset.draftField ?? field.type), message: text('#edit-message')},
+          rules: {count: snapshot.configuration?.automations?.length, edited: snapshot.configuration?.automations?.some(rule => rule.name === 'D4 preserved input'),
+            created: snapshot.configuration?.automations?.some(rule => rule.name === 'Form smoke rule')},
+          pending: Object.keys(sessionStorage).filter(key => key.startsWith('z2ma.desktop.editor.')).slice(0, 8).map(key => {
+            try {
+              const saved = JSON.parse(sessionStorage.getItem(key));
+              return {selected: key.endsWith('.' + snapshot.workspaceContext?.systemId), epochCurrent: saved.epoch === snapshot.desktop?.epoch,
+                contextCurrent: saved.context === snapshot.createContext, inputPreserved: saved.working?.name === 'D4 preserved input'};
+            } catch { return {invalid: true}; }
+          }),
+          reviewBusy: document.querySelector('#desktop-draft-review')?.hasAttribute('aria-busy'),
+          readerBusy: document.querySelector('#validate-button')?.disabled, createDisabled: document.querySelector('#draft-wizard-start')?.disabled,
+          pickerDisabled: document.querySelector('#designer-system')?.disabled, storedView: document.body.classList.contains('desktop-stored-view'),
+          feedback: text('#feedback'), issues: text('#issues'),
+          brokers: network.brokers.map(({id, state, error}) => ({id, state, error})),
+          systems: network.systems.map(({id, fresh, reading, error}) => ({id, fresh, reading, error}))
+        };
+      })()`);
+      console.error('DESKTOP_DRAFT_DIAGNOSTICS ' + JSON.stringify(diagnostics));
+      const prefix = process.env['Z2MA_SMOKE_DIAGNOSTICS'];
+      if (prefix) {
+        await mkdir(dirname(prefix), {recursive: true});
+        await writeFile(prefix + '.json', JSON.stringify({failure: error instanceof Error ? error.message : 'Draft smoke failed', diagnostics}, null, 2) + '\n');
+        const capture = await view.capturePage();
+        if (!capture.isEmpty()) await writeFile(prefix + '.png', capture.toPNG());
+      }
+    } catch { console.error('DESKTOP_DRAFT_DIAGNOSTICS unavailable'); }
+    throw error;
+  }
+}
+
+async function verifyDrafts(view: WebContents, exportPath: string): Promise<void> {
+  await view.executeJavaScript(`(async () => {
+    ${rendererHelpers}
     const assert = (value, message) => { if (!value) throw new Error('Draft smoke: ' + message); };
     const project = (await bridge.project({action: 'status'})).state.project;
     const systemId = project.systems[0].id;
+    const brokerId = project.systems[0].brokerId;
+    const brokerSystems = project.systems.filter(system => system.brokerId === brokerId);
     await bridge.selectSystem(systemId);
-    await bridge.network({action: 'connect', id: project.systems[0].brokerId});
-    await wait(async () => (await bridge.network({action: 'status', id: ''})).state.systems[0].fresh);
+    await bridge.network({action: 'connect', id: brokerId});
+    // The editor context includes each system's catalog and freshness.
+    await wait(async () => {
+      const network = (await bridge.network({action: 'status', id: ''})).state;
+      return brokerSystems.every(assigned => network.systems.some(system => system.id === assigned.id && system.fresh && !system.reading));
+    }, 'read-all-systems-on-selected-broker');
     const data = await bridge.snapshot(); const ctx = data.workspaceContext;
     const command = (route, payload) => bridge.designer({route, systemId, generation: ctx.generation, fingerprint: ctx.fingerprint,
       payload: {requestId: crypto.randomUUID(), context: data.createContext, ...payload}});
@@ -22,14 +97,14 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     const after = await bridge.snapshot(); const created = after.configuration.automations.find(rule => rule.id === result.state.ruleId);
     assert(created && !created.enabled && !after.configuration.automations.some(rule => rule.name === 'Synthetic remote rule'), 'new draft replaced source or enabled rule');
     assert(!(await command('create', {rule: {}})).ok, 'stale/invalid editor accepted');
-    document.dispatchEvent(new Event('z2ma-project-changed'));
-    await wait(() => [...document.querySelectorAll('#entry-list .entry')].some(element => element.textContent.includes('D4 smoke rule')));
+    await refreshView('render-created-rule');
+    await wait(() => [...document.querySelectorAll('#entry-list .entry')].some(element => element.textContent.includes('D4 smoke rule')), 'show-created-rule');
     [...document.querySelectorAll('#entry-list .entry')].find(element => element.textContent.includes('D4 smoke rule')).click();
-    await wait(() => document.querySelector('#entry-title').textContent === 'D4 smoke rule');
+    await wait(() => document.querySelector('#entry-title').textContent === 'D4 smoke rule', 'select-created-rule');
     const picker = document.querySelector('#designer-language'); picker.value = 'de'; picker.dispatchEvent(new Event('change', {bubbles: true}));
-    await wait(() => document.documentElement.lang === 'de');
+    await wait(() => document.documentElement.lang === 'de', 'switch-editor-language');
     document.querySelector('#edit-automation-button').click();
-    await wait(() => document.querySelector('#edit-dialog').open);
+    await wait(() => document.querySelector('#edit-dialog').open, 'open-existing-rule-editor');
     assert(document.querySelector('#edit-submit').textContent === 'Änderungen in den Entwurf übernehmen', 'the editor uses the header language');
     const name = document.querySelector('#edit-fields input'); name.value = 'D4 preserved input'; name.dispatchEvent(new Event('input', {bubbles: true}));
     document.querySelector('[data-section="triggers"] [data-draft-field="add"]').click();
@@ -38,7 +113,7 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     sourceType.value = 'measurement'; sourceType.dispatchEvent(new Event('change', {bubbles: true}));
     await wait(() => Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.')
       && sessionStorage.getItem(key).includes('D4 preserved input')
-      && JSON.parse(sessionStorage.getItem(key)).working.triggers.length === 2));
+      && JSON.parse(sessionStorage.getItem(key)).working.triggers.length === 2), 'remember-unfinished-editor');
   })()`);
   const window = BrowserWindow.fromWebContents(view);
   if (!window) throw new Error('Draft smoke requires a desktop window.');
@@ -74,17 +149,16 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
   }
   const loaded = new Promise<void>(resolve => view.once('did-finish-load', resolve)); view.reload(); await loaded;
   await view.executeJavaScript(`(async () => {
-    const bridge = window.z2maDesktop;
-    const wait = async (predicate, message = 'Recovered draft timeout') => { for (let n = 0; n < 160; n++) { if (await predicate()) return; await new Promise(resolve => setTimeout(resolve, 30)); } throw new Error(message); };
-    await wait(() => document.querySelector('#edit-dialog')?.open && document.querySelector('#edit-fields input')?.value === 'D4 preserved input');
+    ${rendererHelpers}
+    await wait(() => document.querySelector('#edit-dialog')?.open && document.querySelector('#edit-fields input')?.value === 'D4 preserved input', 'recover-editor-after-reload');
     const recoveredSource = document.querySelectorAll('[data-section="triggers"] > fieldset')[1];
     if (recoveredSource.querySelector('select').value !== 'measurement') throw new Error('An unfinished measurement selection was lost on reload.');
     recoveredSource.querySelector('.edit-row-tools button').click();
     if ((await bridge.project({action: 'save'})).ok) throw new Error('Open editor was silently omitted from save');
     document.querySelector('#edit-submit').click();
-    await wait(async () => (await bridge.snapshot()).configuration.automations.some(rule => rule.name === 'D4 preserved input'));
-    await wait(() => !document.querySelector('#edit-dialog').open);
-    await wait(() => !Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.')));
+    await wait(async () => (await bridge.snapshot()).configuration.automations.some(rule => rule.name === 'D4 preserved input'), 'apply-recovered-rule');
+    await wait(() => !document.querySelector('#edit-dialog').open, 'close-recovered-rule-editor');
+    await wait(() => !Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.')), 'clear-recovered-editor-session');
     const data = await bridge.snapshot(); const context = data.workspaceContext;
     const result = await bridge.designer({route: 'sequence', systemId: context.systemId, generation: context.generation, fingerprint: context.fingerprint,
       payload: {requestId: crypto.randomUUID(), context: data.createContext, sequenceId: '', changes: {name: 'D4 sequence', actions: [
@@ -94,10 +168,11 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     if (stored.configuration.automations[0].name !== 'Synthetic remote rule') throw new Error('Local edit changed stored state');
     const assert = (value, message) => { if (!value) throw new Error('Draft form smoke: ' + message); };
     assert((await bridge.network({action: 'view', id: context.systemId, source: 'stored'})).ok, 'select stored view');
-    document.dispatchEvent(new Event('z2ma-project-changed'));
-    await wait(() => document.body.classList.contains('desktop-stored-view'));
+    await refreshView('render-stored-source-before-creation');
+    await wait(() => document.body.classList.contains('desktop-stored-view') && !document.querySelector('#validate-button').disabled,
+      'show-stored-source-before-creation');
     document.querySelector('#draft-wizard-start').click();
-    await wait(() => document.querySelector('#edit-dialog').open);
+    await wait(() => document.querySelector('#edit-dialog').open, 'open-new-rule-editor');
     const click = id => document.querySelector('#edit-' + id).click();
     const set = (element, value) => {
       element.value = value;
@@ -148,23 +223,23 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     set(document.querySelectorAll('[data-section="actions"] fieldset select')[1], result.state.sequenceId);
     assert((await bridge.project({action: 'draft', systemId: context.systemId, operation: 'new', ruleId: '', name: 'Concurrent draft'})).ok, 'simulate a changed draft');
     click('submit');
-    await wait(() => !document.querySelector('#edit-reload').hidden && !document.querySelector('#edit-reload').disabled);
+    await wait(() => !document.querySelector('#edit-reload').hidden && !document.querySelector('#edit-reload').disabled, 'detect-concurrent-draft-change');
     assert(document.querySelector('#edit-dialog').open && submit.disabled, 'form did not pause on stale context');
     click('reload');
-    await wait(() => !submit.disabled);
+    await wait(() => !submit.disabled, 'refresh-stale-rule-editor');
     assert(name().value === 'Form smoke rule', 'refresh lost form input');
     document.querySelector('#edit-form').requestSubmit();
-    await wait(async () => (await bridge.snapshot()).configuration.automations.some(rule => rule.name === 'Form smoke rule' && !rule.enabled));
-    await wait(() => !document.querySelector('#edit-dialog').open);
-    await wait(() => !Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.')));
+    await wait(async () => (await bridge.snapshot()).configuration.automations.some(rule => rule.name === 'Form smoke rule' && !rule.enabled), 'apply-new-disabled-rule');
+    await wait(() => !document.querySelector('#edit-dialog').open, 'close-new-rule-editor');
+    await wait(() => !Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.')), 'clear-new-editor-session');
     const saved = (await bridge.snapshot()).configuration.automations.find(rule => rule.name === 'Form smoke rule');
     assert(saved.triggers.map(trigger => trigger.type).join('|') === 'device|device|time|sun|sun'
       && saved.triggers[0].value === true && saved.triggers[1].value === 100 && saved.triggers[1].operator === 'gt'
       && saved.triggers[3].event === 'sunrise' && saved.triggers[4].event === 'sunset'
       && saved.conditions.every(condition => condition.type === 'device_value'), 'the five form choices save canonical device and solar rules');
-    await wait(() => document.querySelector('#entry-title').textContent === 'Form smoke rule' && !document.querySelector('#edit-automation-button').disabled);
+    await wait(() => document.querySelector('#entry-title').textContent === 'Form smoke rule' && !document.querySelector('#edit-automation-button').disabled, 'select-saved-rule');
     document.querySelector('#edit-automation-button').click();
-    await wait(() => document.querySelector('#edit-dialog').open);
+    await wait(() => document.querySelector('#edit-dialog').open, 'reopen-saved-rule');
     assert(rows('triggers').map(row => row.querySelector('select').value).join('|') === 'status|measurement|time|sunrise|sunset'
       && rows('conditions').map(row => row.querySelector('select').value).join('|') === 'status|measurement', 'existing canonical rules prefill the correct form choices');
     const language = document.querySelector('#designer-language');
@@ -185,19 +260,26 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     const disconnect = async () => {
       navigate('connection');
       const button = document.querySelector('#mqtt-disconnect');
-      await wait(() => !button.disabled);
+      await wait(() => !button.disabled, 'enable-disconnect');
       button.click();
-      await wait(() => !connected() && !document.querySelector('#mqtt-connect').hidden);
+      await wait(() => !connected() && !document.querySelector('#mqtt-connect').hidden, 'confirm-disconnect');
     };
     const connect = async () => {
       navigate('connection');
       document.querySelector('#mqtt-connect').click();
-      await wait(async () => connected() && (await bridge.snapshot()).status.confirmed && !review.hasAttribute('aria-busy'), 'Connection step did not read the selected system');
+      const brokerId = project.systems.find(system => system.id === context.systemId).brokerId;
+      const brokerSystems = project.systems.filter(system => system.brokerId === brokerId);
+      await wait(async () => {
+        const network = (await bridge.network({action: 'status', id: ''})).state;
+        return connected() && !review.hasAttribute('aria-busy')
+          && brokerSystems.every(assigned => network.systems.some(system => system.id === assigned.id && system.fresh && !system.reading));
+      }, 'read-all-systems-after-reconnect');
+      await refreshView('render-all-systems-after-reconnect');
     };
     const checkDraft = async (fromEditor = false) => {
       navigate(fromEditor ? 'automations' : 'review');
       const button = fromEditor ? document.querySelector('#desktop-check-draft') : check;
-      await wait(() => !button.disabled && !picker.disabled);
+      await wait(() => !button.disabled && !picker.disabled, 'enable-draft-check');
       button.click();
       assert(!pane('review').hidden && pane('automations').hidden, 'draft check must open the review step');
       await wait(() => !review.hasAttribute('aria-busy'), 'Draft check did not finish');
@@ -210,9 +292,9 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     assert(incompleteRule.length === 2 && incompleteRule.some(line => line.includes('Füge mindestens einen Auslöser hinzu.'))
       && incompleteRule.some(line => line.includes('Füge mindestens eine Aktion hinzu.')), 'validation omitted the older rule or its missing entries');
     picker.value = project.systems[1].id; picker.dispatchEvent(new Event('change'));
-    await wait(async () => !picker.disabled && findings.hidden && (await bridge.snapshot()).workspaceContext.systemId === project.systems[1].id);
+    await wait(async () => !picker.disabled && findings.hidden && (await bridge.snapshot()).workspaceContext.systemId === project.systems[1].id, 'select-other-system-for-review');
     picker.value = context.systemId; picker.dispatchEvent(new Event('change'));
-    await wait(async () => !picker.disabled && (await bridge.snapshot()).workspaceContext.systemId === context.systemId);
+    await wait(async () => !picker.disabled && (await bridge.snapshot()).workspaceContext.systemId === context.systemId, 'return-to-reviewed-system');
     await checkDraft();
     await connect();
     navigate('review');
@@ -228,12 +310,12 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     set(document.querySelector('[data-section="actions"] fieldset select'), 'sequence');
     set(document.querySelector('[data-section="actions"] [data-draft-field="type"]').closest('fieldset').querySelectorAll('select')[1], result.state.sequenceId);
     click('submit');
-    await wait(() => !document.querySelector('#edit-dialog').open && findings.hidden);
+    await wait(() => !document.querySelector('#edit-dialog').open && findings.hidden, 'apply-corrected-rule');
     await wait(() => document.querySelector('#feedback').textContent.includes('Änderung im lokalen Entwurf übernommen.'),
       'Correction did not confirm the applied local change');
     navigate('draft');
     document.querySelector('#mqtt-stored').click();
-    await wait(() => document.body.classList.contains('desktop-stored-view'));
+    await wait(() => document.body.classList.contains('desktop-stored-view'), 'show-stored-source-before-export');
     navigate('draft');
     const exportButton = pane('draft').querySelector('#draft-export');
     const exportFeedback = exportButton.closest('.desktop-card').querySelector('[role="status"]');
@@ -244,7 +326,7 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     assert(JSON.stringify((await bridge.project({action: 'status'})).state.project) === JSON.stringify(beforeExport)
       && (await bridge.snapshot()).desktop.source === 'stored', 'export changed the project or displayed source');
     document.querySelector('#mqtt-draft').click();
-    await wait(() => !document.body.classList.contains('desktop-stored-view') && !review.hasAttribute('aria-busy'));
+    await wait(() => !document.body.classList.contains('desktop-stored-view') && !review.hasAttribute('aria-busy'), 'return-to-draft-after-export');
     assert(transfer.disabled, 'editing alone does not authorize a transfer');
     await disconnect();
     await checkDraft();
@@ -261,7 +343,7 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     const corrected = (await bridge.snapshot()).configuration.automations.find(rule => rule.name === 'Concurrent draft');
     await bridge.project({action: 'draft', systemId: context.systemId, operation: 'rename', ruleId: corrected.id, name: 'Corrected draft'});
     document.dispatchEvent(new Event('z2ma-project-changed'));
-    await wait(() => transfer.disabled && document.querySelector('#desktop-transfer-message').textContent.includes('hat sich geändert.'));
+    await wait(() => transfer.disabled && document.querySelector('#desktop-transfer-message').textContent.includes('hat sich geändert.'), 'invalidate-transfer-after-edit');
   })()`);
   const yaml = importDraft(await readFile(exportPath));
   const added = yaml.automations.find(rule => rule['name'] === 'Form smoke rule');

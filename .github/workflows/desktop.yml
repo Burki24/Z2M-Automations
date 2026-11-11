@@ -98,6 +98,14 @@ jobs:
           test ! -e "$binary"
       - name: Build the shared designer handoff
         run: npm run pack:designer
+      - name: Upload smoke-test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: desktop-diagnostics-${{ runner.os }}
+          path: apps/desktop/out/smoke-failure.*
+          if-no-files-found: ignore
+          retention-days: 7
       - uses: actions/upload-artifact@v6
         with:
           name: desktop-${{ runner.os }}

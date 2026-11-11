@@ -29,6 +29,7 @@ import {installNativeEmbedding} from './embedding.js';
     let selected = null;
     let selectedPart = null;
     let busy = false;
+    let loadQueue = Promise.resolve();
     let projectReloadPending = false;
     let editing = null;
     let systemId = '';
@@ -306,8 +307,12 @@ import {installNativeEmbedding} from './embedding.js';
         $('#feedback').dataset.tone = '';
         message(() => (notices[0]));
     }
-    async function load(preferredRule = '', preferredSequence = '') {
-        if (busy) return false;
+    function load(preferredRule = '', preferredSequence = '') {
+        const task = loadQueue.then(() => readView(preferredRule, preferredSequence));
+        loadQueue = task.catch(() => false);
+        return task;
+    }
+    async function readView(preferredRule, preferredSequence) {
         busy = true; $('#validate-button').disabled = true;
         if (!isDesktop()) message(() => (t("ui.reading.existing.module.data.no.53b451b0")));
         try {

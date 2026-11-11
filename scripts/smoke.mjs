@@ -30,18 +30,22 @@ second.editor.devices[0].name = 'Other sensor';
 second.editor.groups = [];
 const peer = await startPeer({
   systems: new Map([['synthetic', first], ['synthetic-other', second]]),
-  reply({operation, request, response, publish}) {
+  reply({operation, base, request, response, publish}) {
     if (operation === 'validate') {
       const draft = parse(request.yaml);
       const checksum = createHash('sha256').update(request.yaml).digest('hex');
       response.data = {valid: draft.automations.every(rule => rule.enabled === false), revision: draft.revision, checksum,
         automation_count: draft.automations.length, executing: false};
     }
-    publish();
+    // Keep the two system reads independently timed, as on a real shared broker.
+    if (base === 'synthetic-other' && operation === 'editor') setTimeout(publish, 250);
+    else publish();
   }
 });
 environment.Z2MA_SMOKE_MQTT_PORT = String(peer.port);
 environment.Z2MA_SMOKE_PROFILE = profile;
+environment.Z2MA_SMOKE_DIAGNOSTICS = fileURLToPath(new URL('../apps/desktop/out/smoke-failure', import.meta.url));
+for (const suffix of ['.json', '.png']) rmSync(environment.Z2MA_SMOKE_DIAGNOSTICS + suffix, {force: true});
 const child = spawn(binary, args, {windowsHide: true, env: environment, stdio: ['ignore', 'pipe', 'pipe']});
 let output = ''; let timedOut = false;
 child.stdout.on('data', data => { process.stdout.write(data); output = (output + data).slice(-32768); });
