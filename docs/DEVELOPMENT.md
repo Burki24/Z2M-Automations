@@ -23,23 +23,38 @@ CI shares `electron_config_cache` between setup and Forge and caches only the
 download artifacts. Forge uses Electron's pinned checksum manifest too.
 
 Ubuntu CI uses `scripts/ubuntu-apt.mjs` for build tools and the built DEB's
-dependencies. Updates use `--error-on=any`: failed indexes cannot silently reuse
-old metadata. Only transient acquisition failures are retried, at most twice
-per mirror with a one-second delay, a 60-second command limit and a shared
-four-minute acquisition budget per invocation. Signature, hash, TLS verification,
-dependency and process failures remain terminal.
+dependencies. A complete `dpkg-query` installed-state check skips network access
+when all four build packages are present; a built DEB is never skipped this way.
+Updates use `--error-on=any`: failed indexes cannot silently reuse old metadata.
+Only transient acquisition failures are retried, at most twice per mirror and
+phase with a one-second delay. Runner-mirror calls have a 30-second limit;
+official calls have up to three minutes for cold indexes, within a shared
+six-minute acquisition budget plus bounded process shutdown. Signature, hash,
+TLS verification, dependency and process failures remain terminal.
+
+Before necessary acquisition, read-only probes run in the same sudo environment
+as APT. They check Azure's IPv4 DNS and both official HTTPS InRelease endpoints.
+APT uses IPv4 only when both IPv4 HTTPS probes succeed. Failed Azure DNS plus
+successful official probes selects the official route immediately. Probe success
+does not replace APT's signature/hash checks. Each probe has its own short timeout.
 
 After transient runner-mirror failures, the helper checks fresh signed metadata
 from `archive.ubuntu.com` and `security.ubuntu.com` over verified HTTPS. Its
 Ubuntu 24.04 x64 deb822 sources use the installed Ubuntu archive keyring and
-isolated lists under `RUNNER_TEMP`; system sources and third-party repositories
-are not rewritten. A verified fallback is reused in later job steps through
+isolated lists under `RUNNER_TEMP`, limited to main/universe in noble, updates
+and security. Translation and DEP-11 indexes are unnecessary for these packages
+and disabled. System sources and third-party repositories are not rewritten.
+A verified fallback is reused in later job steps through
 `GITHUB_ENV`. Packages are downloaded before one `--no-download` installation,
 limited to two minutes. Install/configuration failures are never replayed. The
 existing installed-app smoke, removal checks and success-only artifact upload
-remain mandatory. Fixed diagnostics expose phase, mirror, attempt and outcome,
-not raw process output or proxy credentials. Synthetic tests cover retry/fallback
-and failure paths; actual privileged APT execution requires the Ubuntu CI runner.
+remain mandatory. Bounded diagnostics include phase, mirror, attempts, byte counts,
+error categories and the last eight APT index events. Hosts/suites/index types
+are allowlisted; private URLs, paths, process output and credentials are not
+echoed. Synthetic tests and real subprocess output checks cover readiness,
+routing, retry/fallback and failure paths. Actual privileged APT execution and
+the original runner stall still require a fresh Ubuntu CI run; local Windows
+tests and successful mirror probes alone do not establish that result.
 
 verify builds the canonical designer and TypeScript backend, checks UTF-8/LF,
 matching catalog keys/parameters, markup/key references, generated asset hashes,
