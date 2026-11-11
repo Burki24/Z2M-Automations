@@ -1,9 +1,9 @@
 import {ruleId, uuid, type Execution} from './mqtt-protocol.js';
 import {validId} from './project.js';
-export type EventCode = 'ready' | 'snapshotRead' | 'systemSelected' | 'languageChanged' | 'rejected' | 'projectRequest' | 'projectChanged' | 'credentialRequest' | 'projectFailed' | 'mqttConnect' | 'mqttConnected' | 'mqttDisconnected' | 'mqttFailure' | 'mqttRead' | 'mqttReadComplete' | 'mqttTransfer' | 'mqttReply' | 'draftRequest' | 'draftCompleted' | 'draftRejected' | 'execution';
-const operations = ['status', 'new', 'open', 'save', 'saveAs', 'export', 'restore', 'editing', 'edited', 'rename', 'broker', 'system', 'draft', 'storeCredentials', 'removeCredentials', 'read', 'connect', 'disconnect', 'validate', 'store', 'install', 'activate', 'deactivate', 'run_once', 'stop_rule'] as const;
+export type EventCode = 'ready' | 'snapshotRead' | 'systemSelected' | 'languageChanged' | 'rejected' | 'projectRequest' | 'projectChanged' | 'credentialRequest' | 'projectFailed' | 'mqttConnect' | 'mqttConnected' | 'mqttDisconnected' | 'mqttFailure' | 'mqttRead' | 'mqttReadComplete' | 'mqttTransfer' | 'mqttReply' | 'mqttAutoConnect' | 'draftRequest' | 'draftCompleted' | 'draftRejected' | 'execution';
+const operations = ['status', 'new', 'open', 'save', 'saveAs', 'export', 'restore', 'editing', 'edited', 'rename', 'broker', 'system', 'draft', 'storeCredentials', 'removeCredentials', 'read', 'connect', 'disconnect', 'autoConnect', 'validate', 'store', 'install', 'activate', 'deactivate', 'run_once', 'stop_rule'] as const;
 type Operation = typeof operations[number];
-const reasons = ['timeout', 'protocol', 'stale', 'disconnected', 'remoteError', 'readError', 'connectionError', 'tlsError', 'authentication', 'permission'] as const;
+const reasons = ['timeout', 'protocol', 'stale', 'disconnected', 'remoteError', 'readError', 'connectionError', 'tlsError', 'authentication', 'permission', 'credentialsMissing', 'credentialsLocked', 'noSystems'] as const;
 export interface DebugEvent { time: number; code: EventCode; request: number; system?: string; language?: string; operation?: Operation; transaction?: string; broker?: string; reason?: string; rule?: string; run?: string; state?: string; step?: number }
 export class Diagnostics {
   private events: DebugEvent[] = [];

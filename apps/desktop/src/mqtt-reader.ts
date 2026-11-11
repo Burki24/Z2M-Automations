@@ -7,6 +7,7 @@ import type {Credentials} from './credentials.js';
 import type {Diagnostics} from './diagnostics.js';
 import {extensionPrefix, readOperations, statusData, editorData, executionData, record, type Execution, type RemoteRead, type RemoteStatus} from './mqtt-protocol.js';
 import {DraftValidationError, readDraftDetails} from './draft-feedback.js';
+import type {AutoConnectMode} from './auto-connect.js';
 
 export const runtimeActions = ['activate', 'deactivate', 'run_once', 'stop_rule'] as const;
 export type RuntimeAction = typeof runtimeActions[number];
@@ -17,7 +18,7 @@ const wireTopic = (base: string, operation: WireOperation, direction: 'request' 
 const systemTopics = (base: string): string[] => [base + '/bridge/state', base + '/bridge/extensions', base + extensionPrefix + 'status', base + extensionPrefix + 'runs',
   ...wireOperations.map(operation => wireTopic(base, operation, 'response'))];
 
-export interface NetworkCommand {action: 'status' | 'connect' | 'disconnect' | 'refresh' | 'certificates' | 'clearCertificates' | 'view' | 'validate' | 'store' | 'install' | 'checkTransfer' | 'validateEnabled' | 'runtimeStatus' | RuntimeAction; id: string; source?: 'draft' | 'stored'; rule?: string; run?: string; resume?: boolean}
+export interface NetworkCommand {action: 'status' | 'connect' | 'disconnect' | 'autoConnect' | 'refresh' | 'certificates' | 'clearCertificates' | 'view' | 'validate' | 'store' | 'install' | 'checkTransfer' | 'validateEnabled' | 'runtimeStatus' | RuntimeAction; id: string; source?: 'draft' | 'stored'; rule?: string; run?: string; resume?: boolean; mode?: AutoConnectMode}
 export interface TLSMaterial {ca?: string; cert?: string; key?: string; passphrase?: string}
 interface Pending {topic: string; generation: number; operation: 'read' | 'validate' | 'store' | 'install' | RuntimeAction; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>}
 interface Connection {
@@ -90,7 +91,7 @@ export class MqttReader {
     else this.tls.delete(id);
     this.sequence++;
   }
-  async connectBroker(id: string): Promise<void> {
+  async connectBroker(id: string, authentication: 'optional' | 'required' | 'none' = 'optional'): Promise<void> {
     if (this.connections.get(id)?.closed) this.disconnect(id);
     if (this.connections.has(id)) return;
     const project = this.project; const broker = project?.brokers.find(broker => broker.id === id);
@@ -98,8 +99,13 @@ export class MqttReader {
     const systems = project.systems.filter(system => system.brokerId === id);
     if (!systems.length) throw new Error('noSystems');
     const epoch = this.epoch;
-    const secret = await this.credentials.read(project.id, broker);
-    if (this.project?.id !== project.id || this.epoch !== epoch) throw new Error('stale');
+    const signature = this.signature(broker, systems);
+    const secret = authentication === 'none' ? null : await this.credentials.read(project.id, broker);
+    if (authentication === 'required' && !secret) throw new Error('credentialsMissing');
+    const currentBroker = this.project?.brokers.find(item => item.id === id);
+    if (this.project?.id !== project.id || this.epoch !== epoch || !currentBroker
+      || this.signature(currentBroker, this.project.systems.filter(system => system.brokerId === id)) !== signature) throw new Error('stale');
+    if (this.connections.has(id)) return;
     const client = this.factory(mqttOptions(broker, secret, this.tls.get(id)?.material ?? {}));
     const connection: Connection = {client, signature: this.signature(broker, systems), generation: 0, state: 'connecting', error: '', ready: false, pending: new Map(), systems, reads: new Map(), closed: false, bridges: new Map(), subscription: null};
     this.connections.set(id, connection); this.sequence++;
@@ -333,7 +339,7 @@ export class MqttReader {
     if (!system || source === 'stored' && !this.remote.has(id) && !system.stored) throw new Error('noStored');
     this.views.set(id, source); this.sequence++;
   }
-  state(): unknown {
+  state() {
     return {sequence: this.sequence, brokers: (this.project?.brokers ?? []).map(broker => ({id: broker.id, name: broker.name, host: broker.host, port: broker.port, tls: broker.tls, state: this.connections.get(broker.id)?.state ?? 'disconnected', error: this.connections.get(broker.id)?.error ?? '', certificates: this.tls.has(broker.id)})),
       systems: (this.project?.systems ?? []).map(system => ({id: system.id, name: system.name, baseTopic: system.baseTopic, brokerId: system.brokerId, fresh: this.remote.get(system.id)?.fresh ?? false,
         reading: this.connections.get(system.brokerId)?.reads.has(system.id) ?? false, error: this.errors.get(system.id) ?? '', source: this.source(system.id),
@@ -353,6 +359,8 @@ export function validNetworkCommand(value: unknown): value is NetworkCommand {
   if (!record(value) || typeof value['action'] !== 'string' || typeof value['id'] !== 'string') return false;
   if (value['action'] === 'status') return exact(value, ['action', 'id']) && value['id'] === '';
   if (!/^[a-f0-9-]{36}$/.test(value['id'])) return false;
+  if (value['action'] === 'autoConnect') return exact(value, ['action', 'id', 'mode']) && validId(value['id'])
+    && typeof value['mode'] === 'string' && ['off', 'credentials', 'anonymous'].includes(value['mode']);
   if (value['action'] === 'view') return exact(value, ['action', 'id', 'source']) && ['draft', 'stored'].includes(String(value['source']));
   if (value['action'] === 'activate') return exact(value, ['action', 'id', 'resume']) && validId(value['id']) && typeof value['resume'] === 'boolean';
   if (value['action'] === 'run_once' || value['action'] === 'stop_rule') return exact(value, ['action', 'id', 'rule', ...(value['action'] === 'stop_rule' ? ['run'] : [])])

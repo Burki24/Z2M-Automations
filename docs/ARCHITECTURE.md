@@ -48,6 +48,10 @@ there are no runtime downloads from GitHub.
 
 - Model broker connections and Z2M systems separately. Several base topics may
   share a broker; explicitly assign up to eight systems.
+- Automatic connection is an explicit local opt-in per project and broker
+  endpoint. Main stores the preference separately from portable projects and
+  credentials. Opening a project connects opted-in brokers once and reads
+  their systems. Missing or locked credentials are reported per broker.
 - Identities are stable system/device/rule identifiers. Display names may change.
 - Store portable projects separately from secrets. Private keys and sessions
   belong in neither exports nor diagnostics nor the repository.

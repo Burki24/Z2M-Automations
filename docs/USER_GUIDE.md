@@ -30,6 +30,14 @@ reading, editing, checking and transfer.
    credentials** or **Import credentials** from a private JSON file. Direct
    entry opens a separate OS dialog. If protected storage is unavailable,
    unlock the keyring or explicitly choose session-only storage.
+   **Connect automatically when opening this project** offers saved credentials
+   or an explicit choice to connect without authentication. The selection is
+   saved immediately on this computer for this project and broker address.
+   On the next project open, each enabled broker connects once and reads its
+   assigned systems. Missing credentials or a locked keyring show a corrective
+   message in the workspace, broker setup and connection step. After adding
+   credentials or unlocking the keyring, choose **Connect and read Z2M state**.
+   Session credentials must be entered again after opening a project.
 3. **Assign a Z2M system.** Choose its broker and enter its base topic.
 4. **Connect and read Z2M state.** Read devices and the stored configuration.
    The bundled extension is available under **Z2M extension** when needed.

@@ -15,6 +15,7 @@ import {Credentials, readCredentialFile, type CredentialCommand} from './credent
 import {smokeProjects} from './smoke-projects.js';
 import {osProtection} from './os-protection.js';
 import {MqttReader, parseTLS, type NetworkCommand} from './mqtt-reader.js';
+import {AutomaticConnections} from './auto-connect.js';
 import {boundedRead} from './project-files.js';
 import {connect} from 'mqtt';
 import {smokeNetwork} from './smoke-network.js';
@@ -39,6 +40,7 @@ let window: BrowserWindow | null = null;
 let language: 'de' | 'en' = 'en';
 let projects: ProjectService;
 let reader: MqttReader;
+let automaticConnections: AutomaticConnections;
 let drafts: DraftEditor;
 let exchange: DraftExchange;
 let transfers: ExtensionTransfer;
@@ -56,7 +58,7 @@ function snapshot(): unknown {
   const configuration = source === 'stored' ? remote?.configuration ?? system?.stored?.configuration : system?.configuration;
   return {...base, desktop: {...base.desktop, project: true, projectId: project.id, epoch: projects.generation(), source, systemName: system?.name ?? '',
     draftRevision: system?.configuration.revision ?? null, projectDirty: projects.isDirty()}, module: {...base.module, name: project.name, baseTopic: system?.baseTopic ?? ''}, devices: remote?.devices ?? [], scenes: remote?.scenes ?? [],
-    status: {...base.status, mqttConnected: system ? reader.connected(system.brokerId) : false, confirmed: remote?.fresh ?? false,
+    status: {...base.status, mqttConnected: system ? reader.connected(system.brokerId) : false, autoConnectIssue: system ? automaticConnections.setting(system.brokerId).issue : '', confirmed: remote?.fresh ?? false,
       storedRevision: remote?.status.revision ?? system?.stored?.revision ?? null,
       executing: remote?.fresh ? remote.status.executing : false, activeRevision: remote?.fresh && remote.status.executing ? remote.status.revision : null},
     catalogAvailable: Boolean(remote), configuration: configuration ?? {schema_version: 1, revision: 1, automations: [], sequences: [], mesh_peers: []},
@@ -77,8 +79,26 @@ function handle(channel: Channel, payload: unknown): unknown {
     case 'theme': if (payload === 'system' || payload === 'light' || payload === 'dark') { nativeTheme.themeSource = payload; return {ok: true}; } break;
     case 'diagnostics': return debug.read();
     case 'recording': if (payload === 'start' || payload === 'stop') return debug.control(payload); break;
-    case 'project': return projects.command(payload as ProjectCommand).then(state => { reader.reconcile(projects.active ? projects.data() : null, projects.generation()); return state; });
-    case 'credential': return projects.credential(payload as CredentialCommand).then(state => { reader.disconnect((payload as CredentialCommand).brokerId); return state; });
+    case 'project': {
+      const command = payload as ProjectCommand;
+      const before = projects.generation();
+      return projects.command(command).then(async state => {
+        const project = projects.active ? projects.data() : null;
+        reader.reconcile(project, projects.generation());
+        await automaticConnections.reconcile(project, projects.generation());
+        if (command.action === 'open' && before !== projects.generation()) {
+          const epoch = projects.generation();
+          void projects.serialize(() => automaticConnections.opened(epoch)).catch(() => debug.record('mqttFailure'));
+        }
+        return {...(state as object), autoConnect: automaticConnections.settings()};
+      });
+    }
+    case 'credential': return projects.credential(payload as CredentialCommand).then(state => {
+      const id = (payload as CredentialCommand).brokerId;
+      reader.disconnect(id);
+      if (!(state as {canceled?: boolean}).canceled) automaticConnections.clearIssue(id);
+      return {...(state as object), autoConnect: automaticConnections.settings()};
+    });
     case 'network': return network(payload as NetworkCommand);
     case 'designer': return designer(payload as DesignerCommand);
   }
@@ -93,13 +113,18 @@ async function designer(command: DesignerCommand): Promise<unknown> {
   } catch (error) { debug.record('draftRejected', command.systemId, undefined, context); throw error; }
 }
 let runtime: RuntimeControl;
+function networkState() {
+  const state = reader.state();
+  return {...state, sequence: state.sequence + automaticConnections.sequence,
+    brokers: state.brokers.map(broker => ({...broker, autoConnect: automaticConnections.setting(broker.id)})), bundledExtension};
+}
 async function network(command: NetworkCommand): Promise<unknown> {
   switch (command.action) {
     case 'activate': case 'deactivate': case 'run_once': case 'stop_rule': {
       if (smoke) throw new Error('invalidRequest');
       try {
         const outcome = await runtime.command(command.action, command);
-        return {...(reader.state() as object), bundledExtension, outcome};
+        return {...networkState(), outcome};
       } finally { void reader.refresh(command.id).catch(() => {}); }
     }
     case 'runtimeStatus': void reader.refresh(command.id).catch(() => {}); break;
@@ -107,14 +132,15 @@ async function network(command: NetworkCommand): Promise<unknown> {
       if (smoke && command.action !== 'validate') throw new Error('invalidRequest');
       try {
         const outcome = await transfers.command(command.action, command.id);
-        return {...(reader.state() as object), bundledExtension, outcome};
+        return {...networkState(), outcome};
       } finally {
         if (command.action !== 'validate' && command.action !== 'validateEnabled') void reader.refresh(command.id).catch(() => {});
       }
     }
     case 'status': break;
-    case 'connect': await reader.connectBroker(command.id); break;
-    case 'disconnect': reader.disconnect(command.id); break;
+    case 'connect': await automaticConnections.connect(command.id); break;
+    case 'disconnect': reader.disconnect(command.id); automaticConnections.clearIssue(command.id); break;
+    case 'autoConnect': await automaticConnections.set(command.id, command.mode!); break;
     case 'refresh': void reader.refresh(command.id).catch(() => {}); break;
     case 'clearCertificates': reader.setTLS(command.id, null); break;
     case 'view': reader.view(command.id, command.source!); break;
@@ -125,7 +151,7 @@ async function network(command: NetworkCommand): Promise<unknown> {
       break;
     }
   }
-  return {...(reader.state() as object), bundledExtension};
+  return networkState();
 }
 
 async function open(): Promise<void> {
@@ -192,6 +218,7 @@ async function open(): Promise<void> {
     if (options.host !== '127.0.0.1' || options.port !== Number(process.env['Z2MA_SMOKE_MQTT_PORT'])) throw new Error('smokeNetworkDisabled');
     return connect(options);
   } : undefined);
+  automaticConnections = new AutomaticConnections(join(app.getPath('userData'), 'connection-preferences'), reader, debug);
   drafts = new DraftEditor(projects, reader);
   const chooseDraft = async (key: string, extension: string, open: boolean): Promise<string | null> => {
     if (!window || smoke) return null;
@@ -279,7 +306,7 @@ async function open(): Promise<void> {
         }
         debug.record('projectFailed');
         const key = error instanceof Error ? error.message : '';
-        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'credentialPromptUnavailable', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferUncertain', 'transferBridge', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly'].includes(key) ? key : 'failed'};
+        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'credentialPromptUnavailable', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'credentialsMissing', 'credentialsLocked', 'autoConnectSettings', 'connectionError', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferUncertain', 'transferBridge', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly'].includes(key) ? key : 'failed'};
       }
     });
   });

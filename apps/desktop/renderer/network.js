@@ -174,6 +174,11 @@ export function installNetwork(bridge, workspace, settleEditor) {
   const read = button(connectionActions, 'mqtt-refresh', 'desktop.steps.readState', () => systemCommand('refresh', () => { connectionFeedback = undefined; }));
   const disconnect = button(connectionActions, 'mqtt-disconnect', 'mqtt.disconnect', () => systemCommand('disconnect', () => { connectionFeedback = undefined; }));
   const editBroker = workspace.link(connectionActions, 'broker');
+  editBroker.addEventListener('click', () => {
+    const choice = document.querySelector('#project-brokerChoice');
+    if (!choice || !current().broker) return;
+    choice.value = current().broker.id; choice.dispatchEvent(new Event('change'));
+  });
   const editSystem = workspace.link(connectionActions, 'system');
   const nextDraft = workspace.link(connectionActions, 'draft');
   const paintCatalog = installConnectionCatalog(workspace.pages.connection);
@@ -229,6 +234,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
   function connectionKey(system, broker) {
     if (!system) return 'desktop.steps.need.system';
     if (broker?.error) return 'desktop.connection.' + broker.error;
+    if (broker?.autoConnect?.issue) return 'desktop.connection.' + broker.autoConnect.issue;
     if (['connecting', 'reconnecting'].includes(broker?.state)) return 'desktop.connection.connecting';
     if (broker?.state !== 'connected') return 'desktop.connection.offline';
     if (system.reading) return 'desktop.connection.reading';
@@ -253,7 +259,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
     read.disabled = pending || Boolean(system?.reading);
     read.classList.toggle('primary', !system?.fresh);
     nextDraft.classList.toggle('primary', Boolean(system?.fresh));
-    editBroker.hidden = !broker?.error;
+    editBroker.hidden = !broker?.error && !broker?.autoConnect?.issue;
     editSystem.hidden = !system?.error;
     bindText(setupResult, () => feedbackText(setupFeedback));
     resolveInstall.hidden = setupFeedback?.key !== 'project.transferUncertain';

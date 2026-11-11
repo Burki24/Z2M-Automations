@@ -21,7 +21,12 @@ endpoint. Expose import/remove/status operations, with no renderer readback.
 Main selects and reads a bounded private credential JSON file through its own
 system dialog; username and password never enter the designer or its IPC payloads.
 Explicit session-only storage is available when protection is unavailable;
-never downgrade silently. No credential or project operation starts MQTT.
+never downgrade silently. Opening a project may now connect brokers with an
+explicit local opt-in. These preferences are scoped to the project and broker
+endpoint and stored separately from the portable project and credential vault.
+Saved-credential mode requires available credentials; anonymous mode is explicit.
+Each broker is attempted once per successful open. Reading, credential changes
+and project restoration do not initiate an automatic attempt.
 
 On Electron 45, Linux protected storage uses the synchronous availability,
 recognized keyring backend and encryption/decryption APIs. The newer async

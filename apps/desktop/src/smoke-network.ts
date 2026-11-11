@@ -17,9 +17,15 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     navigate('connection');
     const catalog = document.querySelector('#mqtt-catalog');
     assert(catalog?.hidden, 'the catalog lists wait for a confirmed read');
-    await wait(() => !document.querySelector('#mqtt-connect').disabled);
-    document.querySelector('#mqtt-connect').click();
+    const projectState = (await bridge.project({action: 'status'})).state;
+    const mode = projectState.protectedAvailable ? 'credentials' : 'anonymous';
+    if (mode === 'credentials') assert((await bridge.credential({brokerId: broker.id, mode: 'protected', source: 'manual'})).ok, 'save protected automatic connection credentials');
+    assert((await bridge.network({action: 'autoConnect', id: broker.id, mode})).ok, 'choose a local automatic connection mode');
+    assert((await bridge.project({action: 'save'})).ok, 'save the configured project');
+    navigate('project'); document.querySelector('#project-open').click();
     await wait(async () => (await state()).systems[0].fresh);
+    assert((await bridge.project({action: 'status'})).state.autoConnect[broker.id].mode === mode, 'the connection preference survives project reopen');
+    navigate('connection');
     project = (await bridge.project({action: 'status'})).state.project;
     assert(JSON.stringify(project.systems[0].configuration) === draft, 'remote replaced local draft');
     assert(project.systems[0].stored.yaml.startsWith('# Synthetic source'), 'exact source not retained');
@@ -78,5 +84,5 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     document.dispatchEvent(new Event('z2ma-project-changed'));
     await wait(() => catalog.hidden);
   })()`);
-  console.log('DESKTOP_MQTT_OK shared-system/read-only/stored-source/operation/sorted-scrollable-catalog');
+  console.log('DESKTOP_MQTT_OK automatic-project-open/shared-system/read-only/stored-source/operation/sorted-scrollable-catalog');
 }

@@ -139,7 +139,8 @@ export function installDesktopWorkspace() {
     connection.hidden = !data.desktop.project || !data.workspaceContext?.systemId;
     context.dataset.hasSystem = String(!connection.hidden);
     connection.dataset.connected = String(data.status.mqttConnected);
-    bindText(connection, () => t(data.status.mqttConnected ? 'desktop.connected' : 'desktop.disconnected'));
+    bindText(connection, () => t(data.status.mqttConnected ? 'desktop.connected'
+      : data.status.autoConnectIssue ? 'desktop.autoConnect.' + data.status.autoConnectIssue : 'desktop.disconnected'));
     bindText(source, () => {
       if (data.desktop.source === 'stored') {
         return t(data.status.confirmed ? 'desktop.steps.storedSource' : 'desktop.steps.lastReadSource',

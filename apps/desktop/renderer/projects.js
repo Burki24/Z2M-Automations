@@ -261,6 +261,27 @@ export async function installProjects(bridge, workspace) {
   const enterCredentials = button(credentialForm, 'enterCredentials', () => credential('manual'));
   const importCredentials = button(credentialForm, 'storeCredentials', () => credential());
   const removeCredentials = button(credentialForm, 'removeCredentials', () => credential('remove'));
+  const automaticGroup = document.createElement('div'); automaticGroup.className = 'project-auto-connect';
+  credentialForm.append(automaticGroup);
+  const automatic = select(automaticGroup, 'autoConnect');
+  const automaticHelp = document.createElement('p'); automaticHelp.id = 'project-autoConnect-help';
+  bindText(automaticHelp, () => t('project.autoConnectHelp'));
+  automatic.setAttribute('aria-describedby', automaticHelp.id);
+  const automaticStatus = document.createElement('p'); automaticStatus.setAttribute('role', 'status');
+  automaticGroup.append(automaticHelp, automaticStatus);
+  automatic.addEventListener('change', async () => {
+    const id = brokerChoice.value;
+    if (busy || !id || pending.has(brokerForm)) { paintSecretState(); return; }
+    const mode = automatic.value || 'off';
+    busy = true; automatic.disabled = true;
+    try {
+      const result = await bridge.network({action: 'autoConnect', id, mode});
+      if (!result.ok) { show(brokerGroup, 'project.' + result.error); return; }
+      state.autoConnect = {...state.autoConnect, [id]: result.state.brokers.find(broker => broker.id === id).autoConnect};
+      paint(); show(brokerGroup, 'project.autoConnectSaved'); refresh();
+    } catch { show(brokerGroup, 'project.autoConnectSettings'); }
+    finally { busy = false; paintSecretState(); }
+  });
   mode.addEventListener('input', paintSecretState);
   function paintSecretState() {
     const available = Boolean(brokerChoice.value) && !pending.has(brokerForm);
@@ -269,6 +290,13 @@ export async function installProjects(bridge, workspace) {
     removeCredentials.disabled = !available;
     bindText(secretState, () => available ? t('project.secret.' + (state?.credentials[brokerChoice.value] ?? 'none'))
       : t('project.applyBrokerForCredentials'));
+    options(automatic, [['credentials', t('project.autoConnect.credentials')], ['anonymous', t('project.autoConnect.anonymous')]], 'autoConnect.off');
+    const setting = state?.autoConnect?.[brokerChoice.value];
+    automatic.value = setting?.mode === 'off' ? '' : setting?.mode ?? '';
+    automatic.disabled = !available;
+    automaticStatus.hidden = !setting?.issue;
+    bindText(automaticStatus, () => setting?.issue ? t('desktop.connection.' + setting.issue,
+      {broker: state.project.brokers.find(broker => broker.id === brokerChoice.value)?.name ?? ''}) : '');
   }
   function paintFileState() {
     bindText(stateLabel, () => state?.active
@@ -280,8 +308,11 @@ export async function installProjects(bridge, workspace) {
     brokerOverview.paint(sortByName(brokers).map(({id, name, host, port, tls}) => {
       const address = (host.includes(':') ? '[' + host + ']' : host) + ':' + port;
       const assigned = sortedSystems.filter(system => system.brokerId === id).map(system => system.name);
+      const setting = state.autoConnect?.[id];
       return [id, name, address + ' · ' + t(tls ? 'desktop.overview.tls' : 'desktop.overview.plain'),
-        assigned.length ? t('desktop.overview.assigned', {names: assigned.join(', ')}) : t('desktop.overview.unassigned')];
+        (assigned.length ? t('desktop.overview.assigned', {names: assigned.join(', ')}) : t('desktop.overview.unassigned'))
+          + ' · ' + t('project.autoConnect.' + (setting?.mode ?? 'off'))
+          + (setting?.issue ? ' · ' + t('desktop.autoConnect.' + setting.issue) : '')];
     }));
     systemOverview.paint(sortedSystems.map(({id, name, brokerId, baseTopic}) => [
       id, name, t('desktop.overview.brokerName', {name: brokers.find(broker => broker.id === brokerId)?.name ?? ''}),

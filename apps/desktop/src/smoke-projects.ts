@@ -116,6 +116,12 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     brokers()[7].click();
     assert(document.querySelector('#project-brokerChoice').value === brokerId, 'credential target is the selected broker');
     assert(document.querySelector('#project-broker-form').nextElementSibling.id === 'project-credentials-form', 'credentials follow broker settings');
+    const automatic = document.querySelector('#project-autoConnect');
+    const beforePreference = JSON.stringify((await state()).project);
+    assert(automatic.value === '', 'automatic connection is an explicit local opt-in');
+    automatic.value = 'credentials'; automatic.dispatchEvent(new Event('change', {bubbles: true}));
+    await wait(async () => (await state()).autoConnect[brokerId].mode === 'credentials' && !automatic.disabled, 'save automatic connection preference');
+    assert(JSON.stringify((await state()).project) === beforePreference, 'the local connection preference entered the portable project');
     field('credentialMode', 'session'); click('storeCredentials');
     await wait(async () => (await state()).credentials[brokerId] === 'session', 'store session credentials');
     assert(!document.querySelector('input[type=password]'), 'credential input exposed to designer');
@@ -130,6 +136,14 @@ export async function smokeProjects(view: WebContents): Promise<void> {
     assert(brokers().length === 8 && systems().length === 8, 'reopening the project restores both overviews');
     assert((await state()).project.name === 'Later draft', 'restore wrote disk');
     assert((await state()).credentials[brokerId] === 'none', 'session retained after reopen');
+    await wait(async () => (await state()).autoConnect[brokerId].issue === 'credentialsMissing', 'automatic connection reports missing session credentials');
+    await wait(() => document.querySelector('#desktop-connection').textContent === 'Credentials missing', 'the workspace explains the disconnected automatic connection');
+    navigate('connection');
+    await wait(() => pane('connection').textContent.includes('Saved credentials for'), 'the connection step explains how to add the missing credentials');
+    pane('connection').querySelector('[data-step="broker"]').click();
+    assert(document.querySelector('#project-brokerChoice').value === brokerId && automatic.value === 'credentials', 'the corrective link selects the affected broker and its local preference');
+    automatic.value = ''; automatic.dispatchEvent(new Event('change', {bubbles: true}));
+    await wait(async () => (await state()).autoConnect[brokerId].mode === 'off' && !automatic.disabled, 'disable automatic connection locally');
     const manual = await bridge.credential({brokerId, mode: 'session', source: 'manual'});
     assert(manual.ok && manual.state.credentials[brokerId] === 'session', 'manual session credential');
     assert(!JSON.stringify(manual).includes('SYNTHETIC_SECRET'), 'manual secret returned');

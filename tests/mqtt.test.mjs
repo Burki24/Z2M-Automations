@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {randomUUID} from 'node:crypto';
-import {mkdtemp, readFile, rm} from 'node:fs/promises';
+import {mkdtemp, readFile, readdir, writeFile, mkdir, rm} from 'node:fs/promises';
 import {existsSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -11,6 +11,7 @@ import {connect} from 'mqtt';
 import {startPeer, remoteFixture} from './support/mqtt-peer.mjs';
 const require = createRequire(import.meta.url);
 const {MqttReader, mqttOptions, parseTLS} = require('../apps/desktop/.build/mqtt-reader.js');
+const {AutomaticConnections} = require('../apps/desktop/.build/auto-connect.js');
 const {editorData} = require('../apps/desktop/.build/mqtt-protocol.js');
 const {newProject, emptyConfiguration, projectBytes, parseProject} = require('../apps/desktop/.build/project.js');
 const {ProjectService} = require('../apps/desktop/.build/project-service.js');
@@ -39,6 +40,101 @@ function readerFor(t, project, {timeout = 500, secret = null, observe} = {}) {
   reader.reconcile(project, 1); t.after(() => reader.close());
   return {reader, stored, debug};
 }
+async function automaticFor(t, project, reader, debug = new Diagnostics()) {
+  const directory = await mkdtemp(join(tmpdir(), 'z2ma-connections-'));
+  t.after(() => rm(directory, {recursive: true, force: true}));
+  const automatic = new AutomaticConnections(directory, reader, debug);
+  await automatic.reconcile(project, 1);
+  return {automatic, directory};
+}
+test('automatic connections are local opt-ins, survive a new service and read eight systems through one broker', async t => {
+  const peer = await startPeer({systems: new Map(Array.from({length: 8}, (_, i) => ['synthetic' + i, remoteFixture('Remote ' + i)]))});
+  t.after(() => peer.close()); const project = projectFor([peer], 8); const before = structuredClone(project);
+  const {reader, debug} = readerFor(t, project, {secret: {username: 'SYNTHETIC_USER', password: 'SYNTHETIC_SECRET'}});
+  const {automatic, directory} = await automaticFor(t, project, reader, debug);
+  const id = project.brokers[0].id;
+  await assert.rejects(automatic.connect(randomUUID()), /noProject/);
+  await automatic.opened(1); assert.equal(peer.clients.length, 0);
+  await automatic.set(id, 'credentials'); assert.equal(peer.clients.length, 0, 'changing a preference does not initiate a connection');
+  const reopened = new AutomaticConnections(directory, reader, debug);
+  await reopened.reconcile(project, 1);
+  assert.equal(reopened.setting(id).mode, 'credentials');
+  await Promise.all([reopened.opened(1), reopened.connect(id)]);
+  await waitFor(() => reader.state().systems.every(system => system.fresh));
+  assert.equal(peer.clients.length, 1); assert.equal(peer.clients[0].username, 'SYNTHETIC_USER');
+  assert.deepEqual(project, before);
+  assert.ok(peer.publications.every(message => /\/request\/(status|editor)$/.test(message.topic) && !message.retain));
+  const files = await readdir(directory); assert.equal(files.length, 1);
+  assert.deepEqual(JSON.parse(await readFile(join(directory, files[0]), 'utf8')), {version: 1, mode: 'credentials'});
+  assert.equal(JSON.stringify(debug.read()).includes('SYNTHETIC_SECRET'), false);
+  reader.disconnect(id); await reopened.opened(1);
+  assert.equal(reader.connected(id), false, 'an explicit disconnect lasts until the next project open');
+  await reopened.set(id, 'off');
+  const disabled = new AutomaticConnections(directory, reader, debug); await disabled.reconcile(project, 2); await disabled.opened(2);
+  assert.equal(disabled.setting(id).mode, 'off'); assert.equal(peer.clients.length, 1);
+});
+test('missing and locked credentials report individual issues while other brokers connect; anonymous mode skips the vault', async t => {
+  const peers = await Promise.all([startPeer(), startPeer(), startPeer()]);
+  t.after(() => Promise.all(peers.map(peer => peer.close())));
+  const project = projectFor(peers); const reads = [];
+  const reader = new MqttReader({read: async (_project, broker) => {
+    reads.push(broker.id);
+    if (broker.id === project.brokers[0].id) return null;
+    if (broker.id === project.brokers[1].id) throw new Error('protectionUnavailable');
+    return {username: 'SYNTHETIC_USER', password: 'SYNTHETIC_SECRET'};
+  }}, new Diagnostics(), async () => {});
+  t.after(() => reader.close()); reader.reconcile(project, 1);
+  const {automatic} = await automaticFor(t, project, reader);
+  for (const broker of project.brokers) await automatic.set(broker.id, 'credentials');
+  await automatic.opened(1); await waitFor(() => reader.state().systems[2].fresh);
+  assert.equal(automatic.setting(project.brokers[0].id).issue, 'credentialsMissing');
+  assert.equal(automatic.setting(project.brokers[1].id).issue, 'credentialsLocked');
+  assert.deepEqual(peers.map(peer => peer.clients.length), [0, 0, 1]);
+  await automatic.set(project.brokers[0].id, 'anonymous'); await automatic.set(project.brokers[2].id, 'off');
+  reader.reconcile(project, 2); await automatic.reconcile(project, 2); await automatic.opened(2);
+  await waitFor(() => reader.state().systems[0].fresh);
+  assert.equal(peers[0].clients[0].username, undefined);
+  assert.equal(reads.filter(id => id === project.brokers[0].id).length, 1, 'anonymous mode does not read saved secrets');
+  assert.equal(peers[2].clients.length, 1, 'an off preference is respected at the next open');
+});
+test('automatic opt-ins are bound to project identity and the broker endpoint and damaged settings cannot initiate a connection', async t => {
+  const peer = await startPeer(); t.after(() => peer.close()); const project = projectFor([peer]); const {reader} = readerFor(t, project);
+  const {automatic, directory} = await automaticFor(t, project, reader);
+  await automatic.set(project.brokers[0].id, 'anonymous');
+  let epoch = 1;
+  for (const change of [value => value.id = randomUUID(), value => value.brokers[0].id = randomUUID(), value => value.brokers[0].host = 'localhost',
+    value => value.brokers[0].port++, value => value.brokers[0].tls = true]) {
+    const changed = structuredClone(project); change(changed);
+    reader.reconcile(changed, ++epoch); await automatic.reconcile(changed, epoch); await automatic.opened(epoch);
+    assert.equal(automatic.setting(changed.brokers[0].id).mode, 'off');
+  }
+  assert.equal(peer.clients.length, 0);
+  const file = join(directory, (await readdir(directory))[0]);
+  for (const bytes of ['{invalid JSON', '{"version":1,"mode":["anonymous"]}', '{"version":1,"mode":"always"}', '{"version":2,"mode":"anonymous"}']) {
+    await writeFile(file, bytes);
+    reader.reconcile(project, ++epoch); await automatic.reconcile(project, epoch); await automatic.opened(epoch);
+    assert.deepEqual(automatic.setting(project.brokers[0].id), {mode: 'off', issue: 'settingsUnavailable'});
+    assert.equal(peer.clients.length, 0);
+  }
+  await automatic.set(project.brokers[0].id, 'credentials');
+  await rm(file); await mkdir(file);
+  await assert.rejects(automatic.set(project.brokers[0].id, 'anonymous'), /autoConnectSettings/);
+  assert.equal(automatic.setting(project.brokers[0].id).mode, 'credentials', 'a failed write preserves the applied preference');
+});
+test('opening another project while credentials are being read cancels the old automatic attempt', async t => {
+  const peer = await startPeer(); t.after(() => peer.close()); const project = projectFor([peer]);
+  let release; let started;
+  const reading = new Promise(resolve => { started = resolve; });
+  const reader = new MqttReader({read: async () => { started(); return new Promise(resolve => { release = resolve; }); }}, new Diagnostics(), async () => {});
+  t.after(() => reader.close()); reader.reconcile(project, 1);
+  const {automatic} = await automaticFor(t, project, reader); await automatic.set(project.brokers[0].id, 'credentials');
+  const opening = automatic.opened(1); await reading;
+  const next = {...structuredClone(project), id: randomUUID()};
+  reader.reconcile(next, 2); await automatic.reconcile(next, 2);
+  release({username: 'SYNTHETIC_USER', password: 'SYNTHETIC_SECRET'}); await opening;
+  assert.equal(peer.clients.length, 0);
+  assert.deepEqual(automatic.setting(next.brokers[0].id), {mode: 'off', issue: ''});
+});
 test('real MQTT.js shares one broker for eight isolated systems and emits only non-retained read requests', async t => {
   const fixtures = new Map(Array.from({length: 8}, (_, index) => ['synthetic' + index, remoteFixture('Remote ' + index)]));
   const peer = await startPeer({systems: fixtures}); t.after(() => peer.close());
@@ -157,6 +253,10 @@ test('broker denial and locked credentials fail without control requests or anon
   await assert.rejects(locked.connectBroker(project.brokers[0].id), /protectionUnavailable/); assert.equal(peer.clients.length, 1);
 });
 test('network IPC exposes fixed transfer actions without raw MQTT, TLS or file operations', () => {
+  for (const mode of ['off', 'credentials', 'anonymous']) assert.equal(validPayload('network', {action: 'autoConnect', id: randomUUID(), mode}), true);
+  for (const extra of [{}, {mode: 'always'}, {mode: ['anonymous']}, {mode: 'credentials', password: 'PRIVATE'}, {mode: 'anonymous', host: 'private.invalid'}]) {
+    assert.equal(validPayload('network', {action: 'autoConnect', id: randomUUID(), ...extra}), false);
+  }
   for (const action of ['validate', 'store', 'install']) {
     assert.equal(validPayload('network', {action, id: randomUUID()}), true);
     assert.equal(validPayload('network', {action, id: randomUUID(), yaml: 'private'}), false);

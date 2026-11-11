@@ -176,8 +176,9 @@ private device contents or complete YAML documents.
 
 Manage broker connections separately from Z2M systems. One broker may serve
 multiple base topics. Share connections per broker in a controlled way and use
-client IDs distinct from Symcon and other applications. Establish MQTT only
-after an explicit connection request.
+client IDs distinct from Symcon and other applications. Establish MQTT after
+an explicit connection request or a successful project open with a local opt-in
+for that project's broker endpoint.
 
 Plan for TCP and TLS, username/password and CA/client certificates as needed.
 Do not silently disable certificate verification. The renderer may not publish

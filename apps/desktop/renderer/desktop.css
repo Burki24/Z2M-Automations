@@ -133,6 +133,7 @@ html:has(.desktop-foundation) { scroll-padding-block-start: calc(var(--desktop-s
 .project-overview button[aria-current="true"] { border-color: var(--primary); background: var(--primary-soft); }
 .project-form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; margin-block: 1rem; padding-block: .75rem; border-top: 1px solid var(--line); }
 #project-credentials-form { margin-block-start: 0; margin-inline-start: .75rem; border-top: 0; border-inline-start: 2px solid var(--line); padding-inline-start: .75rem; }
+.project-auto-connect { flex-basis: 100%; padding-block-start: .75rem; border-block-start: 1px solid var(--line); }
 .project-form[hidden] { display: none; }
 .project-form h3, .project-form p { flex-basis: 100%; margin: .25rem 0; overflow-wrap: anywhere; }
 .project-form label { display: flex; flex-direction: column; gap: .3rem; min-width: 0; flex: 1 1 12rem; }
