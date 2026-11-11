@@ -18,7 +18,7 @@ const wireTopic = (base: string, operation: WireOperation, direction: 'request' 
 const systemTopics = (base: string): string[] => [base + '/bridge/state', base + '/bridge/extensions', base + extensionPrefix + 'status', base + extensionPrefix + 'runs',
   ...wireOperations.map(operation => wireTopic(base, operation, 'response'))];
 
-export interface NetworkCommand {action: 'status' | 'connect' | 'disconnect' | 'autoConnect' | 'refresh' | 'certificates' | 'clearCertificates' | 'view' | 'validate' | 'store' | 'install' | 'checkTransfer' | 'validateEnabled' | 'runtimeStatus' | RuntimeAction; id: string; source?: 'draft' | 'stored'; rule?: string; run?: string; resume?: boolean; mode?: AutoConnectMode}
+export interface NetworkCommand {action: 'status' | 'connect' | 'disconnect' | 'autoConnect' | 'refresh' | 'linkPlan' | 'linkCheck' | 'certificates' | 'clearCertificates' | 'view' | 'validate' | 'store' | 'install' | 'checkTransfer' | 'validateEnabled' | 'runtimeStatus' | RuntimeAction; id: string; peerId?: string; source?: 'draft' | 'stored'; rule?: string; run?: string; resume?: boolean; mode?: AutoConnectMode}
 export interface TLSMaterial {ca?: string; cert?: string; key?: string; passphrase?: string}
 interface Pending {topic: string; generation: number; operation: 'read' | 'validate' | 'store' | 'install' | RuntimeAction; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>}
 interface Connection {
@@ -359,6 +359,8 @@ export function validNetworkCommand(value: unknown): value is NetworkCommand {
   if (!record(value) || typeof value['action'] !== 'string' || typeof value['id'] !== 'string') return false;
   if (value['action'] === 'status') return exact(value, ['action', 'id']) && value['id'] === '';
   if (!/^[a-f0-9-]{36}$/.test(value['id'])) return false;
+  if (value['action'] === 'linkPlan' || value['action'] === 'linkCheck') return exact(value, ['action', 'id', 'peerId'])
+    && validId(value['id']) && validId(value['peerId']) && value['id'] !== value['peerId'];
   if (value['action'] === 'autoConnect') return exact(value, ['action', 'id', 'mode']) && validId(value['id'])
     && typeof value['mode'] === 'string' && ['off', 'credentials', 'anonymous'].includes(value['mode']);
   if (value['action'] === 'view') return exact(value, ['action', 'id', 'source']) && ['draft', 'stored'].includes(String(value['source']));

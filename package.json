@@ -17,6 +17,7 @@
     "typecheck": "tsc --project apps/desktop/tsconfig.json --noEmit",
     "check": "node scripts/check-project.mjs && node scripts/check-designer.mjs && npm run typecheck",
     "test": "node --test tests/*.test.mjs",
+    "test:system-link-ui": "node scripts/test-system-link-ui.mjs",
     "verify": "npm run build && npm run check && npm test",
     "start": "npm run build && npm run start --workspace @z2ma/desktop",
     "package": "npm run build && npm run package --workspace @z2ma/desktop",

@@ -63,6 +63,19 @@ Run the same checks on Ubuntu; simulated
 missing/locked keyrings do not establish native secret-service acceptance.
 See [D2](D2.md) for the format, persistence and credential boundaries.
 
+After `npm run build`, `npm run test:system-link-ui` runs a separate hidden
+Electron fixture with synthetic data. It inspects DOM and layout only and never
+captures images. It covers the desktop system-link assistant's three stages,
+eight sorted system choices, DE/EN preservation, failed checks, offline/shared
+brokers, configuration selection, corrective navigation and reopening. Keyboard,
+Escape and page-local wheel input verify the dialog's internal scroll boundary.
+The wheel check waits for the observed scroll result. Layout
+checks use both themes at 360 and 1280 pixels. Linux needs Xvfb and Electron's
+sandbox setup as shown in the CI workflow. This test does not replace the
+full source/package smoke or native Ubuntu acceptance. The ordinary unit suite
+also verifies mesh-only suggestions, template safety, schema limits and actual
+correlated reads against isolated loopback MQTT peers.
+
 ~~~sh
 npm run package
 npm run make

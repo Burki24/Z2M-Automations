@@ -74,12 +74,35 @@ apply to all its automations; adding or copying a rule preserves them. Save the
 project to retain local changes. Importing or replacing a complete system
 configuration can also replace its partner declarations.
 
-The MQTT prerequisites section remains **not checked**: the app cannot infer
-Z2M-client or bridge permissions from its own successful broker connection.
-Additional Mosquitto users are optional; existing Z2M and bridge accounts can
-receive the required read/write access to `z2ma/mesh/#`. Configure accounts,
-topic permissions and the bridge on the brokers, separately from the app's
-partner declarations.
+In step 3, **Connect systems to each other** guides you through a pair of systems:
+
+1. Choose the two systems. Their devices can then be prepared for use in
+   conditions and actions; device triggers remain local to their own system.
+2. **Check prerequisites** reads both systems through already connected app
+   connections. It reports unique base topics, extension versions, local and
+   freshly stored partner permissions, and the active configuration separately.
+   Missing items explain which workspace step to use. Disconnected brokers are
+   not connected by the assistant; connect them in step 4 and check again.
+3. **Show suggestions** provides supplementary partner-list and Mosquitto ACL
+   excerpts. Different broker endpoints also receive one bidirectional,
+   mesh-only bridge example for the first broker. A shared endpoint needs no
+   bridge. Preserve existing rules, permissions and bridge topology.
+
+These are reviewable suggestions, not replacement files or automatic setup.
+Use **Select text**, then Ctrl+C to copy an example. Replace account/password
+and TLS-path placeholders on the server. The assistant never reads vault
+passwords or exports imported TLS material. It does not modify the project,
+install extensions, send mesh/device commands, transfer rules or activate operation.
+Configuration reads may update the project's separately observed Z2M state.
+The ordinary draft check and confirmed transfer remain steps 7 and 8.
+
+Actual Z2M/bridge accounts, their MQTT permissions and communication between
+the extensions remain explicitly **not checked**. An app connection does not
+prove another account's rights. Additional Mosquitto users are optional; existing
+accounts can receive read/write access to `z2ma/mesh/#`. The examples target
+password/ACL files. Dynamic Security administration remains a separate server
+task. Before adding a bridge, check for existing routes and host aliases; do
+not create a second reverse bridge or a loop between multiple brokers.
 
 Before using remote conditions, install the bundled extension 0.2.2 or later on
 both Z2M instances. Separate brokers need an independently configured MQTT bridge

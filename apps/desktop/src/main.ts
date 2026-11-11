@@ -21,6 +21,7 @@ import {connect} from 'mqtt';
 import {smokeNetwork} from './smoke-network.js';
 import {DraftEditor, type DesignerCommand} from './draft-editor.js';
 import {partnerOverview} from './partner-overview.js';
+import {systemLinkPlan, readSystemLink} from './system-link.js';
 import {DraftExchange} from './draft-exchange.js';
 import {DraftValidationError} from './draft-feedback.js';
 import {ExtensionTransfer, bundledExtension} from './extension-transfer.js';
@@ -122,6 +123,15 @@ function networkState() {
 }
 async function network(command: NetworkCommand): Promise<unknown> {
   switch (command.action) {
+    case 'linkPlan': case 'linkCheck': {
+      if (!projects.active) throw new Error('noProject');
+      const project = projects.data();
+      if (command.action === 'linkCheck') {
+        readSystemLink(project, reader, command.id, command.peerId!);
+        for (const id of [command.id, command.peerId!]) debug.record('projectRequest', id, undefined, {operation: 'read'});
+      }
+      return {...networkState(), epoch: projects.generation(), linkPlan: systemLinkPlan(project, reader, command.id, command.peerId!)};
+    }
     case 'activate': case 'deactivate': case 'run_once': case 'stop_rule': {
       if (smoke) throw new Error('invalidRequest');
       try {

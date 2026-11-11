@@ -143,6 +143,45 @@ html:has(.desktop-foundation) { scroll-padding-block-start: calc(var(--desktop-s
 .desktop-partner-scroll .field-help { display: block; margin-block-start: .25rem; }
 .desktop-partner-requirements { margin-block-start: .9rem; }
 .desktop-partner-requirements summary { color: var(--warning); cursor: pointer; }
+.desktop-link-entry { margin-block: 1rem; }
+.desktop-link-entry p { margin-block: .4rem; }
+.desktop-link-dialog { width: min(58rem, calc(100vw - 1.5rem)); max-height: calc(100dvh - 1.5rem); padding: 0; background: var(--surface); }
+.desktop-link-dialog[open] { display: flex; flex-direction: column; }
+.desktop-link-dialog header, .desktop-link-dialog footer { flex: none; padding: .8rem 1rem; }
+.desktop-link-dialog header { border-block-end: 1px solid var(--line); }
+.desktop-link-dialog h2, .desktop-link-dialog h3, .desktop-link-dialog h4 { margin: 0 0 .6rem; }
+.desktop-link-dialog header p { margin: 0; }
+.desktop-link-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 1rem; scroll-padding-block: 1rem; }
+.desktop-link-content h3:focus-visible { outline: 2px solid var(--focus); outline-offset: .2rem; }
+.desktop-link-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; margin-block: 1rem; }
+.desktop-link-choices label { display: grid; gap: .35rem; min-width: 0; }
+.desktop-link-dialog select { width: 100%; min-width: 0; padding: .65rem; font: inherit; color: var(--ink); background: var(--surface-soft); border: 1px solid var(--line-strong); border-radius: .5rem; }
+.desktop-link-card { border: 1px solid var(--line); padding: .8rem; border-radius: .6rem; margin-block: .8rem; overflow-wrap: anywhere; }
+.desktop-link-card summary { cursor: pointer; font-weight: 650; }
+.desktop-link-card p { margin-block: .45rem; }
+.desktop-link-card li { margin-block: .5rem; }
+.desktop-link-notice { padding: .7rem; color: var(--ink); background: var(--warning-soft); border-radius: .5rem; overflow-wrap: anywhere; }
+.desktop-link-checks { display: grid; gap: .4rem; list-style: none; padding: 0; margin-block: .75rem; }
+.desktop-link-checks li { display: grid; grid-template-columns: minmax(7.5rem, 1fr) minmax(0, 4fr); align-items: start; gap: .65rem; margin: 0; }
+.desktop-link-checks p { color: var(--muted); margin: .15rem 0 .4rem; }
+.desktop-link-badge { padding: .15rem .4rem; border: 1px solid currentColor; border-radius: .3rem; text-align: center; font-size: .875rem; }
+.desktop-link-checks [data-state="ok"] .desktop-link-badge { color: var(--success); background: var(--success-soft); }
+.desktop-link-checks [data-state="missing"] .desktop-link-badge { color: var(--danger); background: var(--danger-soft); }
+.desktop-link-checks [data-state="unknown"] .desktop-link-badge { color: var(--warning); background: var(--warning-soft); }
+.desktop-link-dialog textarea { display: block; width: 100%; resize: vertical; max-height: 22rem; min-height: 5rem; overflow: auto; padding: .7rem; margin-block: .65rem; font: .875rem/1.5 monospace; color: var(--ink); background: var(--surface-soft); border: 1px solid var(--line-strong); border-radius: .4rem; white-space: pre; }
+.desktop-link-dialog .dialog-actions { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: end; border-block-start: 1px solid var(--line); margin: 0; }
+.desktop-link-dialog button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.desktop-link-feedback { flex: none; padding-inline: 1rem; margin-block: 0 .5rem; color: var(--danger); }
+.desktop-link-feedback:empty { display: none; }
+body:has(.desktop-link-dialog[open]) { overflow: hidden; }
+@media (max-width: 600px) {
+  .desktop-link-choices, .desktop-link-checks li { grid-template-columns: minmax(0, 1fr); }
+  .desktop-link-badge { width: fit-content; }
+  .desktop-link-dialog header, .desktop-link-dialog footer, .desktop-link-content { padding: .75rem; }
+}
+@media (forced-colors: active) {
+  .desktop-link-badge { color: CanvasText !important; border-color: CanvasText; }
+}
 .project-form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; margin-block: 1rem; padding-block: .75rem; border-top: 1px solid var(--line); }
 #project-credentials-form { margin-block-start: 0; margin-inline-start: .75rem; border-top: 0; border-inline-start: 2px solid var(--line); padding-inline-start: .75rem; }
 .project-auto-connect { flex-basis: 100%; padding-block-start: .75rem; border-block-start: 1px solid var(--line); }

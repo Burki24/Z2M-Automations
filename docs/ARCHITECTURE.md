@@ -72,6 +72,16 @@ there are no runtime downloads from GitHub.
   without issuing MQTT requests. Cached grants and mismatched active revisions
   never establish current permission or operation. Broker ACL and bridge setup
   remain external and explicitly unverified by this view.
+- The desktop system-link assistant projects a selected pair through
+  `system-link.ts` and fixed `linkPlan`/`linkCheck` network commands. A plan is
+  read-only; an explicit check starts only existing correlated status/catalog
+  reads on connected brokers. Completion is polled without holding the project
+  queue across observation callbacks. Local declarations, fresh stored grants
+  and active revisions remain independent. The renderer receives no account
+  secrets, shell API or arbitrary publish capability. Mosquitto ACL/bridge
+  suggestions contain placeholders and mesh-only topics; they are never applied.
+  Actual account rights and mesh transport remain unknown. See
+  [ADR 0003](adr/0003-system-link-assistant.md).
 
 ## Language, permissions and diagnostics
 
