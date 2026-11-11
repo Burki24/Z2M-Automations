@@ -62,9 +62,9 @@ with mode 0644, checked against the original with SHA-256 and read-checked as
 `_apt`; the original artifact remains unchanged. Identity fields are bounded,
 with the application's canonical x.y.z version and amd64/all architecture.
 APT can read a local DEB in place during `--download-only` without populating
-its archive cache. Explicit cache staging is necessary for the subsequent
-`--no-download` operation; otherwise it can reject the local package as missing
-even after a successful download phase. This behavior is visible in
+its archive cache. Explicit staging makes the local archive available to the
+subsequent `--no-download` operation. A successful acquisition must not be
+assumed to cause a later call to fail. Archive lookup is implemented in
 [APT's archive handling](https://github.com/Debian/apt/blob/main/apt-pkg/acquire-item.cc).
 No runner-home permissions are broadened. An unexpected root-download fallback
 is treated as a permission failure, including when APT exits with status zero.
@@ -81,16 +81,21 @@ routing, retry/fallback, identical package staging and failure paths. A native
 Linux CI regression test proves that `_apt` cannot read through a private ancestor
 and can access the new sources, caches and staged package without changing it.
 A second native test builds a tiny dependency-free DEB and exercises real APT
-acquisition with empty sources and an isolated empty package database. It first
-reproduces the uncached local-DEB failure, then verifies that canonical staging
-passes `--no-download`. All calls are download-only: no package is unpacked or
-configured and no network repository is accessed.
+acquisition with empty sources and an isolated empty package database. It follows
+the production order: stage the archive, acquire dependencies, then check
+`--no-download`. Both APT calls must succeed without acquiring an archive; the
+package bytes and database must remain unchanged. All calls are download-only:
+no package is unpacked or configured and no network repository is accessed.
 
 CI run 43069225091 confirmed the sandbox checks, HTTPS routing, signed metadata,
 dependency downloads and source/package smoke tests. Its final installation
-failed with the old uncached local-DEB path. A new Ubuntu CI run must confirm
-the corrected installed-app smoke, removal and DEB upload; Windows checks and
-the non-installing APT regression do not establish that result.
+exited with code 100; the original APT error text was not retained.
+Run 43072699700 stopped earlier because the added native test incorrectly
+expected exit 100 after a successful acquisition; APT actually returned zero.
+That assertion is removed in favor of checking the staged archive's successful
+use. A new Ubuntu CI run must confirm installed-app smoke, removal and DEB
+upload; Windows checks and the non-installing APT regression do not establish
+that result.
 
 verify builds the canonical designer and TypeScript backend, checks UTF-8/LF,
 matching catalog keys/parameters, markup/key references, generated asset hashes,

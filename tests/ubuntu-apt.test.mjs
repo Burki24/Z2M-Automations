@@ -399,7 +399,7 @@ test('native CI _apt access rejects a private ancestor and accepts isolated sour
   }
 });
 
-test('native APT reproduces the uncached local-DEB failure and accepts canonical staging without network or dpkg changes', {skip: !nativeSandbox}, async t => {
+test('native APT accepts the staged local DEB without acquisition or package database changes', {skip: !nativeSandbox}, async t => {
   const workspace = await createAptWorkspace();
   t.after(async () => {
     await rmdir(join(workspace.lists, 'partial')); await rmdir(join(workspace.archives, 'partial'));
@@ -415,14 +415,16 @@ test('native APT reproduces the uncached local-DEB failure and accepts canonical
   // Empty sources and a private empty status file isolate this check from the runner OS.
   const acquire = (target, offline = false) => executeApt([...configuration, 'install', '--yes', '--download-only',
     ...(offline ? ['--no-download'] : []), target], 30000);
-  const downloaded = acquire(file); assert.equal(downloaded.status, 0, JSON.stringify(aptDiagnostics(downloaded)));
-  const uncached = acquire(file, true); assert.equal(uncached.status, 100, 'the old uncached path must reproduce the offline failure');
-  assert.ok(aptDiagnostics(uncached).errors.includes('archive-cache'), JSON.stringify(aptDiagnostics(uncached)));
+  // Match production: stage first, then download dependencies, then use the cache.
+  // A successful earlier acquisition is not evidence that a later call must fail.
   const cached = await stageLocalPackage(file, workspace);
+  const downloaded = acquire(cached); assert.equal(downloaded.status, 0, JSON.stringify(aptDiagnostics(downloaded)));
   const ready = acquire(cached, true); assert.equal(ready.status, 0, JSON.stringify(aptDiagnostics(ready)));
+  assert.equal(aptDiagnostics(downloaded).counts.Get, 0, 'the staged dependency-free fixture must already be cached');
+  assert.equal(aptDiagnostics(ready).counts.Get, 0, 'the offline call must not acquire an archive');
   assert.deepEqual(await readFile(cached), await readFile(file));
   assert.equal(await readFile(status, 'utf8'), '', 'the isolated package database must remain unchanged');
-  console.log('UBUNTU_APT_CACHE_REGRESSION ' + JSON.stringify({uncachedRejected: true, cachedAccepted: true, dpkgChanged: false}));
+  console.log('UBUNTU_APT_CACHE_REGRESSION ' + JSON.stringify({cachedAccepted: true, acquiredArchives: 0, dpkgChanged: false}));
 });
 
 test('workflow protects both APT entry points while keeping installed smoke, removal and artifact gates', () => {
