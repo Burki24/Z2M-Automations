@@ -67,6 +67,20 @@ reading, editing, checking and transfer.
 
 For devices on another system, read both catalogs in step 4. In step 3, open
 **Partner permissions** for each system and explicitly allow the other system.
+The overview shows every configured direction, its broker assignments and the
+separate project and stored Z2M states. Cached observations remain explicitly
+unconfirmed. Permissions belong to the system configuration in the project and
+apply to all its automations; adding or copying a rule preserves them. Save the
+project to retain local changes. Importing or replacing a complete system
+configuration can also replace its partner declarations.
+
+The MQTT prerequisites section remains **not checked**: the app cannot infer
+Z2M-client or bridge permissions from its own successful broker connection.
+Additional Mosquitto users are optional; existing Z2M and bridge accounts can
+receive the required read/write access to `z2ma/mesh/#`. Configure accounts,
+topic permissions and the bridge on the brokers, separately from the app's
+partner declarations.
+
 Before using remote conditions, install the bundled extension 0.2.2 or later on
 both Z2M instances. Separate brokers need an independently configured MQTT bridge
 for `z2ma/mesh/#`; the application does not create it. Transfer the receiving

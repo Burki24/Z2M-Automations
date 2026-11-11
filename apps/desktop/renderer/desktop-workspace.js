@@ -131,7 +131,7 @@ export function installDesktopWorkspace() {
     create.classList.add('primary');
     actions.prepend(create, menu.querySelector('#new-sequence-button'));
     const permissions = menu.querySelector('.permissions-open');
-    if (permissions) pages.system.querySelector('.desktop-card').append(permissions);
+    if (permissions) document.querySelector('#desktop-partner-actions').append(permissions);
     pages.automations.append(document.querySelector('.designer-feedback'), document.querySelector('.workspace'));
   }
 

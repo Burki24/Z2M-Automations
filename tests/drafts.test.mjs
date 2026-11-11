@@ -60,6 +60,17 @@ test('the canonical schema blocks invalid times, time zones, unknown fields and 
   const color = s.rule(); color.actions[0].values = {color: {hex: '#12aBcD'}}; s.send('create', {rule: color});
   const invalid = s.rule(); invalid.actions[0].values = {color: {hex: 'red'}}; assert.throws(() => s.send('create', {rule: invalid}), /draftValue/);
 });
+
+test('partner grants belong to the system configuration and survive creating, copying and editing automations', async () => {
+  const s = await setup(); const configuration = s.system().configuration;
+  configuration.mesh_peers = ['other']; s.service.replaceDraft(s.id, configuration);
+  const created = s.send('create', {rule: s.rule()});
+  const copied = s.send('manage', {operation: 'copy-rule', id: created.ruleId});
+  s.send('edit', {ruleId: copied.ruleId, changes: {name: 'Another automation'}});
+  assert.equal(s.system().configuration.automations.length, 2);
+  assert.deepEqual(s.system().configuration.mesh_peers, ['other']);
+  assert.equal(s.system().configuration.automations.some(rule => Object.hasOwn(rule, 'mesh_peers')), false);
+});
 test('read permissions never imply write permissions; scenes and directed partner permissions are independently checked', async () => {
   const s = await setup();
   const other = randomUUID(); const p = s.service.data();

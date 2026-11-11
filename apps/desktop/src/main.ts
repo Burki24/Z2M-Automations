@@ -20,6 +20,7 @@ import {boundedRead} from './project-files.js';
 import {connect} from 'mqtt';
 import {smokeNetwork} from './smoke-network.js';
 import {DraftEditor, type DesignerCommand} from './draft-editor.js';
+import {partnerOverview} from './partner-overview.js';
 import {DraftExchange} from './draft-exchange.js';
 import {DraftValidationError} from './draft-feedback.js';
 import {ExtensionTransfer, bundledExtension} from './extension-transfer.js';
@@ -63,6 +64,7 @@ function snapshot(): unknown {
       executing: remote?.fresh ? remote.status.executing : false, activeRevision: remote?.fresh && remote.status.executing ? remote.status.revision : null},
     catalogAvailable: Boolean(remote), configuration: configuration ?? {schema_version: 1, revision: 1, automations: [], sequences: [], mesh_peers: []},
     workspace: {fingerprint: project.id, systems: project.systems.map(system => ({name: system.name, binding: {systemId: system.id, generation: 1, baseTopic: system.baseTopic}}))},
+    partnerPermissions: partnerOverview(project, reader),
     workspaceContext: {systemId: system?.id ?? '', generation: projects.generation() + 1, fingerprint: project.id},
     ...(system ? drafts.view(system) : {})};
 }

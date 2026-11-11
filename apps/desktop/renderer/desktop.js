@@ -1,6 +1,7 @@
 import {installTransport} from './transport.js';
 import {t, bindText, onLanguageChange, formatDate} from './localization.js';
 import {installProjects} from './projects.js';
+import {installPartnerOverview} from './partner-overview.js';
 import {installNetwork} from './network.js';
 import {validationSummary} from './draft-review.js';
 import {installDraftExchange} from './drafts.js';
@@ -112,6 +113,7 @@ async function installTheme() {
 try {
     const workspace = installDesktopWorkspace();
     await installProjects(bridge, workspace);
+    installPartnerOverview();
     installDraftExchange(bridge, workspace);
     const updateNetwork = installNetwork(bridge, workspace, () => editorState);
     workspace.pages.project.append(panel);

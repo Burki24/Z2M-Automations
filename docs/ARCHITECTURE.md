@@ -67,6 +67,11 @@ there are no runtime downloads from GitHub.
   fresh catalogs and compatible extension versions are checked before transfer.
   Unknown values, missing grants and late or absent replies cannot authorize an
   action; device state never needs to pass through a running desktop app.
+- Partner permissions belong to each system configuration, shared by its rules.
+  The desktop overview projects local declarations and existing stored observations
+  without issuing MQTT requests. Cached grants and mismatched active revisions
+  never establish current permission or operation. Broker ACL and bridge setup
+  remain external and explicitly unverified by this view.
 
 ## Language, permissions and diagnostics
 
