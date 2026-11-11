@@ -37,7 +37,7 @@ jobs:
         run: npm run setup:tools
       - name: Install Linux build and display tools
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --yes fakeroot dpkg xvfb openssl
+        run: node scripts/ubuntu-apt.mjs prepare
       - name: Verify shared sources and desktop contracts
         run: npm run verify
       - name: Package the native application
@@ -90,7 +90,7 @@ jobs:
         run: |
           mapfile -t packages < <(find apps/desktop/out/make -type f -name '*.deb')
           [[ ${#packages[@]} -eq 1 ]]
-          sudo apt-get install --yes "$(realpath "${packages[0]}")"
+          node scripts/ubuntu-apt.mjs install-deb "$(realpath "${packages[0]}")"
           trap 'sudo apt-get remove --yes z2m-automations' EXIT
           binary="$(dpkg-query -L z2m-automations | awk '/\/resources\/app\.asar$/ { sub(/resources\/app\.asar$/, "Z2M-Automations"); print }')"
           test -x "$binary"

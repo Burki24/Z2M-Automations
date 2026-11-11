@@ -22,6 +22,25 @@ permanent HTTP and local installer-helper errors still fail immediately.
 CI shares `electron_config_cache` between setup and Forge and caches only the
 download artifacts. Forge uses Electron's pinned checksum manifest too.
 
+Ubuntu CI uses `scripts/ubuntu-apt.mjs` for build tools and the built DEB's
+dependencies. Updates use `--error-on=any`: failed indexes cannot silently reuse
+old metadata. Only transient acquisition failures are retried, at most twice
+per mirror with a one-second delay, a 60-second command limit and a shared
+four-minute acquisition budget per invocation. Signature, hash, TLS verification,
+dependency and process failures remain terminal.
+
+After transient runner-mirror failures, the helper checks fresh signed metadata
+from `archive.ubuntu.com` and `security.ubuntu.com` over verified HTTPS. Its
+Ubuntu 24.04 x64 deb822 sources use the installed Ubuntu archive keyring and
+isolated lists under `RUNNER_TEMP`; system sources and third-party repositories
+are not rewritten. A verified fallback is reused in later job steps through
+`GITHUB_ENV`. Packages are downloaded before one `--no-download` installation,
+limited to two minutes. Install/configuration failures are never replayed. The
+existing installed-app smoke, removal checks and success-only artifact upload
+remain mandatory. Fixed diagnostics expose phase, mirror, attempt and outcome,
+not raw process output or proxy credentials. Synthetic tests cover retry/fallback
+and failure paths; actual privileged APT execution requires the Ubuntu CI runner.
+
 verify builds the canonical designer and TypeScript backend, checks UTF-8/LF,
 matching catalog keys/parameters, markup/key references, generated asset hashes,
 strict types and behavior tests. smoke opens its own Electron window with
