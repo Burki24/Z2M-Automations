@@ -1,14 +1,16 @@
 import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse} from './localization.js';
 /* Shared typed metadata and scheduling helpers for the rule editor. */
 export {createUUID as requestIdentity} from './identity.js';
-export function creationProperties(device, side) {
-    return (device?.properties ?? []).filter(property => side === 'source' ? property.readable && property.type !== 'color' : property.writable);
+export function creationProperties(device, side, sourceKind = '') {
+    const properties = (device?.properties ?? []).filter(property => side === 'source' ? property.readable && property.type !== 'color' : property.writable);
+    if (side !== 'source' || !sourceKind) return properties;
+    return properties.filter(property => sourceKind === 'measurement' ? property.type === 'numeric' : property.type !== 'numeric');
 }
 
-export function creationDevices(data, side, search = '') {
+export function creationDevices(data, side, search = '', sourceKind = '') {
     const term = search.trim().toLocaleLowerCase(locale());
     return (data?.devices ?? []).filter(device => (side !== 'source' || (device.target.type === 'device' && !device.target.system))
-        && creationProperties(device, side).length > 0
+        && creationProperties(device, side, sourceKind).length > 0
         && `${device.name} ${device.key} ${device.target.system ?? data.module.baseTopic} ${device.target.id}`.toLocaleLowerCase(locale()).includes(term));
 }
 

@@ -1582,6 +1582,8 @@
     "editor.addTrigger": "Auslöser hinzufügen",
     "editor.addCondition": "Bedingung hinzufügen",
     "editor.addAction": "Aktion hinzufügen",
+    "editor.deviceStatus": "Gerätestatus",
+    "editor.measurement": "Messwert",
     "editor.settings": "Weitere Einstellungen",
     "editor.export": "YAML erstellen",
     "editor.exportHelp": "Die YAML-Datei enthält alle Automationen im Entwurf dieses Systems samt aktueller Eingabe. Neue Automationen sind ausgeschaltet. Die Übernahme nach Z2M erfolgt separat.",

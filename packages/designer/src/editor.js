@@ -18,8 +18,15 @@ export function valueIndex(property, side, value) {
     return (side === 'target' ? property?.actionValues : property?.values)?.findIndex(entry => same(entry, value)) ?? -1;
 }
 const compare = localizeRecord(() => ({eq: t("ui.is.equal.to.456b1261"), ne: t("ui.is.not.equal.to.c72da4b0"), gt: t("ui.is.greater.than.c23edfd9"), gte: t("ui.is.at.least.8adebfa3"), lt: t("ui.is.less.than.f2641c8f"), lte: t("ui.is.at.most.53bbaac0")}));
-const kinds = localizeRecord(() => ({triggers: {device: t("ui.device.event.704e02c3"), time: t("ui.time.317f0a69"), sun: t("ui.solar.event.63a4e157")}, conditions: {device_value: t("ui.device.value.e2721139"), weekday: t("ui.weekdays.b73421c5"), time_window: t("ui.time.window.85f012d6")},
-    actions: {set: t("ui.set.values.b905b29c"), toggle: t("ui.toggle.77fec02e"), scene: t("ui.recall.scene.a6fb0e6f"), sequence: t("ui.call.action.sequence.f1795acb")}}));
+const kinds = localizeRecord(() => {
+    const deviceKinds = {status: t('editor.deviceStatus'), measurement: t('editor.measurement')};
+    return {
+        triggers: isDesktop() ? {...deviceKinds, time: t("ui.time.317f0a69"), sunrise: t("ui.sunrise.5788b301"), sunset: t("ui.sunset.5998441f")}
+            : {device: t("ui.device.event.704e02c3"), time: t("ui.time.317f0a69"), sun: t("ui.solar.event.63a4e157")},
+        conditions: {...(isDesktop() ? deviceKinds : {device_value: t("ui.device.value.e2721139")}), weekday: t("ui.weekdays.b73421c5"), time_window: t("ui.time.window.85f012d6")},
+        actions: {set: t("ui.set.values.b905b29c"), toggle: t("ui.toggle.77fec02e"), scene: t("ui.recall.scene.a6fb0e6f"), sequence: t("ui.call.action.sequence.f1795acb")}
+    };
+});
 const dayNames = localizeRecord(() => ([t("ui.mon.d23e867e"), t("ui.tue.16ab7287"), t("ui.wed.d8f33a13"), t("ui.thu.30094e0b"), t("ui.fri.eed8f901"), t("ui.sat.a951efc7"), t("ui.sun.fb1df1a2")]));
 const valueLabel = value => typeof value === 'boolean' ? (value ? t("ui.yes.detected.f51e55b6") : t("ui.no.not.detected.2e04e05d")) : ({ON: t("ui.on.b9a637bc"), OFF: t("ui.off.f0ce9450"), TOGGLE: t("ui.toggle.77fec02e")}[value] ?? String(value ?? t("ui.no.value.36bac452")));
 
@@ -71,11 +78,14 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
     let boundTopic = '';
     let stale = false;
     let startingCreation = false;
+    // Remember the category before an unfinished source row has a property.
+    let measurementSources = new WeakSet();
     let pendingKey = ''; const recovered = new Set();
     const editorKey = () => getData()?.desktop?.project ? 'z2ma.desktop.editor.' + getData().desktop.projectId + '.' + getData().workspaceContext.systemId : '';
     function remember() {
         if (!pendingKey || !dialog.open) return;
-        const value = JSON.stringify({epoch: getData().desktop.epoch, original, working, context, requestId, sequenceMode, creatingSequence, creatingRule, boundHeaders, boundTopic});
+        const measurementSelections = Object.fromEntries(['triggers', 'conditions'].map(section => [section, (working[section] ?? []).map(item => measurementSources.has(item))]));
+        const value = JSON.stringify({epoch: getData().desktop.epoch, original, working, context, requestId, sequenceMode, creatingSequence, creatingRule, boundHeaders, boundTopic, measurementSelections});
         if (value.length <= 131072) { try { sessionStorage.setItem(pendingKey, value); } catch {} }
     }
     for (const event of ['input', 'change', 'click']) $('form').addEventListener(event, () => queueMicrotask(remember));
@@ -144,7 +154,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             }, {field: key, choices: () => [['', t("ui.select.value.c40f9e84")], ...values.map((v, index) => [String(index), property.sceneNames?.[v] ?? property.valueLabels?.find(entry => same(entry.value, v))?.label ?? valueLabel(v)])]});
         }
     }
-    function devicePicker(parent, side, current, set) {
+    function devicePicker(parent, side, current, set, sourceKind = '') {
         const box = node('div', undefined, 'edit-device-picker'); parent.append(box);
         const search = field(box, () => (t("ui.search.devices.e2326f44")), '', () => refreshOptions(), {type: 'search', required: false});
         const select = field(box, () => (t("ui.device.b32db786")), current?.key ?? '', key => { const device = getData().devices.find(entry => entry.key === key); set(device); renderFields(); }, {field: side === 'source' ? 'device' : 'target', choices: () => [['', t("ui.select.device.c5925e7a")]]});
@@ -154,7 +164,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             select.focus();
         });
         function refreshOptions() {
-            const found = creationDevices(getData(), side, search.value);
+            const found = creationDevices(getData(), side, search.value, sourceKind);
             if (current && !found.some(device => device.key === current.key)) found.unshift(current);
             select.replaceChildren(localizedOption(() => t("ui.select.device.c5925e7a"), ''));
             for (const device of sortByName(found)) select.add(localizedOption(() => t("ui.text.db1b0c15", {p1: device.name, p2: device.target.system ?? getData().module.baseTopic}), device.key));
@@ -162,10 +172,10 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         }
         refreshOptions();
     }
-    function sourceFields(parent, item) {
+    function sourceFields(parent, item, sourceKind = '') {
         const device = getData().devices.find(entry => entry.key === item.device && !entry.target.system && entry.target.type === 'device');
-        devicePicker(parent, 'source', device, selected => { item.device = selected?.key ?? ''; item.property = ''; delete item.value; });
-        const properties = creationProperties(device, 'source');
+        devicePicker(parent, 'source', device, selected => { item.device = selected?.key ?? ''; item.property = ''; delete item.value; }, sourceKind);
+        const properties = creationProperties(device, 'source', sourceKind);
         field(parent, () => (t("ui.property.channel.b524f965")), item.property, property => { item.property = property; delete item.value; renderFields(); }, {field: 'property', choices: () => [['', t("ui.select.property.channel.9718e7d6")], ...properties.map(meta => [meta.id, meta.label])]});
         const property = properties.find(meta => meta.id === item.property);
         field(parent, () => (t("ui.comparison.79a63c24")), item.operator, value => { item.operator = value; }, {field: 'operator', choices: () => Object.entries(compare).filter(([key]) => property?.type === 'numeric' || ['eq', 'ne'].includes(key))});
@@ -229,10 +239,23 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         button(parent, () => (t("ui.add.another.value.d10e439d")), () => { item.values[''] = undefined; renderFields(); }, values.length >= 8 || values.some(([key]) => !key));
         parent.append(node('p', () => (t("ui.multiple.values.are.sent.as.43bb3602")), 'field-help'));
     }
+    function entryKind(item) {
+        if (!desktop) return item.type;
+        if (item.type === 'sun' && ['sunrise', 'sunset'].includes(item.event)) return item.event;
+        if (item.type !== 'device' && item.type !== 'device_value') return item.type;
+        const device = getData().devices.find(entry => entry.key === item.device);
+        if (creationProperties(device, 'source').some(property => property.id === item.property && property.type === 'numeric')) measurementSources.add(item);
+        return measurementSources.has(item) ? 'measurement' : 'status';
+    }
     function newItem(section, type) {
+        if (type === 'status' || type === 'measurement') {
+            const item = newItem(section, section === 'triggers' ? 'device' : 'device_value');
+            if (type === 'measurement') measurementSources.add(item);
+            return item;
+        }
         if (type === 'device' || type === 'device_value') return {type, device: '', property: '', operator: 'eq'};
         if (type === 'time') return {type, at: '18:00:00', timezone: 'Europe/Berlin'};
-        if (type === 'sun') return {type, event: 'sunset', latitude: 0, longitude: 0, offset_minutes: 0, timezone: 'Europe/Berlin'};
+        if (['sun', 'sunrise', 'sunset'].includes(type)) return {type: 'sun', event: type === 'sun' ? 'sunset' : type, latitude: 0, longitude: 0, offset_minutes: 0, timezone: 'Europe/Berlin'};
         if (type === 'weekday') return {type, weekdays: [1, 2, 3, 4, 5], timezone: 'Europe/Berlin'};
         if (type === 'time_window') return {type, after: '18:00:00', before: '06:00:00', timezone: 'Europe/Berlin'};
         if (type === 'sequence') return {type, sequence_id: '', delay_seconds: 0};
@@ -264,7 +287,8 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
                 continue;
             }
             working[section].forEach((item, index) => {
-                const row = node('fieldset', undefined, 'edit-row'); row.append(node('legend', () => `${index + 1}. ${kinds[section][item.type]}`)); details.append(row);
+                const kind = entryKind(item);
+                const row = node('fieldset', undefined, 'edit-row'); row.append(node('legend', () => `${index + 1}. ${itemKinds[kind] ?? t("ui.previous.value.is.unavailable.308b3b49")}`)); details.append(row);
                 if (section === 'actions') {
                     row.dataset.actionIndex = String(index);
                     if (working.actions.length > 1) {
@@ -275,19 +299,21 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
                     }
                 }
                 const controls = node('div', undefined, 'edit-row-fields'); row.append(controls);
-                field(controls, () => (t("ui.entry.type.176dd624")), item.type, type => {
+                field(controls, () => (t("ui.entry.type.176dd624")), kind, type => {
                     const replacement = newItem(section, type);
+                    if (desktop && item.type === 'sun' && replacement.type === 'sun') Object.assign(replacement, item, {event: type});
                     if (section === 'actions') {
                         replacement.delay_seconds = item.delay_seconds ?? 0;
                         if (item.target && type !== 'sequence') replacement.target = copy(item.target);
                     }
                     if (item.timezone && replacement.timezone) replacement.timezone = item.timezone;
                     working[section][index] = replacement; renderFields();
+                    if (desktop) root.querySelectorAll(`[data-section="${section}"] > fieldset`)[index]?.querySelector('select')?.focus({preventScroll: true});
                 }, {field: 'type', choices: () => Object.entries(itemKinds)});
-                if (item.type === 'device' || item.type === 'device_value') sourceFields(controls, item);
+                if (item.type === 'device' || item.type === 'device_value') sourceFields(controls, item, desktop ? kind : '');
                 else if (item.type === 'time') { time(controls, () => (t("ui.time.317f0a69")), item, 'at'); zone(controls, item); }
                 else if (item.type === 'sun') {
-                    field(controls, () => (t("ui.solar.event.fb338afc")), item.event, value => { item.event = value; }, {choices: () => [['sunrise', t("ui.sunrise.5788b301")], ['sunset', t("ui.sunset.5998441f")]]});
+                    if (!desktop) field(controls, () => (t("ui.solar.event.fb338afc")), item.event, value => { item.event = value; }, {choices: () => [['sunrise', t("ui.sunrise.5788b301")], ['sunset', t("ui.sunset.5998441f")]]});
                     number(controls, () => (t("ui.latitude.c5049879")), item, 'latitude', 0, -90, 90, 'any'); number(controls, () => (t("ui.longitude.4c9aacde")), item, 'longitude', 0, -180, 180, 'any');
                     number(controls, () => (t("ui.offset.minutes.b529be97")), item, 'offset_minutes', 0, -720, 720); zone(controls, item);
                 } else if (item.type === 'weekday') { weekdays(controls, item); zone(controls, item); }
@@ -346,6 +372,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         && (getData().module?.baseTopic ?? '') === boundTopic;
     function open(entry, sequence = entry.kind === 'sequence', creating = false) {
         sequenceMode = sequence; creatingSequence = creating && sequence; creatingRule = creating && !sequence;
+        measurementSources = new WeakSet();
         stale = false;
         bindText($('reload'), () => t("ui.reload.and.discard.input.56f16c4b"));
         original = copy(entry); delete original.kind; working = copy(original);
@@ -549,6 +576,11 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
                             open(saved.original, saved.sequenceMode, saved.creatingSequence || saved.creatingRule);
                             original = saved.original; working = saved.working; context = saved.context; requestId = saved.requestId; boundHeaders = saved.boundHeaders;
                             boundTopic = saved.boundTopic ?? boundTopic;
+                            for (const section of ['triggers', 'conditions']) {
+                                for (const [index, item] of (working[section] ?? []).entries()) {
+                                    if (saved.measurementSelections?.[section]?.[index] === true) measurementSources.add(item);
+                                }
+                            }
                             renderFields(); remember();
                         } else sessionStorage.removeItem(key);
                     }

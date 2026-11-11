@@ -32,7 +32,13 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     await wait(() => document.querySelector('#edit-dialog').open);
     assert(document.querySelector('#edit-submit').textContent === 'Änderungen in den Entwurf übernehmen', 'the editor uses the header language');
     const name = document.querySelector('#edit-fields input'); name.value = 'D4 preserved input'; name.dispatchEvent(new Event('input', {bubbles: true}));
-    await wait(() => Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.') && sessionStorage.getItem(key).includes('D4 preserved input')));
+    document.querySelector('[data-section="triggers"] [data-draft-field="add"]').click();
+    const sourceType = document.querySelectorAll('[data-section="triggers"] > fieldset')[1].querySelector('select');
+    assert([...sourceType.options].map(option => option.textContent).join('|') === 'Gerätestatus|Messwert|Uhrzeit|Sonnenaufgang|Sonnenuntergang', 'five understandable trigger choices');
+    sourceType.value = 'measurement'; sourceType.dispatchEvent(new Event('change', {bubbles: true}));
+    await wait(() => Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.')
+      && sessionStorage.getItem(key).includes('D4 preserved input')
+      && JSON.parse(sessionStorage.getItem(key)).working.triggers.length === 2));
   })()`);
   const window = BrowserWindow.fromWebContents(view);
   if (!window) throw new Error('Draft smoke requires a desktop window.');
@@ -71,6 +77,9 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     const bridge = window.z2maDesktop;
     const wait = async (predicate, message = 'Recovered draft timeout') => { for (let n = 0; n < 160; n++) { if (await predicate()) return; await new Promise(resolve => setTimeout(resolve, 30)); } throw new Error(message); };
     await wait(() => document.querySelector('#edit-dialog')?.open && document.querySelector('#edit-fields input')?.value === 'D4 preserved input');
+    const recoveredSource = document.querySelectorAll('[data-section="triggers"] > fieldset')[1];
+    if (recoveredSource.querySelector('select').value !== 'measurement') throw new Error('An unfinished measurement selection was lost on reload.');
+    recoveredSource.querySelector('.edit-row-tools button').click();
     if ((await bridge.project({action: 'save'})).ok) throw new Error('Open editor was silently omitted from save');
     document.querySelector('#edit-submit').click();
     await wait(async () => (await bridge.snapshot()).configuration.automations.some(rule => rule.name === 'D4 preserved input'));
@@ -103,7 +112,38 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     const name = () => document.querySelector('#edit-fields input');
     assert(name().getAttribute('aria-invalid') === 'true' && document.activeElement === name(), 'missing name not marked and focused');
     set(name(), 'Form smoke rule');
-    set(document.querySelector('[data-section="triggers"] fieldset select'), 'time');
+    const rows = section => [...document.querySelectorAll('[data-section="' + section + '"] > fieldset')];
+    const field = (section, index, key) => rows(section)[index].querySelector('[data-draft-field="' + key + '"]');
+    const add = section => {
+      const group = document.querySelector('[data-section="' + section + '"]');
+      group.open = true; group.querySelector('[data-draft-field="add"]').click();
+    };
+    const sensor = '0x0000000000000001'; const light = '0x0000000000000002';
+    set(field('triggers', 0, 'device'), sensor);
+    assert([...field('triggers', 0, 'property').options].map(option => option.value).join('|') === '|occupancy', 'status offers discrete device properties');
+    set(field('triggers', 0, 'property'), 'occupancy');
+    set(field('triggers', 0, 'value'), '0');
+    assert([...field('triggers', 0, 'operator').options].map(option => option.value).join('|') === 'eq|ne', 'status comparisons are discrete');
+    add('triggers'); set(field('triggers', 1, 'type'), 'measurement');
+    assert(![...field('triggers', 1, 'device').options].some(option => option.value === sensor), 'measurement omits devices without numeric properties');
+    set(field('triggers', 1, 'device'), light);
+    assert([...field('triggers', 1, 'property').options].map(option => option.value).join('|') === '|brightness', 'measurement omits the status of a mixed device');
+    set(field('triggers', 1, 'property'), 'brightness');
+    set(field('triggers', 1, 'operator'), 'gt'); set(field('triggers', 1, 'value'), '100');
+    add('triggers'); set(field('triggers', 2, 'type'), 'time');
+    for (const [index, kind] of [[3, 'sunrise'], [4, 'sunset']]) {
+      add('triggers'); set(field('triggers', index, 'type'), 'sunrise');
+      set(field('triggers', index, 'latitude'), '52.52'); set(field('triggers', index, 'longitude'), '13.405');
+      set(field('triggers', index, 'offset_minutes'), '-15');
+      set(field('triggers', index, 'type'), kind);
+      assert(field('triggers', index, 'latitude').value === '52.52' && field('triggers', index, 'offset_minutes').value === '-15', 'switching solar events preserves the location and offset');
+      assert(rows('triggers')[index].querySelectorAll('select').length === 1, 'the selected solar event needs no duplicate event picker');
+    }
+    add('conditions'); set(field('conditions', 0, 'device'), sensor);
+    set(field('conditions', 0, 'property'), 'occupancy'); set(field('conditions', 0, 'value'), '0');
+    add('conditions'); set(field('conditions', 1, 'type'), 'measurement');
+    set(field('conditions', 1, 'device'), light); set(field('conditions', 1, 'property'), 'brightness');
+    set(field('conditions', 1, 'operator'), 'gte'); set(field('conditions', 1, 'value'), '50');
     set(document.querySelector('[data-section="actions"] fieldset select'), 'sequence');
     set(document.querySelectorAll('[data-section="actions"] fieldset select')[1], result.state.sequenceId);
     assert((await bridge.project({action: 'draft', systemId: context.systemId, operation: 'new', ruleId: '', name: 'Concurrent draft'})).ok, 'simulate a changed draft');
@@ -117,6 +157,21 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     await wait(async () => (await bridge.snapshot()).configuration.automations.some(rule => rule.name === 'Form smoke rule' && !rule.enabled));
     await wait(() => !document.querySelector('#edit-dialog').open);
     await wait(() => !Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.')));
+    const saved = (await bridge.snapshot()).configuration.automations.find(rule => rule.name === 'Form smoke rule');
+    assert(saved.triggers.map(trigger => trigger.type).join('|') === 'device|device|time|sun|sun'
+      && saved.triggers[0].value === true && saved.triggers[1].value === 100 && saved.triggers[1].operator === 'gt'
+      && saved.triggers[3].event === 'sunrise' && saved.triggers[4].event === 'sunset'
+      && saved.conditions.every(condition => condition.type === 'device_value'), 'the five form choices save canonical device and solar rules');
+    await wait(() => document.querySelector('#entry-title').textContent === 'Form smoke rule' && !document.querySelector('#edit-automation-button').disabled);
+    document.querySelector('#edit-automation-button').click();
+    await wait(() => document.querySelector('#edit-dialog').open);
+    assert(rows('triggers').map(row => row.querySelector('select').value).join('|') === 'status|measurement|time|sunrise|sunset'
+      && rows('conditions').map(row => row.querySelector('select').value).join('|') === 'status|measurement', 'existing canonical rules prefill the correct form choices');
+    const language = document.querySelector('#designer-language');
+    set(language, 'en');
+    assert([...field('triggers', 0, 'type').options].map(option => option.textContent).join('|') === 'Device status|Measured value|Time|Sunrise|Sunset'
+      && field('triggers', 1, 'value').value === '100' && field('triggers', 1, 'type').value === 'measurement', 'language switching preserves the category and value');
+    set(language, 'de'); click('cancel');
     const review = document.querySelector('#desktop-draft-review');
     const check = document.querySelector('#mqtt-validate');
     const transfer = document.querySelector('#mqtt-store');
@@ -216,5 +271,5 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
     || !Array.isArray(actions) || (actions[0] as {sequence_id?: string} | undefined)?.sequence_id !== yaml.sequences[0]?.['id']) {
     throw new Error('Exported YAML lost the existing rule, new disabled rule or sequence');
   }
-  console.log('DESKTOP_DRAFTS_OK local/editor/reload/language/sequence/yaml-export/scoped-review/correction/separate-transfer');
+  console.log('DESKTOP_DRAFTS_OK local/editor/status/measurement/sunrise/sunset/reload/language/sequence/yaml-export/scoped-review/correction/separate-transfer');
 }

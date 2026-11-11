@@ -1582,6 +1582,8 @@
     "editor.addTrigger": "Add trigger",
     "editor.addCondition": "Add condition",
     "editor.addAction": "Add action",
+    "editor.deviceStatus": "Device status",
+    "editor.measurement": "Measured value",
     "editor.settings": "More settings",
     "editor.export": "Create YAML",
     "editor.exportHelp": "The YAML file includes all automations in this system's draft and your current input. New automations are disabled. Transfer to Z2M is a separate action.",

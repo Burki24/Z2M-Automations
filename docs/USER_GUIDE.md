@@ -39,7 +39,12 @@ reading, editing, checking and transfer.
    draft. Copy the stored configuration first if you want to add to existing
    rules. Replacing a draft requires a project backup.
 6. **Edit automations.** Enter a name, a trigger, optional conditions and
-   actions. **Add to draft disabled** adds the new rule to the local project.
+   actions. Choose **Device status**, **Measured value**, **Time**, **Sunrise**
+   or **Sunset** as the trigger. Status lists discrete values such as motion
+   detected or a button press. Measured values list numeric properties such
+   as temperature and brightness. Device and property lists show matching
+   choices. Conditions also distinguish status from measured values.
+   **Add to draft disabled** adds the new rule to the local project.
    Save the project in step 1 to keep those changes.
 7. **Check draft.** The check is also available directly from step 6. Use a
    finding's **Go to the draft field** button to correct the affected entry.
