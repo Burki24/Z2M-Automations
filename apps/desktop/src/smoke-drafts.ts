@@ -173,6 +173,13 @@ async function verifyDrafts(view: WebContents, exportPath: string): Promise<void
       'show-stored-source-before-creation');
     document.querySelector('#draft-wizard-start').click();
     await wait(() => document.querySelector('#edit-dialog').open, 'open-new-rule-editor');
+    const dialog = document.querySelector('#edit-dialog');
+    const lateClose = new Promise(resolve => dialog.addEventListener('close', resolve, {once: true}));
+    dialog.close(); dialog.showModal();
+    await lateClose;
+    if (!Object.keys(sessionStorage).some(key => key.startsWith('z2ma.desktop.editor.'))) {
+      throw new Error('A delayed close event cleared the reopened editor session.');
+    }
     const click = id => document.querySelector('#edit-' + id).click();
     const set = (element, value) => {
       element.value = value;

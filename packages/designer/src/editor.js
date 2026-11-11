@@ -98,7 +98,8 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         dialog.close();
         clearPending();
     }
-    dialog.addEventListener('close', clearPending);
+    // A queued close event can arrive after the same dialog has reopened.
+    dialog.addEventListener('close', () => { if (!dialog.open) clearPending(); });
     const hint = value => {
         $('message').hidden = !value;
         bindText($('message'), value ?? '');
