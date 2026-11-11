@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {chmod, mkdtemp, readFile, rm, rmdir, stat, writeFile} from 'node:fs/promises';
+import {chmod, mkdir, mkdtemp, readFile, rm, rmdir, stat, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {load} from 'js-yaml';
 import {installUbuntuPackages, ubuntuSources, executeApt, aptDiagnostics, packagesInstalled, probeUbuntuMirrors,
-  assertAptAccess, createAptWorkspace, prepareUbuntuSources, stageLocalPackage} from '../scripts/ubuntu-apt.mjs';
+  assertAptAccess, createAptWorkspace, prepareUbuntuSources, stageLocalPackage, localArchiveName} from '../scripts/ubuntu-apt.mjs';
 
 const ok = {status: 0, stdout: '', stderr: ''};
 const httpsOK = {status: 0, stdout: '200 0.010000 0.020000 0.040000 0.125000'};
@@ -281,10 +281,45 @@ test('a real subprocess produces diagnosable partial APT progress instead of red
   assert.deepEqual(info.errors, ['tls']); assert.equal(info.sandboxFallback, false);
 });
 
+test('a staged local DEB is placed in the canonical APT archive cache for the subsequent no-download operation', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'z2ma-apt-cache-')); t.after(() => rm(directory, {recursive: true, force: true}));
+  const archives = join(directory, 'archives'); await mkdir(archives);
+  const file = join(directory, 'original.deb'); await writeFile(file, 'synthetic public DEB bytes\n');
+  const staged = await stageLocalPackage(file, {directory, archives}, {report: () => {}, run: command => command === 'dpkg-deb'
+    ? {status: 0, stdout: 'z2ma-ci-apt-regression\n1.2.3\namd64\n'} : ok});
+  assert.equal(staged, join(archives, 'z2ma-ci-apt-regression_1.2.3_amd64.deb'));
+  assert.deepEqual(await readFile(staged), await readFile(file));
+});
+
+test('local DEB identity is read without sudo or a shell and cannot create an unsafe cache path', () => {
+  const name = localArchiveName('/synthetic/original.deb', (command, args, settings) => {
+    assert.equal(command, 'dpkg-deb'); assert.deepEqual(args, ['--show', '--showformat=${Package}\n${Version}\n${Architecture}\n', '/synthetic/original.deb']);
+    assert.equal(settings.shell, undefined); assert.equal(settings.timeout, 10000);
+    return {status: 0, stdout: 'z2m-automations\n0.81.0\namd64\n'};
+  });
+  assert.equal(name, 'z2m-automations_0.81.0_amd64.deb');
+  for (const result of [{status: 1, stderr: 'SYNTHETIC_SECRET'}, {status: null, error: {code: 'ENOENT'}},
+    ...['../private\n1.2.3\namd64', 'z2ma\n../../private\namd64', 'z2ma\n1:1.2.3\namd64',
+      'z2ma\n1.2.3\narm64', 'z2ma\n1.2.3\namd64\nextra'].map(stdout => ({status: 0, stdout}))]) {
+    assert.throws(() => localArchiveName('/synthetic/original.deb', () => result), /supported desktop DEB identity/);
+  }
+});
+
+test('missing-archive and dpkg diagnostics remain distinct and an offline cache failure is never retried', async () => {
+  const missing = {status: 100, stderr: 'E: Unable to fetch some archives, maybe run apt-get update or try with --fix-missing?\n'};
+  const f = fixture([ok, ok, missing]);
+  await assert.rejects(installUbuntuPackages(['/synthetic/app.deb'], f.options), /archive-cache, exit 100.*will not be repeated/);
+  assert.deepEqual(f.calls.map(call => call.phase), ['update', 'download', 'install']);
+  assert.deepEqual(aptDiagnostics(missing).errors, ['archive-cache']);
+  assert.deepEqual(aptDiagnostics({stderr: 'dpkg: error processing package SYNTHETIC_PRIVATE_NAME\ndependency problems prevent configuration'}).errors, ['dependency', 'dpkg']);
+  assert.doesNotMatch(JSON.stringify(aptDiagnostics({stderr: missing.stderr + 'SYNTHETIC_SECRET'})), /SYNTHETIC_SECRET/);
+});
+
 test('sandbox workspace requests scoped _apt access checks and stages an identical package', async t => {
   const parent = await mkdtemp(join(tmpdir(), 'z2ma-apt-test-')); t.after(() => rm(parent, {recursive: true, force: true}));
   const calls = []; const events = [];
   const options = {parent, report: text => events.push(text), run: (command, args, settings) => {
+    if (command === 'dpkg-deb') return {status: 0, stdout: 'z2ma-ci-apt-regression\n1.2.3\namd64\n'};
     assert.equal(command, 'sudo'); assert.equal(args[0], '-n'); assert.equal(settings.shell, undefined);
     assert.equal(settings.timeout, 10000); calls.push(args); return ok;
   }};
@@ -318,6 +353,17 @@ test('sandbox ownership and unreadable paths stop before package operations with
 });
 
 const nativeSandbox = process.platform === 'linux' && process.env.GITHUB_ACTIONS === 'true' && process.env.RUNNER_OS === 'Linux';
+
+async function buildTinyDeb(directory) {
+  const source = join(directory, 'source'); await mkdir(join(source, 'DEBIAN'), {recursive: true, mode: 0o755});
+  await writeFile(join(source, 'DEBIAN', 'control'), 'Package: z2ma-ci-apt-regression\nVersion: 1.2.3\nArchitecture: amd64\n'
+    + 'Maintainer: CI <ci@example.invalid>\nDescription: Synthetic offline APT regression fixture\n', {mode: 0o644});
+  const file = join(directory, 'original.deb');
+  const built = spawnSync('dpkg-deb', ['--root-owner-group', '--build', source, file], {encoding: 'utf8', timeout: 10000});
+  assert.equal(built.status, 0, 'build a tiny dependency-free local DEB');
+  return file;
+}
+
 test('native CI _apt access rejects a private ancestor and accepts isolated sources, caches and staged DEB', {skip: !nativeSandbox}, async t => {
   const privateDirectory = await mkdtemp(join(process.env.RUNNER_TEMP, 'z2ma-apt-private-'));
   await chmod(privateDirectory, 0o700);
@@ -330,7 +376,7 @@ test('native CI _apt access rejects a private ancestor and accepts isolated sour
     }
     await rm(privateDirectory, {recursive: true, force: true});
   });
-  const file = join(privateDirectory, 'synthetic.deb'); await writeFile(file, 'synthetic public package\n', {mode: 0o644});
+  const file = await buildTinyDeb(privateDirectory);
   assert.throws(() => assertAptAccess(file, '-r', 'private-ancestor'), /sandbox access/);
   workspace = await createAptWorkspace(); assert.ok(workspace.directory.startsWith('/tmp/z2ma-apt-'));
   const sources = await prepareUbuntuSources('kernel', workspace);
@@ -351,6 +397,32 @@ test('native CI _apt access rejects a private ancestor and accepts isolated sour
       assert.equal(removed.status, 0, 'remove the synthetic probe as its owner');
     }
   }
+});
+
+test('native APT reproduces the uncached local-DEB failure and accepts canonical staging without network or dpkg changes', {skip: !nativeSandbox}, async t => {
+  const workspace = await createAptWorkspace();
+  t.after(async () => {
+    await rmdir(join(workspace.lists, 'partial')); await rmdir(join(workspace.archives, 'partial'));
+    await rm(workspace.directory, {recursive: true, force: true});
+  });
+  const file = await buildTinyDeb(workspace.directory);
+  const status = join(workspace.directory, 'status'); await writeFile(status, '');
+  const configuration = ['-o', 'Dir::Etc::sourcelist=/dev/null', '-o', 'Dir::Etc::sourceparts=-',
+    '-o', 'Dir::State::status=' + status, '-o', 'Dir::State::extended_states=' + join(workspace.directory, 'extended_states'),
+    '-o', 'Dir::State::lists=' + workspace.lists, '-o', 'Dir::Cache::archives=' + workspace.archives,
+    '-o', 'Dir::Cache::pkgcache=', '-o', 'Dir::Cache::srcpkgcache='];
+  // Download-only exercises real acquisition but cannot unpack/configure a package.
+  // Empty sources and a private empty status file isolate this check from the runner OS.
+  const acquire = (target, offline = false) => executeApt([...configuration, 'install', '--yes', '--download-only',
+    ...(offline ? ['--no-download'] : []), target], 30000);
+  const downloaded = acquire(file); assert.equal(downloaded.status, 0, JSON.stringify(aptDiagnostics(downloaded)));
+  const uncached = acquire(file, true); assert.equal(uncached.status, 100, 'the old uncached path must reproduce the offline failure');
+  assert.ok(aptDiagnostics(uncached).errors.includes('archive-cache'), JSON.stringify(aptDiagnostics(uncached)));
+  const cached = await stageLocalPackage(file, workspace);
+  const ready = acquire(cached, true); assert.equal(ready.status, 0, JSON.stringify(aptDiagnostics(ready)));
+  assert.deepEqual(await readFile(cached), await readFile(file));
+  assert.equal(await readFile(status, 'utf8'), '', 'the isolated package database must remain unchanged');
+  console.log('UBUNTU_APT_CACHE_REGRESSION ' + JSON.stringify({uncachedRejected: true, cachedAccepted: true, dpkgChanged: false}));
 });
 
 test('workflow protects both APT entry points while keeping installed smoke, removal and artifact gates', () => {

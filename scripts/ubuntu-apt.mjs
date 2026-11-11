@@ -81,12 +81,26 @@ async function checksum(file) {
   return hash.digest('hex');
 }
 
+export function localArchiveName(file, run = spawnSync) {
+  const result = run('dpkg-deb', ['--show', '--showformat=${Package}\n${Version}\n${Architecture}\n', file], accessOptions);
+  const fields = String(result.stdout ?? '').trimEnd().split('\n');
+  // Built desktop packages use canonical x.y.z versions. Reject paths, epochs and unsupported architectures.
+  if (result.error || result.status !== 0 || fields.length !== 3
+      || !/^[a-z0-9][a-z0-9+.-]{1,127}$/.test(fields[0]) || fields[1].length > 64
+      || !/^\d+\.\d+\.\d+$/.test(fields[1]) || !/^(?:amd64|all)$/.test(fields[2])) {
+    throw new Error('Could not read a supported desktop DEB identity; no package operation was started.');
+  }
+  return fields.join('_') + '.deb';
+}
+
 export async function stageLocalPackage(file, workspace, {run = spawnSync, report = console.log} = {}) {
-  const original = await checksum(file); const staged = join(workspace.directory, 'package.deb');
+  // APT may read a local DEB in place during --download-only. A later --no-download
+  // operation only recognizes an archive already cached as Package_Version_Architecture.deb.
+  const staged = join(workspace.archives, localArchiveName(file, run)); const original = await checksum(file);
   await copyFile(file, staged, constants.COPYFILE_EXCL); await chmod(staged, 0o644);
   if (await checksum(staged) !== original || await checksum(file) !== original) throw new Error('Built Ubuntu package changed while staging.');
   assertAptAccess(staged, '-r', 'local-package', {run, report});
-  report('UBUNTU_APT ' + JSON.stringify({phase: 'stage-package', identical: true}));
+  report('UBUNTU_APT ' + JSON.stringify({phase: 'stage-package', identical: true, archiveCache: true}));
   return staged;
 }
 
@@ -116,11 +130,13 @@ export function aptDiagnostics(result) {
       kind: /\b(?:InRelease|Release|Packages|Translation-en|Components|DEP-11)\b/.exec(text)?.[0] ?? 'other'});
     if (recent.length > 8) recent.shift();
   }
-  const errors = ['dns', 'connection', 'tls', 'signature', 'hash', 'lock', 'permission', 'hook'].filter((_, index) => [
+  const errors = ['dns', 'connection', 'tls', 'signature', 'hash', 'lock', 'permission', 'hook', 'archive-cache', 'dependency', 'dpkg'].filter((_, index) => [
     /Temporary failure resolving|Could not resolve/i, /Could not connect|Connection (?:failed|timed out|reset)|Network is unreachable/i,
     /Certificate verification failed|Could not handshake/i, /NO_PUBKEY|BADSIG|EXPKEYSIG|invalid signature|not signed/i,
     /Hash Sum mismatch|unexpected size/i, /Could not get lock|Unable to acquire.*lock/i,
-    /Permission denied|Operation not permitted|not accessible by user/i, /Problem executing scripts|Post-Invoke|Pre-Invoke/i
+    /Permission denied|Operation not permitted|not accessible by user/i, /Problem executing scripts|Post-Invoke|Pre-Invoke/i,
+    /Unable to fetch some archives|Unable to correct missing packages|Internal Error, No file name/i,
+    /Unmet dependencies|dependency problems|held broken packages/i, /Sub-process .*dpkg.*(?:error|returned)|dpkg: error/i
   ][index].test(output));
   const processCode = ['ENOENT', 'EACCES', 'ETIMEDOUT', 'ENOBUFS'].includes(result.error?.code) ? result.error.code : null;
   const sandboxFallback = /unsandboxed as root|(?:not accessible|couldn't be accessed) by user ['"]?_apt/i.test(output);
@@ -174,7 +190,8 @@ export function probeUbuntuMirrors({run = executeProbe, report = console.log, pr
 function outcome(result, phase) {
   if (result.error || result.signal) return {ok: false, transient: false, reason: 'process'};
   const output = (result.stdout ?? '') + '\n' + (result.stderr ?? '');
-  if (aptDiagnostics(result).sandboxFallback) return {ok: false, transient: false, reason: 'sandbox-access'};
+  const diagnostics = aptDiagnostics(result);
+  if (diagnostics.sandboxFallback) return {ok: false, transient: false, reason: 'sandbox-access'};
   if (/NO_PUBKEY|BADSIG|EXPKEYSIG|not signed|signatures? (?:were )?invalid|signatures? (?:could not|couldn't) be verified|invalid signatures?|Hash Sum mismatch|hashes? (?:do not|did not) match|Certificate verification failed|does not have a Release file|Release file .* (?:expired|not valid)/i.test(output)) {
     return {ok: false, transient: false, reason: 'verification'};
   }
@@ -184,7 +201,8 @@ function outcome(result, phase) {
     return {ok: false, transient: true, reason: 'timeout'};
   }
   const network = /Temporary failure resolving|Could not resolve|Could not connect|Connection (?:timed out|failed|reset)|Network is unreachable|Timeout was reached|(?:\b(?:408|429|500|502|503|504)\b[^\n]*(?:Request Timeout|Too Many Requests|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout))/i.test(output);
-  return {ok: false, transient: network, reason: network ? 'network' : warning ? 'metadata' : 'package'};
+  return {ok: false, transient: network, reason: network ? 'network' : diagnostics.errors.includes('archive-cache') ? 'archive-cache'
+    : warning ? 'metadata' : 'package'};
 }
 
 function validateTargets(targets) {
@@ -243,7 +261,8 @@ export async function installUbuntuPackages(targets, {run = executeApt, fallback
     const result = outcome(installation, 'install');
     report('UBUNTU_APT ' + JSON.stringify({phase: 'install', mirror, attempt: 1, exit: installation.status ?? null, reason: result.reason,
       diagnostics: aptDiagnostics(installation)}));
-    if (!result.ok) throw new Error('Ubuntu APT offline installation failed (exit ' + (installation.status ?? 'unknown') + '); it will not be repeated.');
+    if (!result.ok) throw new Error('Ubuntu APT offline installation failed (' + result.reason + ', exit '
+      + (installation.status ?? 'unknown') + '); it will not be repeated.');
     return;
   }
   throw new Error('Ubuntu APT acquisition failed after the bounded mirror attempts; no installation was started.');
