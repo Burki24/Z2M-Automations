@@ -44,7 +44,22 @@ D2 adds real temporary project save/reopen/backup/restore, draft lifecycle,
 main-only credential file import, OS-protected storage when available and keyboard/
 wheel checks to smoke. Test dialogs choose only synthetic files in the temporary
 profile; production uses native dialogs. `tests/projects.test.mjs` also exercises
-an actual exclusive Windows file lock. Run the same checks on Ubuntu; simulated
+an actual exclusive Windows file lock. Its helper prefers installed PowerShell 7
+and falls back to Windows PowerShell. An event-driven handshake allows up to
+30 seconds for startup and requires an explicit lock-ready signal before the
+save assertion. Cleanup waits for release and process exit before removing test
+files; a failed assertion also releases the helper. The test then confirms that
+saving succeeds after unlocking.
+
+`LOCK_HELPER_DIAGNOSTICS` reports the shell name, PID, phase, elapsed time,
+exit code/signal, output byte counts and allowlisted exception type/HRESULT.
+Raw stdout/stderr, file paths and command contents are never included. Phases
+distinguish process startup, lock acquisition and release. Portable lifecycle
+tests cover delayed/fragmented readiness, spawn errors, early exit, bounded
+startup/shutdown failures and cleanup after a failed assertion. They do not
+replace the native Windows lock test, which remains mandatory in Windows CI.
+
+Run the same checks on Ubuntu; simulated
 missing/locked keyrings do not establish native secret-service acceptance.
 See [D2](D2.md) for the format, persistence and credential boundaries.
 
