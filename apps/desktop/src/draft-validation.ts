@@ -41,16 +41,30 @@ export function uniqueTopic(project: Project, baseTopic: string): ProjectSystem 
   const found = project.systems.filter(system => system.baseTopic === baseTopic);
   return found.length === 1 ? found[0] : undefined;
 }
+function partnerAllowed(project: Project, system: ProjectSystem, owner: ProjectSystem): boolean {
+  return owner.id !== system.id && Boolean(uniqueTopic(project, owner.baseTopic)) && Boolean(uniqueTopic(project, system.baseTopic))
+    && topic(owner.baseTopic) && topic(system.baseTopic) && system.configuration.mesh_peers.includes(owner.baseTopic)
+    && owner.configuration.mesh_peers.includes(system.baseTopic);
+}
+export function editorSystems(project: Project, system: ProjectSystem, reader: Pick<MqttReader, 'current'>): Entry[] {
+  return project.systems.map(owner => {
+    const local = owner.id === system.id;
+    const ambiguous = !uniqueTopic(project, owner.baseTopic) || !uniqueTopic(project, system.baseTopic) || !topic(owner.baseTopic) || !topic(system.baseTopic);
+    return {key: local ? '' : owner.baseTopic, name: owner.name, baseTopic: owner.baseTopic,
+      broker: project.brokers.find(broker => broker.id === owner.brokerId)?.name ?? '',
+      reason: !local && ambiguous ? 'ambiguous' : !local && !partnerAllowed(project, system, owner) ? 'permissions'
+        : !reader.current(owner.id)?.fresh ? 'catalog' : ''};
+  });
+}
 export function editorDevices(project: Project, system: ProjectSystem, reader: MqttReader): Entry[] {
   const devices: Entry[] = [];
   for (const owner of project.systems) {
     const local = owner.id === system.id;
-    if (!local && (!uniqueTopic(project, owner.baseTopic) || !uniqueTopic(project, system.baseTopic) || !topic(owner.baseTopic)
-      || !owner.configuration.mesh_peers.includes(system.baseTopic))) continue;
+    if (!local && !partnerAllowed(project, system, owner)) continue;
     const remote = reader.current(owner.id); if (!remote) continue;
     for (const device of remote.devices) {
       const properties: Entry[] = device.properties.map(property => ({...property,
-        readable: local && Boolean(property.access & 1), writable: remote.fresh && Boolean(property.access & 2),
+        readable: (local || remote.fresh) && Boolean(property.access & 1), writable: remote.fresh && Boolean(property.access & 2),
         actionValues: property.values, valueLabels: []}));
       for (const scene of remote.scenes.filter(scene => equal(scene.target, device.target))) {
         const endpoint = scene.endpoint ?? 0;
@@ -86,7 +100,9 @@ export function checkedEntry(entry: Entry, sequence: boolean): void {
 export function checkCapabilities(entry: Entry, sequence: boolean, configuration: Configuration, project: Project, system: ProjectSystem, reader: Pick<MqttReader, 'current'>, sections = ['triggers', 'conditions', 'actions']): void {
   checkedEntry(entry, sequence);
   for (const item of sections.filter(section => section !== 'actions').flatMap(section => entry[section] ?? []) as Entry[]) if (['device', 'device_value'].includes(item['type'])) {
-    const remote = reader.current(system.id);
+    const owner = item['system'] === undefined ? system : uniqueTopic(project, item['system']);
+    if (!owner || item['system'] !== undefined && (item['type'] !== 'device_value' || !partnerAllowed(project, system, owner))) throw new Error('draftPermission');
+    const remote = reader.current(owner.id);
     const property = remote?.devices.find(device => device.target.type === 'device' && device.target.id === item['device'])?.properties.find(property => property.id === item['property']);
     if (!remote?.fresh || !property || !(property.access & 1) || property.type === 'color') throw new Error('draftCapability');
     if (!['eq', 'ne'].includes(item['operator']) && property.type !== 'numeric') throw new Error('draftValue');
@@ -107,8 +123,7 @@ export function checkCapabilities(entry: Entry, sequence: boolean, configuration
       count++;
       const target = action['target'];
       const owner = target['system'] === undefined ? system : uniqueTopic(project, target['system']);
-      if (!owner || target['system'] !== undefined && (owner.id === system.id || !uniqueTopic(project, system.baseTopic)
-        || !owner.configuration.mesh_peers.includes(system.baseTopic))) throw new Error('draftPermission');
+      if (!owner || target['system'] !== undefined && !partnerAllowed(project, system, owner)) throw new Error('draftPermission');
       const remote = reader.current(owner.id);
       const device = remote?.devices.find(device => device.target.type === target['type'] && device.target.id === target['id']);
       if (!remote?.fresh || !device) throw new Error('draftCapability');

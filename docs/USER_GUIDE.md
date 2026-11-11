@@ -52,6 +52,9 @@ reading, editing, checking and transfer.
    detected or a button press. Measured values list numeric properties such
    as temperature and brightness. Device and property lists show matching
    choices. Conditions also distinguish status from measured values.
+   Under **Only if** and **Then**, use **Device's Z2M system** to select the
+   device's system and broker. Devices remain alphabetically sorted. Device
+   triggers under **When** belong to the automation's own system.
    **Add to draft disabled** adds the new rule to the local project.
    Save the project in step 1 to keep those changes.
 7. **Check draft.** The check is also available directly from step 6. Use a
@@ -61,6 +64,15 @@ reading, editing, checking and transfer.
 8. **Transfer to Z2M.** Review the target and confirm the transfer of the
    complete checked draft. A regular transfer stores the rules disabled.
    Existing stored state is backed up before replacement.
+
+For devices on another system, read both catalogs in step 4. In step 3, open
+**Partner permissions** for each system and explicitly allow the other system.
+Before using remote conditions, install the bundled extension 0.2.2 or later on
+both Z2M instances. Separate brokers need an independently configured MQTT bridge
+for `z2ma/mesh/#`; the application does not create it. Transfer the receiving
+system's grants separately and activate that receiver before running the source
+rule. Remote conditions use the owning Z2M instance's current state cache; an
+unknown value or a missing answer prevents the action. The app can be closed.
 
 Use **Operation** to run a stored rule once, stop a run or stop the system.
 To enable rules for automatic operation, change the rule switches in the

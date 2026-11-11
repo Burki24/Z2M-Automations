@@ -83,9 +83,9 @@ import {installNativeEmbedding} from './embedding.js';
     const current = () => category === 'catalog' ? data?.devices.find(device => device.key === selected) : entries().find(entry => entryKey(entry) === selected);
     const targetDevice = target => data?.devices.find(device => device.target.type === target?.type && device.target.id === target?.id
         && (device.target.system ?? '') === (target?.system ?? ''));
-    const sourceDevice = id => data?.devices.find(device => device.target.type === 'device' && device.target.id === id && !device.target.system);
+    const sourceDevice = (id, system = '') => targetDevice({type: 'device', id, ...(system ? {system} : {})});
     const targetName = target => targetDevice(target)?.name ?? t("ui.device.data.missing.25af8c67", {p1: target?.system ? target.system + ' · ' : '', p2: target?.type === 'group' ? t("ui.group.375adc53") : t("ui.device.d97ee209"), p3: target?.id ?? t("ui.unknown.a418e69e")});
-    const sourceName = id => sourceDevice(id)?.name ?? t("ui.device.data.missing.6c193ebe", {p1: id});
+    const sourceName = (id, system = '') => (sourceDevice(id, system)?.name ?? t("ui.device.data.missing.6c193ebe", {p1: id})) + (system ? ' · ' + system : '');
     const propertyName = (device, property) => device?.properties.find(meta => meta.id === property)?.label ?? property;
     const displayValue = (device, property, value) => {
         const meta = device?.properties.find(meta => meta.id === property);
@@ -116,7 +116,7 @@ import {installNativeEmbedding} from './embedding.js';
     }
 
     function conditionSummary(condition) {
-        if (condition.type === 'device_value') return `${sourceName(condition.device)} · ${propertyName(sourceDevice(condition.device), condition.property)} ${compare[condition.operator] ?? condition.operator} ${displayValue(sourceDevice(condition.device), condition.property, condition.value)}`;
+        if (condition.type === 'device_value') return `${sourceName(condition.device, condition.system)} · ${propertyName(sourceDevice(condition.device, condition.system), condition.property)} ${compare[condition.operator] ?? condition.operator} ${displayValue(sourceDevice(condition.device, condition.system), condition.property, condition.value)}`;
         if (condition.type === 'time_window') return `${condition.after} bis ${condition.before} · ${condition.timezone}${condition.weekdays ? ' · ' + days(condition.weekdays) : ''}`;
         if (condition.type === 'weekday') return t("ui.text.db1b0c15", {p1: days(condition.weekdays), p2: condition.timezone});
         return t("ui.additional.condition.e6b03139", {p1: condition.type});
@@ -212,10 +212,11 @@ import {installNativeEmbedding} from './embedding.js';
             if (!item && entry.kind !== 'sequence') html += field(t("ui.in.local.draft.706365af"), entry.enabled ? t("ui.enabled.58279f72") : t("ui.disabled.a21a5188")) + field(t("ui.on.retrigger.7588befa"), {ignore: t("ui.ignore.new.trigger.0724102c"), restart: t("ui.restart.from.the.beginning.f723ba35"), extend: t("ui.reset.current.delay.2561f6e5")}[entry.retrigger ?? 'ignore']);
             if (item) {
                 html += field(t("ui.description.e9262f00"), kind === 'triggers' ? triggerSummary(item) : kind === 'conditions' ? conditionSummary(item) : actionSummary(item));
-                if (item.device) html += field(t("ui.device.b32db786"), sourceName(item.device));
+                if (item.device) html += field(t("ui.device.b32db786"), sourceName(item.device, item.system));
+                if (item.system) html += field(t("ui.z2m.system.7a27be0b"), item.system);
                 if (item.target) html += field(t("ui.target.f487ce39"), targetName(item.target)) + field(t("ui.z2m.system.7a27be0b"), item.target.system ?? data.module.baseTopic);
-                if (item.property) html += field(t("ui.property.channel.b524f965"), propertyName(item.target ? targetDevice(item.target) : sourceDevice(item.device), item.property));
-                if (Object.hasOwn(item, 'value')) html += field(t("ui.comparison.value.b6e7150f"), displayValue(sourceDevice(item.device), item.property, item.value));
+                if (item.property) html += field(t("ui.property.channel.b524f965"), propertyName(item.target ? targetDevice(item.target) : sourceDevice(item.device, item.system), item.property));
+                if (Object.hasOwn(item, 'value')) html += field(t("ui.comparison.value.b6e7150f"), displayValue(sourceDevice(item.device, item.system), item.property, item.value));
                 if (item.values) for (const [key, value] of Object.entries(item.values)) html += field(propertyName(targetDevice(item.target), key), displayValue(targetDevice(item.target), key, value));
                 if (item.for_seconds !== undefined) html += field(t("ui.minimum.duration.cfb985d9"), t("duration.seconds", {count: item.for_seconds}));
                 if (kind === 'triggers' && item.type === 'device') html += field(t("ui.only.on.value.change.141310cb"), item.on_change ? t("ui.yes.cde9e58a") : t("ui.no.90ebc1bd"));

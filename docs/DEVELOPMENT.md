@@ -35,6 +35,10 @@ screenshot as apps/desktop/out/smoke-failure.* on failure. CI uploads these
 separately when a job fails. The shared-broker fixture delays the second system's
 catalog response to exercise independent read timing. Draft editing waits for
 all assigned system reads and a matching rendered context.
+The cross-system form check selects foreign condition/action devices, verifies
+alphabetical ordering and stable ownership, and reopens the saved draft across
+a language change. Transfer tests use two isolated brokers and reject old
+extension versions and revoked receiver grants before validation.
 
 D2 adds real temporary project save/reopen/backup/restore, draft lifecycle,
 main-only credential file import, OS-protected storage when available and keyboard/

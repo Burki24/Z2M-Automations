@@ -2,7 +2,7 @@ import {createHash, randomUUID} from 'node:crypto';
 import type {ProjectService} from './project-service.js';
 import type {MqttReader} from './mqtt-reader.js';
 import {exact, validId, type ProjectSystem, type Configuration} from './project.js';
-import {editorDevices, checkCapabilities, checkedDocument, digestPattern, uniqueTopic, type Entry} from './draft-validation.js';
+import {editorDevices, editorSystems, checkCapabilities, checkedDocument, digestPattern, uniqueTopic, type Entry} from './draft-validation.js';
 
 const routes = ['create', 'edit', 'sequence', 'manage', 'permissions-status', 'permissions', 'import', 'export', 'adopt', 'editor-state', 'check-draft'] as const;
 export interface DesignerCommand {route: typeof routes[number]; systemId: string; generation: number; fingerprint: string; payload: Entry}
@@ -29,7 +29,7 @@ export class DraftEditor {
     const configuration = system.configuration; const context = this.context(system);
     const editable = this.reader.source(system.id) === 'draft';
     const sections = Object.fromEntries(configuration.automations.map(rule => [rule['id'], {triggers: true, conditions: true, actions: true}]));
-    return {devices: editorDevices(this.projects.data(), system, this.reader), createContext: context,
+    return {devices: editorDevices(this.projects.data(), system, this.reader), deviceSystems: editorSystems(this.projects.data(), system, this.reader), createContext: context,
       createAllowed: editable && configuration.automations.length < 100, editAllowed: editable,
       sequenceAllowed: editable, sequenceCreateAllowed: editable && configuration.sequences.length < 32,
       manageAllowed: editable, permissionsAllowed: editable && Boolean(uniqueTopic(this.projects.data(), system.baseTopic))

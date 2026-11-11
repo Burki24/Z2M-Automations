@@ -16,7 +16,7 @@ const {Diagnostics} = require('../apps/desktop/.build/diagnostics.js');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 
 async function setup(t, options = {}) {
-  const fixture = remoteFixture();
+  const fixture = options.fixture ?? remoteFixture();
   const draft = structuredClone(fixture.editor.configuration);
   fixture.status.executing = fixture.editor.executing = false;
   fixture.status.extension_build = fixture.editor.extension_build = 'a'.repeat(64);
@@ -28,7 +28,7 @@ async function setup(t, options = {}) {
     reply({operation, request, response, publish}) {
       if (operation === 'install') {
         assert.equal(request.name, 'z2m-automations.mjs');
-        assert.equal(hash(request.code), 'aef090e0fab41c50b7f5360d03c9c077ef559a7e192a18d26ad397e3ceda8ecd');
+        assert.equal(hash(request.code), '56878a00be9671c8f470f3f3c8ad3be014d8f9a08a4ad807e4f0ec42f548867f');
         installed = true;
         Object.assign(fixture.status, {session: randomUUID(), extension_build: bundledExtension.build, extension_version: bundledExtension.version});
         if (options.absent) {
@@ -80,6 +80,40 @@ async function setup(t, options = {}) {
   const system = () => projects.data().systems[0];
   return {command, count, system, fixture, draft, backup, dialogs, reader, id, projects, peer, debug, loseAck: () => { loseAck = true; }};
 }
+
+test('remote conditions recheck catalogs, receiver grants and extension versions on two independent brokers', async t => {
+  const synchronize = fixture => {
+    const yaml = JSON.stringify(fixture.editor.configuration); const checksum = hash(yaml);
+    fixture.status.checksum = checksum; Object.assign(fixture.editor, {yaml, checksum});
+  };
+  const source = remoteFixture(); source.editor.configuration.mesh_peers = ['other']; synchronize(source);
+  const target = remoteFixture('Other system'); target.editor.configuration.mesh_peers = ['synthetic']; synchronize(target);
+  const otherPeer = await startPeer({systems: new Map([['other', target]])});
+  t.after(() => otherPeer.close());
+  const s = await setup(t, {fixture: source});
+  const broker = {id: randomUUID(), name: 'Other broker', host: '127.0.0.1', port: otherPeer.port, tls: false};
+  const id = randomUUID();
+  await s.projects.command({action: 'broker', broker});
+  await s.projects.command({action: 'system', system: {id, name: 'Other system', brokerId: broker.id, baseTopic: 'other'}});
+  const draft = s.system().configuration;
+  draft.automations[0].conditions = [{type: 'device_value', system: 'other', device: '0x0000000000000001', property: 'occupancy', operator: 'eq', value: true}];
+  s.projects.replaceDraft(s.id, draft);
+  s.reader.reconcile(s.projects.data(), s.projects.generation());
+  await s.reader.connectBroker(broker.id);
+  for (let attempt = 0; !s.reader.connected(broker.id) && attempt < 100; attempt++) await new Promise(resolve => setTimeout(resolve, 20));
+  await s.reader.refresh(id);
+  await assert.rejects(s.command('validate'), /draftRemoteConditionVersion/);
+  source.status.extension_version = source.editor.extension_version = bundledExtension.version;
+  await assert.rejects(s.command('validate'), /draftRemoteConditionVersion/);
+  target.status.extension_version = target.editor.extension_version = bundledExtension.version;
+  target.editor.configuration.mesh_peers = []; synchronize(target);
+  await assert.rejects(s.command('validate'), /draftPermission/);
+  assert.equal(s.count('/request/validate'), 0, 'An old runtime or missing receiver grant cannot reach remote validation');
+  target.editor.configuration.mesh_peers = ['synthetic']; synchronize(target);
+  assert.equal(await s.command('validate'), 'transferValidated');
+  assert.equal(s.count('/request/validate'), 1);
+  assert.ok(otherPeer.publications.every(packet => /\/request\/(status|editor)$/.test(packet.topic)), 'The other broker is read-only during validation');
+});
 
 test('D5 validates the exact disabled bytes, backs up the prior state and confirms storage independently', async t => {
   const s = await setup(t);

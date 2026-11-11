@@ -229,6 +229,7 @@ dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(2px); }
 .rule-edit-dialog .edit-row-fields .field { margin: 0; min-width: 0; }
 .rule-edit-dialog .edit-device-picker, .rule-edit-dialog .edit-command, .rule-edit-dialog .field-help { grid-column: 1 / -1; min-width: 0; }
 .rule-edit-dialog .edit-device-picker { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(0, 2fr); gap: 18px; }
+.rule-edit-dialog .edit-device-system, .rule-edit-dialog .edit-device-system-help { grid-column: 1 / -1; }
 .rule-edit-dialog .edit-row-tools { display: flex; flex-wrap: wrap; align-items: end; gap: 9px; margin-top: 12px; }
 .rule-edit-dialog .edit-weekdays { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .rule-edit-dialog .edit-weekdays .field { display: flex; align-items: center; gap: 5px; }

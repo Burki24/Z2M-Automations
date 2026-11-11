@@ -155,17 +155,29 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             }, {field: key, choices: () => [['', t("ui.select.value.c40f9e84")], ...values.map((v, index) => [String(index), property.sceneNames?.[v] ?? property.valueLabels?.find(entry => same(entry.value, v))?.label ?? valueLabel(v)])]});
         }
     }
-    function devicePicker(parent, side, current, set, sourceKind = '') {
+    function devicePicker(parent, side, current, set, sourceKind = '', system = '') {
         const box = node('div', undefined, 'edit-device-picker'); parent.append(box);
+        const systemChoice = desktop && side !== 'source';
+        if (systemChoice) {
+            const systems = sortByName(getData().deviceSystems ?? []);
+            const systemPicker = field(box, () => t('editor.deviceSystem'), system, topic => { set(undefined, topic); renderFields(); }, {field: 'system', required: false,
+                choices: () => systems.map(owner => [owner.key, t('editor.deviceSystemOption', {system: owner.name, topic: owner.baseTopic, broker: owner.broker})])});
+            systemPicker.parentElement.classList.add('edit-device-system');
+            const owner = systems.find(owner => owner.key === system);
+            const help = node('p', () => owner?.reason === 'permissions' ? t('editor.deviceSystem.permissions')
+                : owner?.reason === 'catalog' ? t('editor.deviceSystem.catalog') : owner?.reason === 'ambiguous' ? t('editor.deviceSystem.ambiguous')
+                    : system ? t('editor.deviceSystem.remote') : t('editor.deviceSystem.local'), 'field-help');
+            help.classList.add('edit-device-system-help'); box.append(help);
+        }
         const search = field(box, () => (t("ui.search.devices.e2326f44")), '', () => refreshOptions(), {type: 'search', required: false});
-        const select = field(box, () => (t("ui.device.b32db786")), current?.key ?? '', key => { const device = getData().devices.find(entry => entry.key === key); set(device); renderFields(); }, {field: side === 'source' ? 'device' : 'target', choices: () => [['', t("ui.select.device.c5925e7a")]]});
+        const select = field(box, () => (t("ui.device.b32db786")), current?.key ?? '', key => { const device = getData().devices.find(entry => entry.key === key); set(device, system); renderFields(); }, {field: side === 'target' ? 'target' : 'device', choices: () => [['', t("ui.select.device.c5925e7a")]]});
         search.addEventListener('keydown', event => {
             if (event.key !== 'Enter') return;
             event.preventDefault();
             select.focus();
         });
         function refreshOptions() {
-            const found = creationDevices(getData(), side, search.value, sourceKind);
+            const found = creationDevices(getData(), side, search.value, sourceKind).filter(device => !systemChoice || (device.target.system ?? '') === system);
             if (current && !found.some(device => device.key === current.key)) found.unshift(current);
             select.replaceChildren(localizedOption(() => t("ui.select.device.c5925e7a"), ''));
             for (const device of sortByName(found)) select.add(localizedOption(() => t("ui.text.db1b0c15", {p1: device.name, p2: device.target.system ?? getData().module.baseTopic}), device.key));
@@ -174,9 +186,14 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         refreshOptions();
     }
     function sourceFields(parent, item, sourceKind = '') {
-        const device = getData().devices.find(entry => entry.key === item.device && !entry.target.system && entry.target.type === 'device');
-        devicePicker(parent, 'source', device, selected => { item.device = selected?.key ?? ''; item.property = ''; delete item.value; }, sourceKind);
-        const properties = creationProperties(device, 'source', sourceKind);
+        const condition = desktop && item.type === 'device_value';
+        const device = targetDevice(getData(), {type: 'device', id: item.device, ...(item.system ? {system: item.system} : {})});
+        devicePicker(parent, condition ? 'condition' : 'source', device, (selected, system = '') => {
+            item.device = selected?.target.id ?? ''; item.property = ''; delete item.value;
+            const owner = selected?.target.system ?? system;
+            if (condition && owner) item.system = owner; else delete item.system;
+        }, sourceKind, item.system ?? '');
+        const properties = creationProperties(device, condition ? 'condition' : 'source', sourceKind);
         field(parent, () => (t("ui.property.channel.b524f965")), item.property, property => { item.property = property; delete item.value; renderFields(); }, {field: 'property', choices: () => [['', t("ui.select.property.channel.9718e7d6")], ...properties.map(meta => [meta.id, meta.label])]});
         const property = properties.find(meta => meta.id === item.property);
         field(parent, () => (t("ui.comparison.79a63c24")), item.operator, value => { item.operator = value; }, {field: 'operator', choices: () => Object.entries(compare).filter(([key]) => property?.type === 'numeric' || ['eq', 'ne'].includes(key))});
@@ -201,12 +218,12 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             parent.append(node('p', () => (t("ui.the.saved.action.sequence.will.18123720")), 'field-help')); return;
         }
         const device = targetDevice(getData(), item.target);
-        devicePicker(parent, 'target', device, selected => {
-            item.target = selected ? copy(selected.target) : {type: 'device', id: ''};
+        devicePicker(parent, 'target', device, (selected, system = '') => {
+            item.target = selected ? copy(selected.target) : {type: 'device', id: '', ...(system ? {system} : {})};
             if (item.type === 'set') item.values = {'': undefined};
             else if (item.type === 'toggle') item.property = '';
             else { delete item.scene_id; delete item.endpoint; }
-        });
+        }, '', item.target?.system ?? '');
         let properties = creationProperties(device, 'target');
         if (item.type === 'toggle') {
             properties = properties.filter(meta => /^state(?:_[A-Za-z0-9_]+)?$/.test(meta.id) && meta.actionValues.includes('TOGGLE'));
@@ -232,7 +249,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
                 const selected = properties.find(meta => meta.id === property);
                 item.values[property] = selected?.type === 'color' ? {hex: '#ffffff'} : undefined;
                 renderFields();
-            }, {choices: () => [['', t("ui.select.property.channel.9718e7d6")], ...properties.filter(meta => meta.id === key || !Object.hasOwn(item.values, meta.id)).map(meta => [meta.id, meta.label])]});
+            }, {field: 'property', choices: () => [['', t("ui.select.property.channel.9718e7d6")], ...properties.filter(meta => meta.id === key || !Object.hasOwn(item.values, meta.id)).map(meta => [meta.id, meta.label])]});
             const meta = properties.find(property => property.id === key);
             propertyValue(command, meta ? {...meta, actionValues: meta.actionValues.filter(v => v !== 'TOGGLE')} : null, 'target', value, next => { item.values[key] = next; });
             if (values.length > 1) button(command, () => (t("ui.remove.value.aba676af")), () => { delete item.values[key]; renderFields(); });
@@ -244,7 +261,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         if (!desktop) return item.type;
         if (item.type === 'sun' && ['sunrise', 'sunset'].includes(item.event)) return item.event;
         if (item.type !== 'device' && item.type !== 'device_value') return item.type;
-        const device = getData().devices.find(entry => entry.key === item.device);
+        const device = targetDevice(getData(), {type: 'device', id: item.device, ...(item.system ? {system: item.system} : {})});
         if (creationProperties(device, 'source').some(property => property.id === item.property && property.type === 'numeric')) measurementSources.add(item);
         return measurementSources.has(item) ? 'measurement' : 'status';
     }

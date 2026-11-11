@@ -68,12 +68,60 @@ test('read permissions never imply write permissions; scenes and directed partne
   const rule = s.rule(); rule.actions[0].target.system = 'other';
   assert.throws(() => s.send('create', {rule}), /draftPermission/);
   const receiver = s.service.data().systems.find(system => system.id === other).configuration; receiver.mesh_peers = ['synthetic']; s.service.replaceDraft(other, receiver);
+  assert.throws(() => s.send('create', {rule}), /draftPermission/);
+  const sender = s.system().configuration; sender.mesh_peers = ['other']; s.service.replaceDraft(s.id, sender);
   s.send('create', {rule});
   const scene = s.rule(); scene.actions = [{type: 'scene', target: {type: 'device', id: '0x0000000000000002'}, scene_id: 1, endpoint: 1}];
   s.send('create', {rule: scene}); scene.actions[0].endpoint = 2; assert.throws(() => s.send('create', {rule: scene}), /draftCapability/);
   const view = s.editor.view(s.system());
   assert.equal(view.devices.find(device => device.key === '0x0000000000000001').properties[0].writable, false);
   s.remotes.get(s.id).fresh = false; assert.throws(() => s.send('create', {rule: s.rule()}), /draftCapability/);
+});
+
+test('conditions and actions select devices owned by another broker without mixing equal IEEE addresses', async () => {
+  const s = await setup(); const id = randomUUID(); const broker = {id: randomUUID(), name: 'Other broker', host: 'other.invalid', port: 1883, tls: false};
+  await s.service.command({action: 'broker', broker});
+  await s.service.command({action: 'system', system: {id, name: 'Other system', brokerId: broker.id, baseTopic: 'other'}});
+  s.remotes.set(id, structuredClone(s.remotes.get(s.id)));
+  const other = () => s.service.data().systems.find(system => system.id === id);
+  assert.equal(s.editor.view(s.system()).deviceSystems.find(owner => owner.key === 'other').reason, 'permissions');
+  for (const [owner, peer] of [[s.system(), 'other'], [other(), 'synthetic']]) {
+    const configuration = owner.configuration; configuration.mesh_peers = [peer]; s.service.replaceDraft(owner.id, configuration);
+  }
+  const rule = s.rule();
+  rule.conditions = [{type: 'device_value', system: 'other', device: '0x0000000000000001', property: 'occupancy', operator: 'eq', value: true}];
+  rule.actions[0].target.system = 'other';
+  const {ruleId} = s.send('create', {rule});
+  const saved = s.system().configuration.automations.find(rule => rule.id === ruleId);
+  assert.equal(saved.conditions[0].system, 'other'); assert.equal(saved.conditions[0].device, '0x0000000000000001');
+  const view = s.editor.view(s.system());
+  assert.equal(view.deviceSystems.find(owner => owner.key === 'other').broker, 'Other broker');
+  assert.equal(view.deviceSystems.find(owner => owner.key === 'other').reason, '');
+  const remote = view.devices.find(device => device.target.system === 'other' && device.target.id === rule.conditions[0].device);
+  assert.notEqual(remote.key, rule.conditions[0].device); assert.equal(remote.properties[0].readable, true);
+  s.remotes.get(id).devices[0].properties[0].access = 2;
+  assert.throws(() => s.send('create', {rule}), /draftCapability/, 'A local readable device cannot replace a foreign write-only source');
+  s.remotes.get(id).fresh = false;
+  assert.equal(s.editor.view(s.system()).deviceSystems.find(owner => owner.key === 'other').reason, 'catalog');
+  assert.throws(() => s.send('create', {rule}), /draftCapability/);
+});
+
+test('ambiguous cross-broker topics remain unavailable and partner revocation invalidates an open editor', async () => {
+  const s = await setup(); const broker = {id: randomUUID(), name: 'Other broker', host: 'other.invalid', port: 1883, tls: false};
+  await s.service.command({action: 'broker', broker});
+  const id = randomUUID(); await s.service.command({action: 'system', system: {id, name: 'Other', brokerId: broker.id, baseTopic: 'other'}});
+  s.remotes.set(id, structuredClone(s.remotes.get(s.id)));
+  for (const [ownerId, peer] of [[s.id, 'other'], [id, 'synthetic']]) {
+    const configuration = s.service.data().systems.find(system => system.id === ownerId).configuration;
+    configuration.mesh_peers = [peer]; s.service.replaceDraft(ownerId, configuration);
+  }
+  const rule = s.rule(); rule.conditions = [{type: 'device_value', system: 'other', device: '0x0000000000000001', property: 'occupancy', operator: 'eq', value: true}];
+  const command = s.command('create', {requestId: randomUUID(), context: s.editor.context(s.system()), rule});
+  const receiver = s.service.data().systems.find(system => system.id === id).configuration; receiver.mesh_peers = []; s.service.replaceDraft(id, receiver);
+  assert.throws(() => s.editor.command(command), /draftStale/);
+  await s.service.command({action: 'system', system: {id: randomUUID(), name: 'Ambiguous', brokerId: broker.id, baseTopic: 'synthetic'}});
+  assert.equal(s.editor.view(s.system()).deviceSystems.find(owner => owner.key === 'other').reason, 'ambiguous');
+  assert.throws(() => s.send('create', {rule}), /draftPermission/);
 });
 test('sequence references, expanded steps and accumulated delay are bounded; deletion cannot strand a caller', async () => {
   const s = await setup(); const leaf = s.rule().actions[0];

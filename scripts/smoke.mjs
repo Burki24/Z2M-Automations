@@ -76,5 +76,5 @@ child.on('exit', async code => {
   await peer.close();
   process.exitCode = !timedOut && saved && readOnly && validations.length === 1
     && validations[0].topic === 'synthetic/symcon/automations/request/validate'
-    && code === 0 && output.includes('DESKTOP_SMOKE_OK') && output.includes('DESKTOP_PROJECTS_OK') && output.includes('DESKTOP_MQTT_OK') && output.includes('DESKTOP_DRAFTS_OK') && output.includes('DESKTOP_LAYOUT_OK') ? 0 : 1;
+    && code === 0 && output.includes('DESKTOP_SMOKE_OK') && output.includes('DESKTOP_PROJECTS_OK') && output.includes('DESKTOP_MQTT_OK') && output.includes('DESKTOP_DRAFTS_OK') && output.includes('DESKTOP_CROSS_SYSTEM_OK') && output.includes('DESKTOP_LAYOUT_OK') ? 0 : 1;
 });

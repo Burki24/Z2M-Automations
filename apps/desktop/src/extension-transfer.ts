@@ -153,18 +153,28 @@ export class ExtensionTransfer {
   }
   private async checkCatalog(project: Project, system: ProjectSystem, configuration: Configuration, remote: RemoteRead): Promise<void> {
     const targetTopics = new Set<string>();
+    const conditionTopics = new Set<string>();
     for (const entry of [...configuration.automations, ...configuration.sequences]) {
+      for (const condition of (entry['conditions'] ?? []) as {system?: string}[]) {
+        if (condition.system) { targetTopics.add(condition.system); conditionTopics.add(condition.system); }
+      }
       for (const action of entry['actions'] as {target?: {system?: string}}[]) {
         if (action.target?.system) targetTopics.add(action.target.system);
       }
     }
     const catalogs = new Map([[system.id, {...remote, fresh: true}]]);
+    const supportsConditions = (read: RemoteRead): boolean => {
+      const version = /^(\d+)\.(\d+)\.(\d+)$/.exec(read.status.extensionVersion);
+      return Boolean(version && (Number(version[1]) > 0 || Number(version[2]) > 2 || Number(version[2]) === 2 && Number(version[3]) >= 1));
+    };
+    if (conditionTopics.size && !supportsConditions(remote)) throw new Error('draftRemoteConditionVersion');
     const checkedProject = structuredClone(project);
     await Promise.all([...targetTopics].map(async topic => {
       const owners = checkedProject.systems.filter(item => item.baseTopic === topic && item.id !== system.id);
       if (owners.length !== 1 || !owners[0]) throw new Error('draftPermission');
       const owner = owners[0];
       const observed = await this.read(this.reader.transfer(owner.id));
+      if (conditionTopics.has(topic) && !supportsConditions(observed)) throw new Error('draftRemoteConditionVersion');
       owner.configuration.mesh_peers = observed.configuration.mesh_peers;
       catalogs.set(owner.id, {...observed, fresh: true});
     }));

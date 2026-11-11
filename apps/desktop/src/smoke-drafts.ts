@@ -360,5 +360,90 @@ async function verifyDrafts(view: WebContents, exportPath: string): Promise<void
     || !Array.isArray(actions) || (actions[0] as {sequence_id?: string} | undefined)?.sequence_id !== yaml.sequences[0]?.['id']) {
     throw new Error('Exported YAML lost the existing rule, new disabled rule or sequence');
   }
+  await view.executeJavaScript(`(async () => {
+    ${rendererHelpers}
+    const assert = (value, message) => { if (!value) throw new Error('Cross-system smoke: ' + message); };
+    const project = (await bridge.project({action: 'status'})).state.project;
+    const [local, other] = project.systems;
+    const send = async (route, payload) => {
+      const data = await bridge.snapshot();
+      const result = await bridge.designer({route, ...data.workspaceContext,
+        payload: {requestId: crypto.randomUUID(), context: data.createContext, ...payload}});
+      assert(result.ok, JSON.stringify(result)); return result.state;
+    };
+    for (const [owner, peer] of [[other, local], [local, other]]) {
+      await bridge.selectSystem(owner.id);
+      await send('permissions', {peers: [...new Set([...owner.configuration.mesh_peers, peer.baseTopic])], confirmed: true});
+    }
+    await refreshView('render-cross-system-device-choices');
+    document.querySelector('#desktop-nav-automations').click();
+    await wait(() => !document.querySelector('#draft-wizard-start').disabled, 'enable-cross-system-form');
+    document.querySelector('#draft-wizard-start').click();
+    await wait(() => document.querySelector('#edit-dialog').open, 'open-cross-system-form');
+    const rows = section => [...document.querySelectorAll('[data-section="' + section + '"] > fieldset')];
+    const field = (section, key, index = 0) => {
+      const element = rows(section)[index]?.querySelector('[data-draft-field="' + key + '"]');
+      assert(Boolean(element), 'missing ' + section + '/' + key); return element;
+    };
+    const set = (element, value) => {
+      assert(Boolean(element), 'missing field'); element.value = value;
+      element.dispatchEvent(new Event(element.tagName === 'SELECT' ? 'change' : 'input', {bubbles: true}));
+    };
+    set(document.querySelector('#edit-fields input'), 'Cross-system smoke');
+    assert(!rows('triggers')[0].querySelector('[data-draft-field="system"]'), 'device triggers remain local');
+    set(field('triggers', 'device'), '0x0000000000000001');
+    set(field('triggers', 'property'), 'occupancy'); set(field('triggers', 'value'), '0');
+    const section = document.querySelector('[data-section="conditions"]'); section.open = true;
+    section.querySelector('[data-draft-field="add"]').click();
+    set(field('conditions', 'system'), other.baseTopic);
+    const choices = [...field('conditions', 'device').options].filter(option => option.value);
+    const collator = new Intl.Collator('de-DE', {numeric: true, sensitivity: 'base'});
+    assert(choices.length && choices.every(option => option.value.startsWith(other.id + ':')),
+      'condition choices must belong to the selected system');
+    assert(choices.every((option, index) => !index || collator.compare(choices[index - 1].textContent, option.textContent) <= 0),
+      'foreign device choices must be alphabetical');
+    set(field('conditions', 'device'), other.id + ':0x0000000000000001');
+    set(field('conditions', 'device'), '');
+    assert(field('conditions', 'system').value === other.baseTopic, 'clearing a device preserves the chosen system');
+    set(field('conditions', 'device'), other.id + ':0x0000000000000001');
+    set(field('conditions', 'property'), 'occupancy'); set(field('conditions', 'value'), '0');
+    document.querySelector('[data-section="conditions"] [data-draft-field="add"]').click();
+    set(field('conditions', 'type', 1), 'measurement');
+    set(field('conditions', 'system', 1), other.baseTopic);
+    set(field('conditions', 'device', 1), other.id + ':0x0000000000000002');
+    set(field('conditions', 'property', 1), 'brightness');
+    set(field('conditions', 'operator', 1), 'gte'); set(field('conditions', 'value', 1), '50');
+    set(field('actions', 'system'), other.baseTopic);
+    set(field('actions', 'target'), other.id + ':0x0000000000000002');
+    set(field('actions', 'property'), 'state'); set(field('actions', 'values'), '0');
+    const localChoice = [...field('actions', 'system').options].find(option => option.value === '');
+    const remoteChoice = [...field('actions', 'system').options].find(option => option.value === other.baseTopic);
+    assert(localChoice?.textContent.includes(local.name) && remoteChoice?.textContent.includes(other.name)
+      && remoteChoice.textContent.includes(project.brokers.find(broker => broker.id === other.brokerId).name), 'system choices identify the broker');
+    document.querySelector('#edit-form').requestSubmit();
+    await wait(() => !document.querySelector('#edit-dialog').open, 'apply-cross-system-draft');
+    const saved = (await bridge.snapshot()).configuration.automations.find(rule => rule.name === 'Cross-system smoke');
+    assert(saved && !saved.enabled && saved.conditions[0].device === '0x0000000000000001'
+      && saved.conditions[0].system === other.baseTopic && saved.conditions[1].system === other.baseTopic
+      && saved.conditions[1].property === 'brightness' && saved.conditions[1].value === 50 && saved.actions[0].target.system === other.baseTopic,
+      'draft must retain stable device and system identities');
+    await wait(() => document.querySelector('#entry-title').textContent === saved.name, 'select-cross-system-draft');
+    document.querySelector('#edit-automation-button').click();
+    await wait(() => document.querySelector('#edit-dialog').open, 'reopen-cross-system-draft');
+    set(document.querySelector('#designer-language'), 'en');
+    assert(field('conditions', 'system').value === other.baseTopic && field('conditions', 'device').value === other.id + ':0x0000000000000001'
+      && field('conditions', 'type', 1).value === 'measurement' && field('conditions', 'system', 1).value === other.baseTopic
+      && field('actions', 'system').value === other.baseTopic && field('actions', 'target').value === other.id + ':0x0000000000000002',
+      'reopening and changing language preserve foreign device ownership');
+    set(document.querySelector('#designer-language'), 'de');
+    document.querySelector('#edit-cancel').click();
+    await send('manage', {operation: 'delete-rule', id: saved.id});
+    for (const owner of [other, local]) {
+      await bridge.selectSystem(owner.id);
+      await send('permissions', {peers: owner.configuration.mesh_peers, confirmed: true});
+    }
+    await refreshView('restore-after-cross-system-device-check');
+  })()`);
+  console.log('DESKTOP_CROSS_SYSTEM_OK condition/action/system-picker/ownership/alphabetical/reopen/language');
   console.log('DESKTOP_DRAFTS_OK local/editor/status/measurement/sunrise/sunset/reload/language/sequence/yaml-export/scoped-review/correction/separate-transfer');
 }

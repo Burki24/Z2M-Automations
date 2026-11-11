@@ -194,6 +194,9 @@
                 "type": {
                     "const": "device_value"
                 },
+                "system": {
+                    "$ref": "#/definitions/system"
+                },
                 "device": {
                     "$ref": "#/definitions/device"
                 },

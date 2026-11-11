@@ -61,6 +61,12 @@ there are no runtime downloads from GitHub.
   A local Symcon owner identifier is not a cross-installation lock.
 - The application does not execute rules itself. Z2M remains the runtime;
   broker bridges are configured separately and are not installed by the app.
+- Device triggers remain local. Device-value conditions may name a partner
+  system using its unique base topic. The owning extension evaluates them through
+  correlated mesh reads at start and before actions. Both peer declarations,
+  fresh catalogs and compatible extension versions are checked before transfer.
+  Unknown values, missing grants and late or absent replies cannot authorize an
+  action; device state never needs to pass through a running desktop app.
 
 ## Language, permissions and diagnostics
 
