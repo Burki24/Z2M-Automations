@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import {isDeepStrictEqual} from 'node:util';
 import {join} from 'node:path';
 import {exportDraft} from './draft-exchange.js';
-import {checkCapabilities, checkedDocument} from './draft-validation.js';
+import {checkConfigurationCapabilities, checkedDocument} from './draft-validation.js';
 import {record, type RemoteRead, type RemoteStatus} from './mqtt-protocol.js';
 import type {MqttReader} from './mqtt-reader.js';
 import type {ProjectService} from './project-service.js';
@@ -272,8 +272,7 @@ export class ExtensionTransfer {
       catalogs.set(owner.id, {...observed, fresh: true});
     }));
     const catalog = {current: (id: string) => catalogs.get(id) ?? null};
-    for (const entry of configuration.automations) checkCapabilities(entry, false, configuration, checkedProject, system, catalog);
-    for (const entry of configuration.sequences) checkCapabilities(entry, true, configuration, checkedProject, system, catalog);
+    checkConfigurationCapabilities(configuration, checkedProject, system, catalog);
   }
   private review(system: ProjectSystem, base: RemoteStatus | null, next?: Configuration, previous?: Configuration, kind: CheckKind = 'configuration'): Review {
     const changes: string[] = [];

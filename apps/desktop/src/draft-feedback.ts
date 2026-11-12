@@ -13,7 +13,14 @@ const reasons = new Set([...types, ...limits, 'required', 'type', 'enum', 'const
   'not', 'discriminator', 'propertyNames', 'sequence_missing', 'sequence_nested', 'sequence_limit', 'sequence_delay',
   'sequence_duplicate', 'duplicate_id', 'timezone', 'time_window', 'remote_permission', 'yaml_syntax', 'scene_unavailable']);
 
-interface Issue {path: string; reason: string; limit?: number}
+// Only local catalog validation constructs this context. Remote details remain allowlisted and value-free.
+export interface CapabilityFeedback {
+  system: string; device: string; property: string; label: string;
+  actual: string; actualType: string; allowed: string[];
+  minimum?: number; maximum?: number; step?: number; unit?: string;
+}
+export interface DraftIssue {path: string; reason: string; limit?: number; name?: string; capability?: CapabilityFeedback}
+type Issue = DraftIssue;
 interface Details {issues: Issue[]; truncated: boolean}
 
 function safePath(parts: string[]): string {
@@ -69,13 +76,18 @@ export function schemaDraftDetails(errors: readonly ErrorObject[]): Details {
   return {issues, truncated: false};
 }
 
+export function boundedDraftDetails(issues: DraftIssue[]): Details {
+  const unique = [...new Map(issues.map(issue => [JSON.stringify(issue), issue])).values()];
+  return {issues: unique.slice(0, maximumIssues), truncated: unique.length > maximumIssues};
+}
+
 export class DraftValidationError extends Error {
-  constructor(code: 'draftSchema' | 'remoteError', readonly details: Details) { super(code); }
+  constructor(code: 'draftSchema' | 'draftValue' | 'remoteError', readonly details: Details) { super(code); }
 
   feedback(configuration: Configuration | undefined) {
     return {...this.details, issues: this.details.issues.map(issue => {
       const [, field, index] = issue.path.split('/');
-      const name = field === 'automations' || field === 'sequences' ? configuration?.[field][Number(index)]?.['name'] : undefined;
+      const name = issue.name ?? (field === 'automations' || field === 'sequences' ? configuration?.[field][Number(index)]?.['name'] : undefined);
       return text(name, 120) ? {...issue, name} : issue;
     })};
   }

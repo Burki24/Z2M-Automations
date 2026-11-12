@@ -158,7 +158,8 @@ test('validation locates missing entries in older drafts and identifies the actu
 
 test('validation forwards only bounded Z2M details and resolves the rule name locally', async t => {
   const validationError = {code: 'invalid_semantics', message: 'PRIVATE_REMOTE_MESSAGE', details: {
-    issues: [{path: '/automations/0/conditions/0/timezone', reason: 'timezone', name: 'PRIVATE_REMOTE_NAME'}], truncated: false
+    issues: [{path: '/automations/0/conditions/0/timezone', reason: 'timezone', name: 'PRIVATE_REMOTE_NAME',
+      capability: {actual: 'PRIVATE_REMOTE_VALUE', device: 'PRIVATE_REMOTE_DEVICE'}}], truncated: false
   }};
   const s = await setup(t, {validationError});
   await assert.rejects(s.command('validate'), error => {
@@ -171,6 +172,32 @@ test('validation forwards only bounded Z2M details and resolves the rule name lo
   validationError.details.issues[0].path = '/automations/0/actions/0/values/PRIVATE_REMOTE_FIELD';
   await assert.rejects(s.command('validate'), error => error.message === 'remoteError' && error.details === undefined);
   assert.equal(s.count('/request/store'), 0);
+});
+
+test('receiver capability validation reports all affected rules and the exact value without sending validate or store', async t => {
+  const s = await setup(t); const draft = structuredClone(s.draft);
+  draft.automations[0].triggers[0].operator = 'gt'; draft.automations[0].triggers[0].value = 1;
+  draft.automations[0].actions[0].values = {state: false};
+  draft.automations.push({...structuredClone(s.draft.automations[0]), id: 'second-rule', name: 'Second synthetic rule', enabled: false,
+    actions: [{type: 'set', target: {type: 'device', id: '0x0000000000000002'}, values: {brightness: 255}}]});
+  s.projects.replaceDraft(s.id, draft);
+  await assert.rejects(s.command('validate'), error => {
+    assert.equal(error.message, 'draftValue');
+    const feedback = error.feedback(s.system().configuration);
+    assert.deepEqual(feedback.issues.map(issue => issue.path), [
+      '/automations/0/triggers/0/operator', '/automations/0/triggers/0/value',
+      '/automations/0/actions/0/values', '/automations/1/actions/0/values'
+    ]);
+    assert.equal(feedback.issues[0].name, draft.automations[0].name);
+    assert.equal(feedback.issues[3].name, 'Second synthetic rule');
+    assert.equal(feedback.issues[3].capability.property, 'brightness');
+    assert.equal(feedback.issues[3].capability.actual, '255');
+    assert.equal(feedback.issues[3].capability.maximum, 254);
+    return true;
+  });
+  assert.equal(s.count('/request/validate'), 0); assert.equal(s.count('/request/store'), 0);
+  assert.equal(JSON.stringify(s.debug.read()).includes('Second synthetic rule'), false);
+  assert.deepEqual(s.system().configuration, draft);
 });
 
 test('D5 cancellation consumes validation and a newer remote revision is backed up without being overwritten', async t => {

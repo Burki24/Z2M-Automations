@@ -59,7 +59,7 @@ if (!process.versions.electron) {
         if (document.scrollingElement.scrollTop !== 0) throw new Error('Confirmation body must not scroll');
       })()`);
     }
-    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/confirmation-layout'); app.exit(0);
+    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/capability-findings/confirmation-layout'); app.exit(0);
   };
   run().catch(error => { console.error('EXTENSION_UPDATE_DOM_FAILED ' + error.stack); app.exit(1); });
 }
@@ -67,6 +67,7 @@ if (!process.versions.electron) {
 async function rendererTest() {
   const {installNetwork} = await import('./network.js');
   const {setLanguage} = await import('./localization.js');
+  const {validationSummary} = await import('./draft-review.js');
   const assert = (value, message) => { if (!value) throw new Error(message); };
   const wait = async test => { for (let n = 0; n < 200; n++) { if (test()) return; await new Promise(resolve => setTimeout(resolve, 20)); } throw new Error('UI condition timed out'); };
   const node = tag => { const value = document.createElement(tag); document.body.append(value); return value; };
@@ -79,12 +80,13 @@ async function rendererTest() {
   const id = '11111111-1111-4111-8111-111111111111';
   const state = {sequence: 0, brokers: [{id: 'broker', state: 'connected'}], systems: [{id, brokerId: 'broker', name: 'Synthetic', baseTopic: 'synthetic', fresh: true, stored: true,
     devices: 0, scenes: 0, executing: false, runtime: {resume: true, recovery: 'stopped', runs: [], rules: []}}], extensionUpdates: []};
-  let finish, installing = false, polls = 0, view, finishTransfer, transferring = false, kind = 'flags';
+  let finish, installing = false, polls = 0, view, finishTransfer, transferring = false, kind = 'flags', validationFailure;
   const commands = [];
   const bridge = {snapshot: async () => structuredClone(view), designer: async () => ({ok: true}), network: async ({action}) => {
     if (action === 'status') { polls++; return {ok: true, state: structuredClone(state)}; }
     commands.push(action);
     if (action === 'validate') {
+      if (validationFailure) return {ok: false, error: 'draftValue', validation: structuredClone(validationFailure)};
       state.sequence++; state.draftChecks = [{id, kind, added: 0, changed: kind === 'unchanged' ? 0 : 1, removed: 0, enabled: kind === 'flags' ? 1 : 0}];
       return {ok: true, state: {...structuredClone(state), outcome: kind === 'unchanged' ? 'transferUnchanged' : 'transferValidated'}};
     }
@@ -130,6 +132,45 @@ async function rendererTest() {
   assert(document.querySelector('#mqtt-store').disabled, 'Matching stored state needs no transfer');
   assert(commands.every(action => ['validate', 'store'].includes(action)), 'Checks and next actions do not start or stop operation');
   assert(commands.filter(action => action === 'store').length === 1, 'Exactly one explicit transfer');
+  view.configuration.automations = [{id: 'correct-rule', name: 'Synthetic <b>rule</b>'}];
+  view.desktop.draftRevision++; update(view);
+  validationFailure = {issues: [
+    {path: '/automations/0/conditions/1/operator', name: 'Synthetic <b>rule</b>', reason: 'capability_operator', capability: {
+      system: 'Foreign system', device: 'Synthetic sensor', property: 'occupancy', label: 'Occupancy', actual: 'gt', actualType: 'string', allowed: ['eq', 'ne']}},
+    {path: '/automations/0/actions/0/values', name: 'Synthetic <b>rule</b>', reason: 'capability_maximum', capability: {
+      system: 'Local system', device: 'Synthetic light', property: 'brightness', label: 'Brightness', actual: '255', actualType: 'number', allowed: [], minimum: 0, maximum: 254, step: 1}}
+  ], truncated: false};
+  document.querySelector('#mqtt-validate').click();
+  const findings = document.querySelector('#mqtt-validation-issues');
+  await wait(() => findings.children.length === 2 && !document.querySelector('#mqtt-validate').disabled);
+  const [comparisonIssue, valueIssue] = findings.children;
+  assert(comparisonIssue.textContent.includes('Condition 2') && comparisonIssue.textContent.includes('Foreign system')
+    && comparisonIssue.textContent.includes('Synthetic sensor') && comparisonIssue.textContent.includes('occupancy')
+    && comparisonIssue.textContent.includes('gt') && comparisonIssue.textContent.includes('eq') && comparisonIssue.textContent.includes('ne'), 'Comparison finding must name its exact source, value and allowed operators');
+  assert(valueIssue.textContent.includes('brightness') && valueIssue.textContent.includes('255') && valueIssue.textContent.includes('254'), 'Action finding must include actual value and allowed bound');
+  assert(!findings.querySelector('b') && findings.textContent.includes('Synthetic <b>rule</b>'), 'Configuration labels must render as text');
+  assert(document.querySelector('#mqtt-store').disabled, 'A capability failure cannot authorize transfer');
+  setLanguage('de', {persist: false, report: false});
+  assert(comparisonIssue.textContent.includes('Bedingung 2') && comparisonIssue.textContent.includes('ist größer als')
+    && valueIssue.textContent.includes('größte zulässige Aktionswert'), 'Capability findings must follow the central language');
+  let corrected;
+  const correction = event => { corrected = event.detail; event.preventDefault(); };
+  document.addEventListener('z2ma-open-draft-issue', correction);
+  comparisonIssue.querySelector('button').click();
+  assert(corrected?.kind === 'automations' && corrected.id === 'correct-rule'
+    && corrected.path.join('/') === 'conditions/1/operator', 'Correct must target the affected comparison');
+  valueIssue.querySelector('button').click();
+  assert(corrected?.property === 'brightness' && corrected.path.join('/') === 'actions/0/values', 'Correct must identify the individual action value');
+  document.removeEventListener('z2ma-open-draft-issue', correction);
+  const beforeSummary = JSON.stringify(validationFailure);
+  const summary = validationSummary(validationFailure);
+  assert(summary.includes('255') && summary.includes('254') && summary.includes('Foreign system'), 'Editor errors must retain capability detail');
+  assert(JSON.stringify(validationFailure) === beforeSummary, 'Translating findings must preserve protocol values');
+  const large = structuredClone(validationFailure);
+  large.issues[0].reason = 'capability_enum'; large.issues[0].capability.allowed = Array(32).fill('x'.repeat(96));
+  assert(validationSummary(large).length < 3000, 'Editor error summaries must stay within the transport response bound');
+  validationFailure = undefined;
+  setLanguage('en', {persist: false, report: false});
   state.systems[0].executing = false;
   document.querySelector('#mqtt-install').click();
   await wait(() => installing);

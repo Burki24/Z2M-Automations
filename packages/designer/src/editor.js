@@ -244,6 +244,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         if (!values.length) values.push(['', undefined]);
         for (const [key, value] of values) {
             const command = node('fieldset', undefined, 'edit-command'); command.append(node('legend', () => (t("ui.value.to.set.7446af2f")))); parent.append(command);
+            if (desktop) command.dataset.draftProperty = key;
             field(command, () => (t("ui.property.channel.b524f965")), key, property => {
                 delete item.values[key];
                 const selected = properties.find(meta => meta.id === property);
@@ -562,7 +563,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         event.preventDefault();
         void apply(!desktop && !sequenceMode);
     });
-    function openFinding(entry, path, reason) {
+    function openFinding(entry, path, reason, property) {
         if (busy || dialog.open || !(entry.kind === 'sequence' ? getData()?.sequenceAllowed : getData()?.editAllowed)) return false;
         open(entry);
         const [section, index, field] = path;
@@ -570,7 +571,9 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         const group = ['triggers', 'conditions', 'actions'].includes(section) ? root.querySelector(`[data-section="${section}"]`) : null;
         const row = group?.querySelectorAll(':scope > .edit-row')[Number(index)];
         if (group) group.open = true;
-        const scope = row ?? (group || root);
+        const command = field === 'values' && property ? [...(row?.querySelectorAll('.edit-command') ?? [])]
+            .find(element => element.dataset.draftProperty === property) : null;
+        const scope = command ?? row ?? (group || root);
         const key = row ? field : group ? 'add' : section;
         const input = [...scope.querySelectorAll('[data-draft-field]')].find(element => element.dataset.draftField === key)
             ?? row?.querySelector('[data-draft-field="type"]') ?? group?.querySelector('summary');

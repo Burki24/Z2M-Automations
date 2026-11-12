@@ -157,6 +157,12 @@ modes, the single check action, explicit-transfer controls and DE/EN feedback.
 Confirmation layout is checked in both themes. It captures no images. Backend
 integration tests use the real pinned extension to verify consent, backup and
 stop ordering, switch-only/unchanged drafts and lost replies without replay.
+The DOM fixture also checks detailed capability findings in DE/EN, literal label
+rendering, exact correction targets and bounded editor summaries. Draft smoke
+opens a finding for the second value of a multi-property action and verifies
+that only that value is marked and focused. Synthetic backend tests cover
+multiple invalid values, disabled rules, shared sequences, foreign-device
+ownership, numeric bounds/increments and exclusion of private feedback from logs.
 
 Use `npm run smoke -- --no-capture` for the complete source smoke without images,
 or `npm run smoke:packaged -- --no-capture` after packaging. The flag disables

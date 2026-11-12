@@ -17,6 +17,18 @@ function validationLocation(issue) {
 }
 
 function validationReason(issue) {
+  if (issue.capability) {
+    const capability = issue.capability;
+    const comparison = {eq: 'ui.is.equal.to.456b1261', ne: 'ui.is.not.equal.to.c72da4b0', gt: 'ui.is.greater.than.c23edfd9',
+      gte: 'ui.is.at.least.8adebfa3', lt: 'ui.is.less.than.f2641c8f', lte: 'ui.is.at.most.53bbaac0'};
+    const compare = value => comparison[value] ? t(comparison[value]) + ' (' + value + ')' : value;
+    const operator = issue.reason === 'capability_operator';
+    const entered = t('validation.capability.entered', {value: operator ? compare(capability.actual) : capability.actual,
+      type: t(operator ? 'validation.type.operator' : 'validation.type.' + capability.actualType)});
+    const number = value => formatNumber(value ?? 0) + (capability.unit ? ' ' + capability.unit : '');
+    return entered + ' ' + t('validation.reason.' + issue.reason, {values: capability.allowed.map(value => operator ? compare(value) : value).join(', '),
+      minimum: number(capability.minimum), maximum: number(capability.maximum), step: number(capability.step)});
+  }
   const field = issue.path.split('/').at(-1);
   if (issue.reason === 'required' || issue.reason === 'minItems' && issue.limit === 1) {
     if (field === 'triggers') return t('validation.addTrigger');
@@ -27,10 +39,24 @@ function validationReason(issue) {
   return t('validation.reason.' + issue.reason, issue.limit === undefined ? {} : {limit: formatNumber(issue.limit)});
 }
 
+function validationCapability(issue) {
+  const capability = issue.capability;
+  return capability ? t('validation.capability.context', {system: capability.system, device: capability.device,
+    property: capability.label === capability.property ? capability.property : capability.label + ' (' + capability.property + ')'}) : '';
+}
+
 export function validationSummary(details) {
   const issues = details?.issues ?? [];
-  const messages = issues.slice(0, 4).map(issue => validationLocation(issue) + ' · ' + validationReason(issue));
-  if (details?.truncated || issues.length > messages.length) messages.push(t('validation.more'));
+  const messages = [];
+  for (const issue of issues.slice(0, 4)) {
+    const message = [validationLocation(issue), validationCapability(issue), validationReason(issue)].filter(Boolean).join(' · ');
+    if (messages.join('\n').length + message.length > 2600) {
+      if (!messages.length) messages.push(message.slice(0, 2600) + '…');
+      break;
+    }
+    messages.push(message);
+  }
+  if (details?.truncated || issues.length > messages.length || messages.some(message => message.endsWith('…'))) messages.push(t('validation.more'));
   return messages.join('\n');
 }
 
@@ -82,8 +108,12 @@ export function installDraftReview(bridge, workspace, {current, perform, command
       const row = document.createElement('li');
       const text = document.createElement('div');
       const location = document.createElement('strong'); bindText(location, () => validationLocation(issue));
+      if (issue.capability) {
+        const context = document.createElement('span'); bindText(context, () => validationCapability(issue));
+        text.append(location, context);
+      } else text.append(location);
       const reason = document.createElement('span'); bindText(reason, () => validationReason(issue));
-      text.append(location, reason); row.append(text);
+      text.append(reason); row.append(text);
       const [kind, index, ...path] = issue.path.split('/').slice(1);
       const id = ['automations', 'sequences'].includes(kind) && /^\d+$/.test(index)
         ? assessment.view.configuration[kind][Number(index)]?.id : null;
@@ -91,7 +121,8 @@ export function installDraftReview(bridge, workspace, {current, perform, command
         const view = current().view;
         if (draftScope(view) !== assessment.scope || view.desktop.source !== 'draft' || !workspace.show('automations')) return;
         const opened = !document.dispatchEvent(new CustomEvent('z2ma-open-draft-issue', {cancelable: true,
-          detail: {systemId: view.workspaceContext.systemId, revision: view.desktop.draftRevision, kind, id, path, message: () => validationReason(issue)}}));
+          detail: {systemId: view.workspaceContext.systemId, revision: view.desktop.draftRevision, kind, id, path,
+            property: issue.capability?.property, message: () => validationReason(issue)}}));
         if (!opened) {
           workspace.show('review');
           set(view, assessment.flags, {key: 'changed'});

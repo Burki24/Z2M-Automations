@@ -102,6 +102,7 @@ html:has(.desktop-foundation) { scroll-padding-block-start: calc(var(--desktop-s
   padding: .6rem; border-radius: .5rem; background: var(--danger-soft); color: var(--ink);
 }
 .desktop-findings li span { display: block; }
+.desktop-findings li > div { flex: 1 1 18rem; min-width: 0; overflow-wrap: anywhere; }
 .desktop-no-entry .workspace > .inspector { display: none; }
 .desktop-no-entry .workspace > .canvas { grid-column: 2 / -1; min-height: 0; }
 .desktop-foundation .canvas-heading:has(#entry-subtitle:empty) #entry-subtitle { display: none; }

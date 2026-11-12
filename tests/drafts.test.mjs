@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
 const {ProjectService} = require('../apps/desktop/.build/project-service.js');
 const {Diagnostics} = require('../apps/desktop/.build/diagnostics.js');
 const {DraftEditor, validDesignerCommand} = require('../apps/desktop/.build/draft-editor.js');
-const {checkedDocument} = require('../apps/desktop/.build/draft-validation.js');
+const {checkedDocument, checkConfigurationCapabilities} = require('../apps/desktop/.build/draft-validation.js');
 const {DraftExchange, importDraft, exportDraft} = require('../apps/desktop/.build/draft-exchange.js');
 const {editorData} = require('../apps/desktop/.build/mqtt-protocol.js');
 const {parseProject} = require('../apps/desktop/.build/project.js');
@@ -59,6 +59,84 @@ test('the canonical schema blocks invalid times, time zones, unknown fields and 
   const light = s.remotes.get(s.id).devices[1]; light.properties.push({id: 'color', label: 'Color', type: 'color', access: 2, values: []});
   const color = s.rule(); color.actions[0].values = {color: {hex: '#12aBcD'}}; s.send('create', {rule: color});
   const invalid = s.rule(); invalid.actions[0].values = {color: {hex: 'red'}}; assert.throws(() => s.send('create', {rule: invalid}), /draftValue/);
+});
+
+test('a capability failure identifies the submitted rule, section, property, actual value and allowed values', async () => {
+  const s = await setup(); const rule = s.rule();
+  rule.name = 'Synthetic presence rule';
+  rule.triggers = [{type: 'device', device: '0x0000000000000001', property: 'occupancy', operator: 'gt', value: 1}];
+  assert.throws(() => s.send('create', {rule}), error => {
+    assert.equal(error.message, 'draftValue');
+    assert.equal(typeof error.feedback, 'function', 'Capability errors must retain their field context');
+    const feedback = error.feedback(s.system().configuration);
+    assert.equal(feedback.issues.length, 2, 'Report the invalid comparison and value separately');
+    assert.deepEqual(feedback.issues.map(issue => [issue.path, issue.name, issue.reason]), [
+      ['/automations/0/triggers/0/operator', rule.name, 'capability_operator'],
+      ['/automations/0/triggers/0/value', rule.name, 'capability_enum']
+    ]);
+    const value = feedback.issues[1].capability;
+    assert.equal(value.system, 'Synthetic'); assert.equal(value.device, 'Synthetic sensor');
+    assert.equal(value.property, 'occupancy'); assert.equal(value.actual, '1'); assert.equal(value.actualType, 'number');
+    assert.deepEqual(value.allowed, ['true', 'false']);
+    return true;
+  });
+  assert.equal(s.system().configuration.automations.length, 0);
+  assert.equal(JSON.stringify(s.debug.read()).includes(rule.name), false, 'Private draft details must stay out of recordings');
+});
+
+test('capability feedback distinguishes types, bounds, increments, colours and toggle actions without altering acceptance', async () => {
+  const s = await setup();
+  s.remotes.get(s.id).devices[1].properties.push({id: 'color', label: 'Color', type: 'color', access: 2, values: []});
+  for (const [property, value, reason] of [
+    ['brightness', '200', 'capability_number'], ['brightness', -1, 'capability_minimum'],
+    ['brightness', 255, 'capability_maximum'], ['brightness', 0.5, 'capability_step'],
+    ['color', {hex: 'red'}, 'capability_color'], ['state', 'TOGGLE', 'capability_toggle']
+  ]) {
+    const rule = s.rule(); rule.actions[0].values = {[property]: value};
+    assert.throws(() => s.send('create', {rule}), error => {
+      assert.equal(error.message, 'draftValue');
+      const issue = error.feedback(s.system().configuration).issues[0];
+      assert.equal(issue.path, '/automations/0/actions/0/values'); assert.equal(issue.reason, reason);
+      assert.equal(issue.capability.property, property); assert.equal(issue.capability.actual, JSON.stringify(value));
+      if (property === 'brightness') {
+        assert.equal(issue.capability.minimum, 0); assert.equal(issue.capability.maximum, 254); assert.equal(issue.capability.step, 1);
+      }
+      return true;
+    });
+  }
+  const rule = s.rule();
+  rule.triggers = [{type: 'device', device: '0x0000000000000002', property: 'brightness', operator: 'lt', value: -100}];
+  rule.actions[0].values = {state: 'ON', brightness: 254};
+  const created = s.send('create', {rule});
+  const changed = {...rule, name: 'Renamed synthetic rule', actions: [{...rule.actions[0], values: {state: false}}]};
+  delete changed.enabled;
+  assert.throws(() => s.send('edit', {ruleId: created.ruleId, changes: changed}), error => {
+    assert.equal(error.feedback(s.system().configuration).issues[0].name, changed.name, 'Use the submitted name, not the previous saved name');
+    return true;
+  });
+  assert.equal(s.system().configuration.automations[0].name, rule.name);
+});
+
+test('whole-draft capability findings cover disabled rules and sequences, deduplicate callers and remain bounded', async () => {
+  const s = await setup(); const configuration = s.system().configuration;
+  configuration.sequences = [{id: 'shared', name: 'Shared synthetic sequence', actions: [
+    {type: 'set', target: {type: 'device', id: '0x0000000000000002'}, values: {state: 'ON', brightness: 255}}
+  ]}];
+  configuration.automations = Array.from({length: 2}, (_, index) => ({...s.rule(), id: 'rule-' + index, enabled: false,
+    actions: [{type: 'sequence', sequence_id: 'shared'}]}));
+  assert.throws(() => checkConfigurationCapabilities(configuration, s.service.data(), s.system(), s.reader), error => {
+    assert.deepEqual(error.details.issues.map(issue => [issue.path, issue.name, issue.capability.property]), [
+      ['/sequences/0/actions/0/values', 'Shared synthetic sequence', 'brightness']
+    ]);
+    assert.equal(error.details.truncated, false); return true;
+  });
+  configuration.sequences = [];
+  configuration.automations = Array.from({length: 25}, (_, index) => ({...s.rule(), id: 'rule-' + index, enabled: false,
+    actions: [{type: 'set', target: {type: 'device', id: '0x0000000000000002'}, values: {state: false}}]}));
+  assert.throws(() => checkConfigurationCapabilities(configuration, s.service.data(), s.system(), s.reader), error => {
+    assert.equal(error.details.issues.length, 20); assert.equal(error.details.truncated, true);
+    assert.equal(error.details.issues[19].path, '/automations/19/actions/0/values'); return true;
+  });
 });
 
 test('partner grants belong to the system configuration and survive creating, copying and editing automations', async () => {
@@ -110,6 +188,15 @@ test('conditions and actions select devices owned by another broker without mixi
   assert.equal(view.deviceSystems.find(owner => owner.key === 'other').reason, '');
   const remote = view.devices.find(device => device.target.system === 'other' && device.target.id === rule.conditions[0].device);
   assert.notEqual(remote.key, rule.conditions[0].device); assert.equal(remote.properties[0].readable, true);
+  s.remotes.get(id).devices[0].name = 'Foreign synthetic sensor';
+  const invalid = structuredClone(rule); invalid.conditions[0].value = 'true';
+  assert.throws(() => s.send('create', {rule: invalid}), error => {
+    const issue = error.feedback(s.system().configuration).issues[0];
+    assert.equal(issue.path, '/automations/1/conditions/0/value');
+    assert.equal(issue.capability.system, 'Other system'); assert.equal(issue.capability.device, 'Foreign synthetic sensor');
+    assert.equal(issue.capability.actual, '"true"'); assert.equal(issue.capability.actualType, 'string');
+    return true;
+  });
   s.remotes.get(id).devices[0].properties[0].access = 2;
   assert.throws(() => s.send('create', {rule}), /draftCapability/, 'A local readable device cannot replace a foreign write-only source');
   s.remotes.get(id).fresh = false;

@@ -403,14 +403,14 @@ import {installNativeEmbedding} from './embedding.js';
     if (isDesktop()) {
         document.addEventListener('z2ma-project-changed', () => { if (busy) projectReloadPending = true; else void load(); });
         document.addEventListener('z2ma-open-draft-issue', event => {
-            const {systemId: owner, revision, kind, id, path, message: reason} = event.detail;
+            const {systemId: owner, revision, kind, id, path, message: reason, property} = event.detail;
             if (data?.desktop?.source !== 'draft' || systemId !== owner || data.desktop.draftRevision !== revision || document.querySelector('dialog[open]')) return;
             const entry = entries().find(item => item.id === id && (item.kind === 'sequence') === (kind === 'sequences'));
             if (!entry) return;
             category = entry.kind; selected = entryKey(entry); selectedPart = null;
             stateFilter = 'all'; $('#search').value = '';
             render();
-            if (editing.openFinding(entry, path, reason)) event.preventDefault();
+            if (editing.openFinding(entry, path, reason, property)) event.preventDefault();
         });
     }
     embedding.ready.then(load);

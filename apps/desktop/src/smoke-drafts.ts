@@ -96,7 +96,7 @@ async function verifyDrafts(view: WebContents, exportPath: string): Promise<void
       payload: {requestId: crypto.randomUUID(), context: data.createContext, ...payload}});
     const result = await command('create', {rule: {name: 'D4 smoke rule', retrigger: 'ignore', restart_policy: 'abort',
       triggers: [{type: 'time', at: '18:00:00', timezone: 'Europe/Berlin'}], conditions: [],
-      actions: [{type: 'set', target: {type: 'device', id: '0x0000000000000002'}, values: {state: 'ON'}}]}});
+      actions: [{type: 'set', target: {type: 'device', id: '0x0000000000000002'}, values: {state: 'ON', brightness: 100}}]}});
     assert(result.ok, JSON.stringify(result));
     const after = await bridge.snapshot(); const created = after.configuration.automations.find(rule => rule.id === result.state.ruleId);
     assert(created && !created.enabled && !after.configuration.automations.some(rule => rule.name === 'Synthetic remote rule'), 'new draft replaced source or enabled rule');
@@ -324,6 +324,25 @@ async function verifyDrafts(view: WebContents, exportPath: string): Promise<void
     await wait(() => !document.querySelector('#edit-dialog').open && findings.hidden, 'apply-corrected-rule');
     await wait(() => document.querySelector('#feedback').textContent.includes('Änderung im lokalen Entwurf übernommen.'),
       'Correction did not confirm the applied local change');
+    navigate('automations');
+    const correctionView = await bridge.snapshot();
+    const correctionRule = correctionView.configuration.automations.find(rule => rule.name === 'D4 preserved input');
+    const openedValue = !document.dispatchEvent(new CustomEvent('z2ma-open-draft-issue', {cancelable: true, detail: {
+      systemId: correctionView.workspaceContext.systemId, revision: correctionView.desktop.draftRevision,
+      kind: 'automations', id: correctionRule.id, path: ['actions', '0', 'values'], property: 'brightness',
+      message: () => 'Synthetic capability correction'
+    }}));
+    assert(openedValue, 'a capability finding must open its existing rule');
+    await wait(() => document.querySelector('#edit-dialog').open, 'open-specific-action-value');
+    const focusedValue = document.activeElement;
+    assert(name().value === correctionRule.name && focusedValue.dataset.draftField === 'values'
+      && focusedValue.closest('.edit-command')?.dataset.draftProperty === 'brightness'
+      && focusedValue.value === '100' && focusedValue.getAttribute('aria-invalid') === 'true',
+      'correction must focus the second action value instead of the first value in that action');
+    assert(!document.querySelector('.edit-command[data-draft-property="state"] [aria-invalid="true"]'),
+      'the other action value must remain unmarked');
+    click('cancel');
+    await wait(() => !document.querySelector('#edit-dialog').open && findings.hidden, 'close-specific-action-value');
     navigate('draft');
     document.querySelector('#mqtt-stored').click();
     await wait(() => document.body.classList.contains('desktop-stored-view'), 'show-stored-source-before-export');
