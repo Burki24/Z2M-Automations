@@ -238,6 +238,9 @@ export class MqttReader {
   noteUpdate(id: string, phase: string, failed: boolean): void {
     this.debug.record('extensionUpdate', id, undefined, {operation: 'install', phase, ...(failed ? {reason: 'protocol'} : {})});
   }
+  noteTransfer(id: string, phase: string, failed: boolean): void {
+    this.debug.record('draftTransfer', id, undefined, {operation: 'store', phase, ...(failed ? {reason: 'protocol'} : {})});
+  }
   async runtime<T>(id: string, task: (wire: ReturnType<MqttReader['transfer']>) => Promise<T>): Promise<T> {
     if (this.runtimeLocks.has(id)) throw new Error('runtimeChanged');
     const wire = this.transfer(id);

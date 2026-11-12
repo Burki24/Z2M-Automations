@@ -119,7 +119,9 @@ let runtime: RuntimeControl;
 function networkState() {
   const state = reader.state();
   const update = transfers.updateState();
-  return {...state, sequence: state.sequence + automaticConnections.sequence + update.sequence, extensionUpdates: update.updates,
+  const review = transfers.reviewState();
+  return {...state, sequence: state.sequence + automaticConnections.sequence + update.sequence + review.sequence,
+    extensionUpdates: update.updates, draftChecks: review.checks, transferProgress: review.progress,
     brokers: state.brokers.map(broker => ({...broker, autoConnect: automaticConnections.setting(broker.id)})), bundledExtension};
 }
 async function network(command: NetworkCommand): Promise<unknown> {
@@ -136,6 +138,7 @@ async function network(command: NetworkCommand): Promise<unknown> {
     case 'activate': case 'deactivate': case 'run_once': case 'stop_rule': {
       if (smoke) throw new Error('invalidRequest');
       if ((command.action === 'activate' || command.action === 'run_once') && transfers.updatePending(command.id)) throw new Error('extensionUpdatePending');
+      if ((command.action === 'activate' || command.action === 'run_once') && transfers.transferPending(command.id)) throw new Error('transferUncertain');
       try {
         const outcome = await runtime.command(command.action, command);
         return {...networkState(), outcome};
@@ -248,7 +251,9 @@ async function open(): Promise<void> {
     },
     confirm: async (action, review) => {
       if (!window || smoke) return false;
-      const detail = message(action === 'store' ? 'transferStoreDetail' : 'transferInstallDetail')
+      const detail = (action === 'store' ? message('transferStoreDetail') + '\n'
+        + message(review.kind === 'flags' ? 'transferStoreFlags' : 'transferStoreConfiguration') + '\n'
+        + message(review.running ? 'transferStoreStop' : 'transferStoreStopped') : message('transferInstallDetail'))
         .replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? ''));
       return reviewDialog(action === 'store' ? 'transferStoreConfirm' : 'transferInstallConfirm', detail);
     }
@@ -322,7 +327,7 @@ async function open(): Promise<void> {
         }
         debug.record('projectFailed');
         const key = error instanceof Error ? error.message : '';
-        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'credentialPromptUnavailable', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'credentialsMissing', 'credentialsLocked', 'autoConnectSettings', 'connectionError', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferUncertain', 'transferBridge', 'extensionUpdatePending', 'extensionStopUncertain', 'extensionSaveUncertain', 'extensionRestartUncertain', 'extensionRestoreUncertain', 'extensionVerifyUncertain', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly'].includes(key) ? key : 'failed'};
+        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'credentialPromptUnavailable', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'credentialsMissing', 'credentialsLocked', 'autoConnectSettings', 'connectionError', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferStopUncertain', 'transferUnchanged', 'transferUncertain', 'transferBridge', 'extensionUpdatePending', 'extensionStopUncertain', 'extensionSaveUncertain', 'extensionRestartUncertain', 'extensionRestoreUncertain', 'extensionVerifyUncertain', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly'].includes(key) ? key : 'failed'};
       }
     });
   });

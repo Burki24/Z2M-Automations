@@ -79,7 +79,8 @@ export function installNetwork(bridge, workspace, settleEditor) {
 
   function current() {
     const system = state.systems.find(system => system.id === view?.workspaceContext?.systemId);
-    return {view, system, broker: state.brokers.find(broker => broker.id === system?.brokerId)};
+    return {view, system, broker: state.brokers.find(broker => broker.id === system?.brokerId),
+      transferProgress: state.transferProgress?.find(item => item.id === system?.id)};
   }
   function updateState(next) {
     if (next.sequence < state.sequence) return;
@@ -139,7 +140,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
   const automatic = document.createElement('fieldset'); operation.append(automatic);
   const automaticTitle = document.createElement('legend'); bindText(automaticTitle, () => t('desktop.operation.automatic')); automatic.append(automaticTitle);
   const resumeLabel = document.createElement('label'); resumeLabel.className = 'desktop-checkbox';
-  const resume = document.createElement('input'); resume.type = 'checkbox';
+  const resume = document.createElement('input'); resume.type = 'checkbox'; resume.id = 'mqtt-resume';
   const resumeTitle = document.createElement('span'); bindText(resumeTitle, () => t('mqtt.resume'));
   resumeLabel.append(resume, resumeTitle); automatic.append(resumeLabel);
   const automaticActions = actions(automatic);

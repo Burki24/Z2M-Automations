@@ -18,6 +18,7 @@ const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 async function setup(t, options = {}) {
   const fixture = options.fixture ?? remoteFixture();
   const draft = structuredClone(fixture.editor.configuration);
+  draft.automations[0].name += ' draft';
   fixture.status.executing = fixture.editor.executing = false;
   fixture.status.extension_build = fixture.editor.extension_build = 'a'.repeat(64);
   let installed = !options.absent;
@@ -194,8 +195,8 @@ test('D5 lost store acknowledgement is reconciled by reading and never resending
   const s = await setup(t);
   await s.command('validate');
   s.loseAck();
-  await assert.rejects(s.command('store'), /transferUncertain/);
-  assert.equal(await s.command('checkTransfer'), 'transferStored');
+  assert.equal(await s.command('store'), 'transferStored');
+  assert.equal(await s.command('checkTransfer'), 'transferChecked');
   await assert.rejects(s.command('store'), /transferValidateFirst/);
   assert.equal(s.count('/request/store'), 1);
   assert.equal(s.system().baseline.revision, 4);

@@ -1,6 +1,6 @@
 import {ruleId, uuid, type Execution} from './mqtt-protocol.js';
 import {validId} from './project.js';
-export type EventCode = 'ready' | 'snapshotRead' | 'systemSelected' | 'languageChanged' | 'rejected' | 'projectRequest' | 'projectChanged' | 'credentialRequest' | 'projectFailed' | 'mqttConnect' | 'mqttConnected' | 'mqttDisconnected' | 'mqttFailure' | 'mqttRead' | 'mqttReadComplete' | 'mqttTransfer' | 'mqttReply' | 'mqttAutoConnect' | 'draftRequest' | 'draftCompleted' | 'draftRejected' | 'execution' | 'extensionUpdate';
+export type EventCode = 'ready' | 'snapshotRead' | 'systemSelected' | 'languageChanged' | 'rejected' | 'projectRequest' | 'projectChanged' | 'credentialRequest' | 'projectFailed' | 'mqttConnect' | 'mqttConnected' | 'mqttDisconnected' | 'mqttFailure' | 'mqttRead' | 'mqttReadComplete' | 'mqttTransfer' | 'mqttReply' | 'mqttAutoConnect' | 'draftRequest' | 'draftCompleted' | 'draftRejected' | 'execution' | 'extensionUpdate' | 'draftTransfer';
 const operations = ['status', 'new', 'open', 'save', 'saveAs', 'export', 'restore', 'editing', 'edited', 'rename', 'broker', 'system', 'draft', 'storeCredentials', 'removeCredentials', 'read', 'connect', 'disconnect', 'autoConnect', 'validate', 'store', 'install', 'restart', 'activate', 'deactivate', 'run_once', 'stop_rule'] as const;
 type Operation = typeof operations[number];
 const reasons = ['timeout', 'protocol', 'stale', 'disconnected', 'remoteError', 'readError', 'connectionError', 'tlsError', 'authentication', 'permission', 'credentialsMissing', 'credentialsLocked', 'noSystems'] as const;
@@ -22,7 +22,7 @@ export class Diagnostics {
     if (context?.transaction && validId(context.transaction) && !context.transaction.startsWith('example')) event.transaction = context.transaction;
     if (context?.broker && validId(context.broker) && !context.broker.startsWith('example')) event.broker = context.broker;
     if (context?.reason && reasons.some(reason => reason === context.reason)) event.reason = context.reason;
-    if (context?.phase && ['preparing', 'stopping', 'installing', 'restarting', 'waiting', 'verifying', 'restoring', 'complete'].includes(context.phase)) event.phase = context.phase;
+    if (context?.phase && ['preparing', 'backingUp', 'stopping', 'checking', 'sending', 'installing', 'restarting', 'waiting', 'verifying', 'restoring', 'complete'].includes(context.phase)) event.phase = context.phase;
     this.events.push(event);
     if (this.events.length > 200) this.events.shift();
     return event.request;

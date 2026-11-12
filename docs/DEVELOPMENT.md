@@ -151,6 +151,13 @@ full source/package smoke or native Ubuntu acceptance. The ordinary unit suite
 also verifies mesh-only suggestions, template safety, schema limits and actual
 correlated reads against isolated loopback MQTT peers.
 
+`npm run test:extension-update-ui` is another DOM-only check, included in both
+platform jobs. It covers pending update/transfer progress, automatic draft-check
+modes, the single check action, explicit-transfer controls and DE/EN feedback.
+Confirmation layout is checked in both themes. It captures no images. Backend
+integration tests use the real pinned extension to verify consent, backup and
+stop ordering, switch-only/unchanged drafts and lost replies without replay.
+
 ~~~sh
 npm run package
 npm run make

@@ -59,7 +59,7 @@ if (!process.versions.electron) {
         if (document.scrollingElement.scrollTop !== 0) throw new Error('Confirmation body must not scroll');
       })()`);
     }
-    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/stop-preference/confirmation-layout'); app.exit(0);
+    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/confirmation-layout'); app.exit(0);
   };
   run().catch(error => { console.error('EXTENSION_UPDATE_DOM_FAILED ' + error.stack); app.exit(1); });
 }
@@ -79,9 +79,21 @@ async function rendererTest() {
   const id = '11111111-1111-4111-8111-111111111111';
   const state = {sequence: 0, brokers: [{id: 'broker', state: 'connected'}], systems: [{id, brokerId: 'broker', name: 'Synthetic', baseTopic: 'synthetic', fresh: true, stored: true,
     devices: 0, scenes: 0, executing: false, runtime: {resume: true, recovery: 'stopped', runs: [], rules: []}}], extensionUpdates: []};
-  let finish, installing = false, polls = 0, view;
+  let finish, installing = false, polls = 0, view, finishTransfer, transferring = false, kind = 'flags';
+  const commands = [];
   const bridge = {snapshot: async () => structuredClone(view), designer: async () => ({ok: true}), network: async ({action}) => {
     if (action === 'status') { polls++; return {ok: true, state: structuredClone(state)}; }
+    commands.push(action);
+    if (action === 'validate') {
+      state.sequence++; state.draftChecks = [{id, kind, added: 0, changed: kind === 'unchanged' ? 0 : 1, removed: 0, enabled: kind === 'flags' ? 1 : 0}];
+      return {ok: true, state: {...structuredClone(state), outcome: kind === 'unchanged' ? 'transferUnchanged' : 'transferValidated'}};
+    }
+    if (action === 'store') {
+      transferring = true; state.sequence++; state.transferProgress = [{id, phase: 'stopping', kind, failed: false}];
+      await new Promise(resolve => { finishTransfer = resolve; });
+      state.sequence++; state.transferProgress = [{id, phase: 'complete', kind, failed: false}]; state.draftChecks = [];
+      return {ok: true, state: {...structuredClone(state), outcome: 'transferStored'}};
+    }
     if (action === 'install') {
       installing = true; state.sequence++; state.extensionUpdates = [{id, stage: 'waiting', failed: false}];
       await new Promise(resolve => { finish = resolve; });
@@ -99,6 +111,26 @@ async function rendererTest() {
   document.querySelector('#mqtt-validate').click();
   await wait(() => !document.querySelector('#mqtt-validate').disabled);
   assert(!document.querySelector('#mqtt-store').disabled, 'Stopped restart preference must not block storage: ' + document.querySelector('#desktop-transfer-message').textContent);
+  assert(!document.querySelector('#mqtt-validateEnabled'), 'No separate flags-only check in the app');
+  assert(document.querySelector('#desktop-transfer-mode').textContent.startsWith('Only on/off switches changed'), 'Server chooses switch-only mode');
+  document.querySelector('#mqtt-store').click(); await wait(() => transferring);
+  await wait(() => document.querySelector('#desktop-transfer-message').textContent.startsWith('Stopping automatic operation'));
+  assert(document.querySelector('#mqtt-store').disabled, 'No duplicate guided transfer');
+  setLanguage('de', {persist: false, report: false});
+  assert(document.querySelector('#desktop-transfer-message').textContent.startsWith('Automationsbetrieb und laufende Aktionen'), 'Transfer progress follows central language');
+  setLanguage('en', {persist: false, report: false});
+  finishTransfer(); await wait(() => !document.querySelector('#mqtt-validate').disabled);
+  assert(!document.querySelector('#desktop-transfer-test').parentElement.hidden, 'Offer operation choices only after verified transfer');
+  kind = 'configuration'; state.systems[0].executing = true;
+  document.querySelector('#mqtt-validate').click(); await wait(() => !document.querySelector('#mqtt-validate').disabled);
+  assert(document.querySelector('#desktop-transfer-mode').textContent.startsWith('Content changed'), 'Same check chooses content mode');
+  assert(!document.querySelector('#mqtt-store').disabled, 'Guided transfer is available while operation runs');
+  kind = 'unchanged';
+  document.querySelector('#mqtt-validate').click(); await wait(() => !document.querySelector('#mqtt-validate').disabled);
+  assert(document.querySelector('#mqtt-store').disabled, 'Matching stored state needs no transfer');
+  assert(commands.every(action => ['validate', 'store'].includes(action)), 'Checks and next actions do not start or stop operation');
+  assert(commands.filter(action => action === 'store').length === 1, 'Exactly one explicit transfer');
+  state.systems[0].executing = false;
   document.querySelector('#mqtt-install').click();
   await wait(() => installing);
   const before = polls;
