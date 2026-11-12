@@ -16,6 +16,8 @@ const {RuntimeControl} = require('../apps/desktop/.build/runtime-control.js');
 const {ExtensionTransfer, bundledExtension} = require('../apps/desktop/.build/extension-transfer.js');
 const {Diagnostics} = require('../apps/desktop/.build/diagnostics.js');
 const sha = value => createHash('sha256').update(value).digest('hex');
+// Real extension commands persist state on disk. Allow bounded runner I/O latency.
+const peerRequestTimeout = 2000;
 
 async function setup(t, options = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'z2ma-update-'));
@@ -25,7 +27,7 @@ async function setup(t, options = {}) {
   const devices = fixture.editor.devices.map(({id, name}, index) => ({ID: id, ieeeAddr: id, name, isDevice: () => true,
     exposes: () => [{type: 'binary', property: index ? 'state' : 'occupancy', access: index ? 7 : 1,
       value_on: index ? 'ON' : true, value_off: index ? 'OFF' : false}]}));
-  const effects = [], failures = [];
+  const effects = [], failures = [], timings = [];
   let receive, send, extension, installedClass = LegacyExtension, restarted = false, droppedEditor = false;
   const load = async Class => {
     extension = new Class({devicesIterator: () => devices.values(), groupsIterator: () => [].values(),
@@ -45,8 +47,12 @@ async function setup(t, options = {}) {
   const tasks = new Set();
   const peer = await startPeer({systems: new Map([[base, fixture]]),
     bridge: {state: {state: 'online'}, extensions: [{name: 'z2m-automations.mjs'}]}, reply(context) {
+      const started = performance.now();
       const task = (async () => {
         const {operation, request, publish} = context;
+        if (operation === 'activate' && options.activationDelay && (!options.delayRestorationOnly || extension instanceof Extension)) {
+          await new Promise(resolve => setTimeout(resolve, options.activationDelay));
+        }
         send = publish;
         if (operation === 'install') {
           assert.equal(sha(request.code), '56878a00be9671c8f470f3f3c8ad3be014d8f9a08a4ad807e4f0ec42f548867f');
@@ -69,7 +75,10 @@ async function setup(t, options = {}) {
         else await receive({topic: base + '/symcon/automations/request/' + operation, message: JSON.stringify(request)});
       })();
       tasks.add(task);
-      void task.catch(error => failures.push(error)).finally(() => tasks.delete(task));
+      void task.catch(error => failures.push(error)).finally(() => {
+        timings.push({operation: context.operation, elapsedMs: Math.round(performance.now() - started)});
+        tasks.delete(task);
+      });
     }});
   const debug = new Diagnostics(); debug.control('start');
   const vault = {read: async () => null, status: async () => 'none', protectedAvailable: async () => false, clearSession() {}};
@@ -81,9 +90,11 @@ async function setup(t, options = {}) {
   await projects.command({action: 'system', system: {id, name: 'Synthetic', brokerId: broker.id, baseTopic: base}});
   const reader = new MqttReader(vault, debug, async (project, epoch, system, stored, current) => {
     if (current()) projects.observe(project, epoch, system, stored);
-  }, undefined, 100);
+  }, undefined, peerRequestTimeout);
   t.after(async () => {
     reader.close(); await Promise.allSettled([...tasks]); await extension.stop(); await peer.close();
+    const slow = timings.filter(item => item.elapsedMs >= 100).slice(-8);
+    if (slow.length) t.diagnostic('Extension peer timings: ' + JSON.stringify({rpcTimeoutMs: peerRequestTimeout, operations: slow}));
     await rm(directory, {recursive: true, force: true});
     assert.deepEqual(failures, []);
   });
@@ -94,7 +105,7 @@ async function setup(t, options = {}) {
   const dialogs = {confirm: async () => true, backup: async () => join(directory, 'backup.z2ma')};
   const transfer = new ExtensionTransfer(projects, reader, dialogs, {timeout: 400, poll: 10});
   const runtime = new RuntimeControl(projects, reader, async () => true);
-  return {id, reader, projects, peer, debug, dialogs, effects, directory, transfer,
+  return {id, reader, projects, peer, debug, dialogs, effects, directory, transfer, timings,
     get extension() { return extension; },
     runtime: (action, fields = {}) => runtime.command(action, {action, id, ...fields}),
     update: () => transfer.command('install', id), check: () => transfer.command('checkTransfer', id),
@@ -104,6 +115,19 @@ async function setup(t, options = {}) {
 test('legacy update fixture retains the verified canonical artifact bytes', async () => {
   const bytes = await readFile(new URL('./fixtures/extension-0.2.0/z2m-automations.mjs', import.meta.url));
   assert.equal(sha(bytes), 'aef090e0fab41c50b7f5360d03c9c077ef559a7e192a18d26ad397e3ceda8ecd');
+});
+
+for (const delayRestorationOnly of [false, true]) test('extension update tolerates delayed activation (' + (delayRestorationOnly ? 'restoration' : 'preparation and restoration') + ')', async t => {
+  const s = await setup(t, {activationDelay: 250, delayRestorationOnly});
+  await s.runtime('activate', {resume: true});
+  assert.equal(await s.update(), 'transferInstalled');
+  assert.equal(s.extension.status().executing, true);
+  assert.equal(s.count('activate'), 2);
+  assert.equal(s.count('extension/save'), 1);
+  assert.equal(s.count('restart'), 1);
+  const activations = s.timings.filter(item => item.operation === 'activate');
+  assert.equal(activations.length, 2);
+  assert.ok(activations.slice(delayRestorationOnly ? 1 : 0).every(item => item.elapsedMs > 100));
 });
 
 for (const resume of [true, false]) test('one update stops 0.2.0, installs, restarts Z2M and restores operation (resume=' + resume + ')', async t => {
