@@ -4,3 +4,7 @@ export function configureSmokeRendering(application: {disableHardwareAcceleratio
   application.disableHardwareAcceleration();
   return true;
 }
+
+export function smokeCaptureEnabled(argv: readonly string[]): boolean {
+  return argv.includes('--smoke-test') && !argv.includes('--smoke-no-capture');
+}

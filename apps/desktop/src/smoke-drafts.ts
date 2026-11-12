@@ -27,7 +27,7 @@ const rendererHelpers = `
     };
 `;
 
-export async function smokeDrafts(view: WebContents, exportPath: string): Promise<void> {
+export async function smokeDrafts(view: WebContents, exportPath: string, captureImages: boolean): Promise<void> {
   try { await verifyDrafts(view, exportPath); }
   catch (error) {
     try {
@@ -52,6 +52,8 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
             } catch { return {invalid: true}; }
           }),
           reviewBusy: document.querySelector('#desktop-draft-review')?.hasAttribute('aria-busy'),
+          transferDisabled: document.querySelector('#mqtt-store')?.disabled,
+          draftCheck: network.draftChecks?.find(check => check.id === snapshot.workspaceContext?.systemId)?.kind ?? null,
           readerBusy: document.querySelector('#validate-button')?.disabled, createDisabled: document.querySelector('#draft-wizard-start')?.disabled,
           pickerDisabled: document.querySelector('#designer-system')?.disabled, storedView: document.body.classList.contains('desktop-stored-view'),
           feedback: text('#feedback'), issues: text('#issues'),
@@ -64,8 +66,10 @@ export async function smokeDrafts(view: WebContents, exportPath: string): Promis
       if (prefix) {
         await mkdir(dirname(prefix), {recursive: true});
         await writeFile(prefix + '.json', JSON.stringify({failure: error instanceof Error ? error.message : 'Draft smoke failed', diagnostics}, null, 2) + '\n');
-        const capture = await view.capturePage();
-        if (!capture.isEmpty()) await writeFile(prefix + '.png', capture.toPNG());
+        if (captureImages) {
+          const capture = await view.capturePage();
+          if (!capture.isEmpty()) await writeFile(prefix + '.png', capture.toPNG());
+        }
       }
     } catch { console.error('DESKTOP_DRAFT_DIAGNOSTICS unavailable'); }
     throw error;
@@ -341,7 +345,10 @@ async function verifyDrafts(view: WebContents, exportPath: string): Promise<void
       'an offline check must link to the connection step: ' + message.textContent);
     await connect();
     await checkDraft();
-    assert(message.textContent.includes('hat den Entwurf') && !transfer.disabled, 'the Z2M check must unlock the separate transfer: ' + message.textContent);
+    const checkedId = (await bridge.snapshot()).workspaceContext.systemId;
+    const assessment = (await bridge.network({action: 'status', id: ''})).state.draftChecks.find(check => check.id === checkedId);
+    assert(assessment?.kind === 'configuration' && !transfer.disabled && !document.querySelector('#mqtt-validateEnabled'),
+      'the common Z2M check must classify the content change and unlock the separate transfer');
     review.querySelector('[data-step="transfer"]').click();
     assert(!pane('transfer').hidden && pane('review').hidden && !transfer.disabled
       && document.querySelector('#desktop-transfer-target').textContent.includes(project.systems[0].name + ' · ' + project.systems[0].baseTopic),

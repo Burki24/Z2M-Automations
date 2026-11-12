@@ -8,7 +8,7 @@ import {channels, type Channel} from './contracts.js';
 import {assetPath, csp, entryURL, languageChange, rendererPreferences, trustedSender, validPayload} from './security.js';
 import {Diagnostics} from './diagnostics.js';
 import {OfflineWorkspace} from './offline-workspace.js';
-import {configureSmokeRendering} from './smoke-rendering.js';
+import {configureSmokeRendering, smokeCaptureEnabled} from './smoke-rendering.js';
 import {ProjectService, type ProjectCommand} from './project-service.js';
 import {promptCredentials} from './credential-prompt.js';
 import {Credentials, readCredentialFile, type CredentialCommand} from './credentials.js';
@@ -30,6 +30,8 @@ import {smokeDrafts} from './smoke-drafts.js';
 if (process.platform === 'linux') app.setDesktopName('z2m-automations.desktop');
 
 const smoke = process.argv.includes('--smoke-test');
+const smokeCaptures = smokeCaptureEnabled(process.argv);
+if (smoke && !smokeCaptures) console.log('DESKTOP_CAPTURE_DISABLED');
 if (configureSmokeRendering(app, {smoke, platform: process.platform, ci: process.env['CI'] === 'true'})) console.log('DESKTOP_CI_SOFTWARE_RENDERING');
 const profile = smoke ? process.env['Z2MA_SMOKE_PROFILE'] || mkdtempSync(join(tmpdir(), 'z2ma-smoke-')) : null;
 if (profile) app.setPath('userData', profile);
@@ -433,7 +435,7 @@ async function open(): Promise<void> {
     console.log('DESKTOP_SMOKE_OK ' + JSON.stringify(result));
     await smokeProjects(view);
     await smokeNetwork(view, Number(process.env['Z2MA_SMOKE_MQTT_PORT']));
-    await smokeDrafts(view, join(app.getPath('userData'), 'synthetic-automations.yaml'));
+    await smokeDrafts(view, join(app.getPath('userData'), 'synthetic-automations.yaml'), smokeCaptures);
     for (const width of [360, 1024, 1920, 3840]) {
       window.setContentSize(width, 900);
       for (const theme of ['light', 'dark'] as const) {
@@ -462,7 +464,7 @@ async function open(): Promise<void> {
         console.log('DESKTOP_VIEWPORT_OK ' + width + '/' + theme);
       }
     }
-    if (!app.isPackaged) {
+    if (!app.isPackaged && smokeCaptures) {
       window.setContentSize(1360, 900);
       await view.executeJavaScript("document.querySelector('#search').value = ''; document.querySelector('#search').dispatchEvent(new Event('input', {bubbles: true}));");
       await new Promise(resolve => setTimeout(resolve, 150));

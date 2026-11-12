@@ -7,9 +7,18 @@ import {join, resolve, sep} from 'node:path';
 import {createHash} from 'node:crypto';
 import {parse} from 'yaml';
 import {startPeer, remoteFixture} from '../tests/support/mqtt-peer.mjs';
+import {extractFile} from '@electron/asar';
 const require = createRequire(import.meta.url);
 const binary = process.env.Z2MA_SMOKE_BINARY || require('electron');
 const args = process.env.Z2MA_SMOKE_BINARY ? ['--smoke-test'] : [fileURLToPath(new URL('../apps/desktop', import.meta.url)), '--smoke-test'];
+const noCapture = process.argv.includes('--no-capture');
+if (noCapture) {
+  const main = process.env.Z2MA_SMOKE_BINARY
+    ? extractFile(join(binary, '..', 'resources/app.asar'), '.build/main.js'.split('/').join(sep)).toString('utf8')
+    : readFileSync(new URL('../apps/desktop/.build/main.js', import.meta.url), 'utf8');
+  if (!main.includes('DESKTOP_CAPTURE_DISABLED')) throw new Error('Rebuild or repackage the application before using capture-free smoke.');
+  args.push('--smoke-no-capture');
+}
 const environment = {...process.env}; delete environment.ELECTRON_RUN_AS_NODE;
 const profile = mkdtempSync(join(tmpdir(), 'z2ma-smoke-'));
 function stoppedFixture(name) {
@@ -45,7 +54,7 @@ const peer = await startPeer({
 environment.Z2MA_SMOKE_MQTT_PORT = String(peer.port);
 environment.Z2MA_SMOKE_PROFILE = profile;
 environment.Z2MA_SMOKE_DIAGNOSTICS = fileURLToPath(new URL('../apps/desktop/out/smoke-failure', import.meta.url));
-for (const suffix of ['.json', '.png']) rmSync(environment.Z2MA_SMOKE_DIAGNOSTICS + suffix, {force: true});
+for (const suffix of noCapture ? ['.json'] : ['.json', '.png']) rmSync(environment.Z2MA_SMOKE_DIAGNOSTICS + suffix, {force: true});
 const child = spawn(binary, args, {windowsHide: true, env: environment, stdio: ['ignore', 'pipe', 'pipe']});
 let output = ''; let timedOut = false;
 child.stdout.on('data', data => { process.stdout.write(data); output = (output + data).slice(-32768); });
@@ -75,6 +84,7 @@ child.on('exit', async code => {
   const validations = peer.publications.filter(value => value.topic.endsWith('/request/validate'));
   await peer.close();
   process.exitCode = !timedOut && saved && readOnly && validations.length === 1
+    && (!noCapture || output.includes('DESKTOP_CAPTURE_DISABLED'))
     && validations[0].topic === 'synthetic/symcon/automations/request/validate'
     && code === 0 && output.includes('DESKTOP_SMOKE_OK') && output.includes('DESKTOP_PROJECTS_OK') && output.includes('DESKTOP_MQTT_OK') && output.includes('DESKTOP_DRAFTS_OK') && output.includes('DESKTOP_CROSS_SYSTEM_OK') && output.includes('DESKTOP_LAYOUT_OK') ? 0 : 1;
 });

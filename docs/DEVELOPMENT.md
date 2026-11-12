@@ -158,6 +158,15 @@ Confirmation layout is checked in both themes. It captures no images. Backend
 integration tests use the real pinned extension to verify consent, backup and
 stop ordering, switch-only/unchanged drafts and lost replies without replay.
 
+Use `npm run smoke -- --no-capture` for the complete source smoke without images,
+or `npm run smoke:packaged -- --no-capture` after packaging. The flag disables
+both the success screenshot and failure screenshots; bounded JSON diagnostics
+remain available. The runner rejects builds without capture-free support and
+does not remove existing PNG diagnostics in this mode. Normal CI commands retain
+their capture checks. Both modes execute the same functional, layout and
+save-on-close checks. The draft check asserts classified state and transfer
+eligibility rather than a fixed localized success sentence.
+
 ~~~sh
 npm run package
 npm run make

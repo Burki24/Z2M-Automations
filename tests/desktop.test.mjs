@@ -8,7 +8,16 @@ const require = createRequire(import.meta.url);
 const {assetPath, entryURL, trustedSender, rendererPreferences, validPayload} = require('../apps/desktop/.build/security.js');
 const {Diagnostics} = require('../apps/desktop/.build/diagnostics.js');
 const {OfflineWorkspace} = require('../apps/desktop/.build/offline-workspace.js');
-const {configureSmokeRendering} = require('../apps/desktop/.build/smoke-rendering.js');
+const {configureSmokeRendering, smokeCaptureEnabled} = require('../apps/desktop/.build/smoke-rendering.js');
+
+test('capture-free smoke disables success and failure images for source and packaged arguments', () => {
+  for (const prefix of [['electron', 'apps/desktop'], ['Z2M-Automations.exe']]) {
+    assert.equal(smokeCaptureEnabled(prefix), false);
+    assert.equal(smokeCaptureEnabled([...prefix, '--smoke-test']), true);
+    assert.equal(smokeCaptureEnabled([...prefix, '--smoke-test', '--smoke-no-capture']), false);
+    assert.equal(smokeCaptureEnabled([...prefix, '--smoke-no-capture']), false);
+  }
+});
 
 test('software rendering is confined to explicit Linux CI smoke and never normal launches', () => {
   for (const platform of ['linux', 'win32', 'darwin']) for (const smoke of [false, true]) for (const ci of [false, true]) {
