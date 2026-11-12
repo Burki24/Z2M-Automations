@@ -252,11 +252,11 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
                 renderFields();
             }, {field: 'property', choices: () => [['', t("ui.select.property.channel.9718e7d6")], ...properties.filter(meta => meta.id === key || !Object.hasOwn(item.values, meta.id)).map(meta => [meta.id, meta.label])]});
             const meta = properties.find(property => property.id === key);
-            propertyValue(command, meta ? {...meta, actionValues: meta.actionValues.filter(v => v !== 'TOGGLE')} : null, 'target', value, next => { item.values[key] = next; });
+            propertyValue(command, meta ? {...meta, actionValues: desktop ? meta.actionValues : meta.actionValues.filter(v => v !== 'TOGGLE')} : null, 'target', value, next => { item.values[key] = next; });
             if (values.length > 1) button(command, () => (t("ui.remove.value.aba676af")), () => { delete item.values[key]; renderFields(); });
         }
         button(parent, () => (t("ui.add.another.value.d10e439d")), () => { item.values[''] = undefined; renderFields(); }, values.length >= 8 || values.some(([key]) => !key));
-        parent.append(node('p', () => (t("ui.multiple.values.are.sent.as.43bb3602")), 'field-help'));
+        parent.append(node('p', () => t(desktop ? 'editor.stateValuesHelp' : 'ui.multiple.values.are.sent.as.43bb3602'), 'field-help'));
     }
     function entryKind(item) {
         if (!desktop) return item.type;

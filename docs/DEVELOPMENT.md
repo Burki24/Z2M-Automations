@@ -163,6 +163,10 @@ opens a finding for the second value of a multi-property action and verifies
 that only that value is marked and focused. Synthetic backend tests cover
 multiple invalid values, disabled rules, shared sequences, foreign-device
 ownership, numeric bounds/increments and exclusion of private feedback from logs.
+Toggle regressions cover writable versus read-only state channels, untouched
+read values, native TOGGLE selection/reopening in DE/EN, and validation, storage
+and single execution of TOGGLE plus brightness through the real pinned extension
+against isolated synthetic peers.
 
 Use `npm run smoke -- --no-capture` for the complete source smoke without images,
 or `npm run smoke:packaged -- --no-capture` after packaging. The flag disables

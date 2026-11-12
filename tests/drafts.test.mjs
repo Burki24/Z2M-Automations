@@ -51,7 +51,7 @@ test('the canonical schema blocks invalid times, time zones, unknown fields and 
   const s = await setup(); const original = JSON.stringify(s.system());
   for (const change of [rule => rule.triggers[0].at = '25:00:00', rule => rule.triggers[0].timezone = 'invalid/zone',
     rule => rule.password = 'PRIVATE', rule => rule.actions[0].values = {brightness: 255},
-    rule => rule.actions[0].values = {occupancy: true}, rule => rule.actions[0].values = {state: 'TOGGLE'},
+    rule => rule.actions[0].values = {occupancy: true}, rule => rule.actions[0].values = {brightness: 'TOGGLE'},
     rule => rule.triggers = [{type: 'device', device: '0x0000000000000001', property: 'occupancy', operator: 'gt', value: 1}]]) {
     const rule = s.rule(); change(rule); assert.throws(() => s.send('create', {rule}), /draft/);
     assert.equal(JSON.stringify(s.system()), original);
@@ -84,13 +84,42 @@ test('a capability failure identifies the submitted rule, section, property, act
   assert.equal(JSON.stringify(s.debug.read()).includes(rule.name), false, 'Private draft details must stay out of recordings');
 });
 
+test('writable ON/OFF state channels offer native TOGGLE without changing read values or dropping other command values', async () => {
+  const s = await setup(); const light = s.remotes.get(s.id).devices[1];
+  light.properties.push(
+    {id: 'state_l2', label: 'Second channel', type: 'binary', access: 2, values: ['ON', 'OFF']},
+    {id: 'state_l3', label: 'Discrete channel', type: 'enum', access: 2, values: ['ON', 'OFF', 'TOGGLE']},
+    {id: 'state_ro', label: 'Read-only state', type: 'binary', access: 1, values: ['ON', 'OFF']},
+    {id: 'child_lock', label: 'Child lock', type: 'binary', access: 3, values: ['ON', 'OFF']},
+    {id: 'state_cover', label: 'Cover state', type: 'enum', access: 3, values: ['OPEN', 'CLOSE']}
+  );
+  const before = structuredClone(light);
+  const properties = s.editor.view(s.system()).devices.find(device => device.key === light.key).properties;
+  assert.deepEqual(properties.find(property => property.id === 'state').actionValues, ['ON', 'OFF', 'TOGGLE']);
+  assert.deepEqual(properties.find(property => property.id === 'state').values, ['ON', 'OFF']);
+  assert.deepEqual(properties.find(property => property.id === 'state_l2').actionValues, ['ON', 'OFF', 'TOGGLE']);
+  assert.deepEqual(properties.find(property => property.id === 'state_l3').actionValues, ['ON', 'OFF', 'TOGGLE'], 'Do not duplicate an explicitly advertised TOGGLE');
+  for (const id of ['state_ro', 'child_lock', 'state_cover']) assert.equal(properties.find(property => property.id === id).actionValues.includes('TOGGLE'), false);
+  assert.deepEqual(light, before, 'Projecting action values must preserve the confirmed catalog');
+  const rule = s.rule(); rule.actions[0].values = {state: 'TOGGLE', brightness: 100, state_l2: 'TOGGLE'};
+  const created = s.send('create', {rule});
+  const saved = s.system().configuration.automations.find(rule => rule.id === created.ruleId);
+  assert.deepEqual(saved.actions, rule.actions, 'Keep native TOGGLE and the other values in one set action');
+  for (const values of [{child_lock: 'TOGGLE'}, {state_ro: 'TOGGLE'}, {state_cover: 'TOGGLE'}]) {
+    const invalid = s.rule(); invalid.actions[0].values = values;
+    assert.throws(() => s.send('create', {rule: invalid}), /draft/);
+  }
+  const invalid = s.rule(); invalid.triggers = [{type: 'device', device: light.target.id, property: 'state', operator: 'eq', value: 'TOGGLE'}];
+  assert.throws(() => s.send('create', {rule: invalid}), /draftValue/);
+});
+
 test('capability feedback distinguishes types, bounds, increments, colours and toggle actions without altering acceptance', async () => {
   const s = await setup();
   s.remotes.get(s.id).devices[1].properties.push({id: 'color', label: 'Color', type: 'color', access: 2, values: []});
   for (const [property, value, reason] of [
     ['brightness', '200', 'capability_number'], ['brightness', -1, 'capability_minimum'],
     ['brightness', 255, 'capability_maximum'], ['brightness', 0.5, 'capability_step'],
-    ['color', {hex: 'red'}, 'capability_color'], ['state', 'TOGGLE', 'capability_toggle']
+    ['color', {hex: 'red'}, 'capability_color'], ['brightness', 'TOGGLE', 'capability_toggle']
   ]) {
     const rule = s.rule(); rule.actions[0].values = {[property]: value};
     assert.throws(() => s.send('create', {rule}), error => {

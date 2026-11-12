@@ -441,7 +441,11 @@ async function verifyDrafts(view: WebContents, exportPath: string): Promise<void
     set(field('conditions', 'operator', 1), 'gte'); set(field('conditions', 'value', 1), '50');
     set(field('actions', 'system'), other.baseTopic);
     set(field('actions', 'target'), other.id + ':0x0000000000000002');
-    set(field('actions', 'property'), 'state'); set(field('actions', 'values'), '0');
+    set(field('actions', 'property'), 'state');
+    const stateValues = field('actions', 'values');
+    assert([...stateValues.options].filter(option => option.value).map(option => option.textContent).join('|') === 'Ein|Aus|Umschalten',
+      'a writable ON/OFF state channel must offer native Toggle as well');
+    for (const value of ['0', '1', '2']) set(stateValues, value);
     const localChoice = [...field('actions', 'system').options].find(option => option.value === '');
     const remoteChoice = [...field('actions', 'system').options].find(option => option.value === other.baseTopic);
     assert(localChoice?.textContent.includes(local.name) && remoteChoice?.textContent.includes(other.name)
@@ -451,7 +455,8 @@ async function verifyDrafts(view: WebContents, exportPath: string): Promise<void
     const saved = (await bridge.snapshot()).configuration.automations.find(rule => rule.name === 'Cross-system smoke');
     assert(saved && !saved.enabled && saved.conditions[0].device === '0x0000000000000001'
       && saved.conditions[0].system === other.baseTopic && saved.conditions[1].system === other.baseTopic
-      && saved.conditions[1].property === 'brightness' && saved.conditions[1].value === 50 && saved.actions[0].target.system === other.baseTopic,
+      && saved.conditions[1].property === 'brightness' && saved.conditions[1].value === 50 && saved.actions[0].target.system === other.baseTopic
+      && saved.actions[0].type === 'set' && saved.actions[0].values.state === 'TOGGLE',
       'draft must retain stable device and system identities');
     await wait(() => document.querySelector('#entry-title').textContent === saved.name, 'select-cross-system-draft');
     document.querySelector('#edit-automation-button').click();
@@ -459,7 +464,8 @@ async function verifyDrafts(view: WebContents, exportPath: string): Promise<void
     set(document.querySelector('#designer-language'), 'en');
     assert(field('conditions', 'system').value === other.baseTopic && field('conditions', 'device').value === other.id + ':0x0000000000000001'
       && field('conditions', 'type', 1).value === 'measurement' && field('conditions', 'system', 1).value === other.baseTopic
-      && field('actions', 'system').value === other.baseTopic && field('actions', 'target').value === other.id + ':0x0000000000000002',
+      && field('actions', 'system').value === other.baseTopic && field('actions', 'target').value === other.id + ':0x0000000000000002'
+      && field('actions', 'values').value === '2' && field('actions', 'values').selectedOptions[0].textContent === 'Toggle',
       'reopening and changing language preserve foreign device ownership');
     set(document.querySelector('#designer-language'), 'de');
     document.querySelector('#edit-cancel').click();

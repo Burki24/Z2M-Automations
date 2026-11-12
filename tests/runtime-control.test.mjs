@@ -17,7 +17,7 @@ const {Diagnostics} = require('../apps/desktop/.build/diagnostics.js');
 const {RuntimeControl} = require('../apps/desktop/.build/runtime-control.js');
 const {ExtensionTransfer} = require('../apps/desktop/.build/extension-transfer.js');
 
-async function setup(t, {delay = 0, systems = 1, enabled = true, stored = true, extensionClass = Extension} = {}) {
+async function setup(t, {delay = 0, systems = 1, enabled = true, stored = true, extensionClass = Extension, brightness = false} = {}) {
   const base = 'synthetic/runtime';
   const directory = await mkdtemp(join(tmpdir(), 'z2ma-runtime-'));
   const fixture = remoteFixture();
@@ -26,7 +26,8 @@ async function setup(t, {delay = 0, systems = 1, enabled = true, stored = true, 
   if (delay) configuration.automations[0].actions[0].delay_seconds = delay;
   const [sensor, light] = fixture.editor.devices.map(({id, name}) => ({ID: id, ieeeAddr: id, name, isDevice: () => true}));
   sensor.exposes = () => [{type: 'binary', property: 'occupancy', access: 1, value_on: true, value_off: false}];
-  light.exposes = () => [{type: 'binary', property: 'state', access: 7, value_on: 'ON', value_off: 'OFF'}];
+  light.exposes = () => [{type: 'binary', property: 'state', access: 7, value_on: 'ON', value_off: 'OFF'},
+    ...(brightness ? [{type: 'numeric', property: 'brightness', access: 7, value_min: 0, value_max: 254, value_step: 1}] : [])];
   const effects = [];
   let receive, state, send, suppress, rejected;
   const zigbee = {devicesIterator: () => [sensor, light].values(), groupsIterator: () => [].values(),
@@ -102,6 +103,24 @@ test('one draft check automatically preserves enabled flags when only switches c
   assert.equal(parse(JSON.parse(request.payload).yaml).automations[0].enabled, true);
   assert.equal(s.extension.status().executing, false);
   assert.equal(s.peer.publications.some(packet => packet.topic.endsWith('/request/store')), false);
+});
+
+test('the pinned extension validates, stores and executes native state TOGGLE together with another command value', async t => {
+  const s = await setup(t, {brightness: true});
+  const draft = structuredClone(s.reader.current(s.id).configuration);
+  draft.automations[0].actions[0].values = {state: 'TOGGLE', brightness: 100};
+  s.projects.replaceDraft(s.id, draft);
+  const transfer = new ExtensionTransfer(s.projects, s.reader, {confirm: async () => true, backup: async () => join(s.directory, 'native-toggle.z2ma')});
+  assert.equal(await transfer.command('validate', s.id), 'transferValidated');
+  assert.equal(await transfer.command('store', s.id), 'transferStored');
+  await s.reader.refresh(s.id);
+  assert.deepEqual(s.reader.current(s.id).configuration.automations[0].actions[0].values, {state: 'TOGGLE', brightness: 100});
+  assert.equal(await s.command('run_once', {rule: 'remote-rule'}), 'runtimeConfirmed');
+  await Promise.all([...s.extension.runtime.tasks]);
+  assert.equal(s.effects.length, 1);
+  assert.deepEqual(JSON.parse(s.effects[0].message), {state: 'TOGGLE', brightness: 100});
+  assert.equal(s.effects[0].topic, 'synthetic/runtime/Synthetic light/set');
+  assert.ok(s.peer.publications.every(packet => !packet.retain));
 });
 
 test('guided transfer confirms and backs up before stopping, storing and checking the exact disabled draft', async t => {

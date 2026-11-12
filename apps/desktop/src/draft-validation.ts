@@ -65,7 +65,7 @@ export function editorDevices(project: Project, system: ProjectSystem, reader: M
     for (const device of remote.devices) {
       const properties: Entry[] = device.properties.map(property => ({...property,
         readable: (local || remote.fresh) && Boolean(property.access & 1), writable: remote.fresh && Boolean(property.access & 2),
-        actionValues: property.values, valueLabels: []}));
+        actionValues: writableValues(property), valueLabels: []}));
       for (const scene of remote.scenes.filter(scene => equal(scene.target, device.target))) {
         const endpoint = scene.endpoint ?? 0;
         let property = properties.find(property => property['sceneEndpoint'] === endpoint);
@@ -83,7 +83,17 @@ function timezone(value: unknown): void {
   if (typeof value !== 'string') throw new Error('draftSchema');
   try { new Intl.DateTimeFormat('en', {timeZone: value}).format(0); } catch { throw new Error('draftTimezone'); }
 }
+function supportsToggle(property: CatalogProperty): boolean {
+  return Boolean(property.access & 2) && ['binary', 'enum'].includes(property.type)
+    && /^state(?:_[A-Za-z0-9_]+)?$/.test(property.id) && property.values.includes('ON') && property.values.includes('OFF');
+}
+function writableValues(property: CatalogProperty): CatalogProperty['values'] {
+  const values = property.values.filter(value => value !== 'TOGGLE');
+  if (supportsToggle(property)) values.push('TOGGLE');
+  return values;
+}
 function propertyProblem(property: CatalogProperty, value: unknown, writing: boolean): string | null {
+  if (writing && value === 'TOGGLE') return supportsToggle(property) ? null : 'capability_toggle';
   if (property.type === 'numeric') {
     if (typeof value !== 'number' || !Number.isFinite(value)) return 'capability_number';
     if (writing && property.minimum !== undefined && value < property.minimum) return 'capability_minimum';
@@ -108,7 +118,7 @@ function capabilityIssue(entry: Entry, sequence: boolean, configuration: Configu
       system: owner.name.slice(0, 160), device: device.name.slice(0, 160), property: property.id, label: property.label,
       actual: reason === 'capability_operator' ? String(value) : preview(value),
       actualType: value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value,
-      allowed: reason === 'capability_operator' ? ['eq', 'ne'] : property.values.map(preview),
+      allowed: reason === 'capability_operator' ? ['eq', 'ne'] : (section === 'actions' ? writableValues(property) : property.values).map(preview),
       ...(property.minimum === undefined ? {} : {minimum: property.minimum}),
       ...(property.maximum === undefined ? {} : {maximum: property.maximum}),
       ...(property.step === undefined ? {} : {step: property.step}), ...(property.unit ? {unit: property.unit} : {})
@@ -172,7 +182,7 @@ export function checkCapabilities(entry: Entry, sequence: boolean, configuration
         for (const [key, value] of Object.entries(values)) {
           const property = device.properties.find(property => property.id === key);
           if (!property || !(property.access & 2)) throw new Error('draftCapability');
-          const problem = action['type'] === 'set' && value === 'TOGGLE' ? 'capability_toggle' : propertyProblem(property, value, true);
+          const problem = propertyProblem(property, value, true);
           if (problem) issues.push(capabilityIssue(entry, sequence, configuration, 'actions', index,
             action['type'] === 'toggle' ? 'property' : 'values', problem, owner, device, property, value));
         }
