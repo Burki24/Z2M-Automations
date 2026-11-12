@@ -37,6 +37,12 @@ async function setup(t, options = {}) {
         }
         Object.assign(fixture.editor, fixture.status);
         if (!options.loseInstallAck) publish();
+      } else if (operation === 'restart') {
+        publish();
+        publish({state: 'offline'}, 'synthetic/bridge/state');
+        fixture.status.session = randomUUID();
+        Object.assign(fixture.editor, fixture.status);
+        publish({state: 'online'}, 'synthetic/bridge/state');
       } else if (installed && operation === 'validate') {
         if (options.validationError) { publish({...response, status: 'error', error: options.validationError}); return; }
         const doc = parse(request.yaml);
@@ -216,11 +222,11 @@ test('D5 rechecks the receiver after confirmation and refuses a store after a se
   assert.equal(s.count('/request/store'), 0);
 });
 
-test('D5 reads back an upgrade after a lost reply and preserves the previous stored rules', async t => {
+test('D5 reads back an upgrade after a lost reply and finishes without repeating the upload', async t => {
   const s = await setup(t, {loseInstallAck: true});
   const original = s.system().stored;
-  await assert.rejects(s.command('install'), /transferUncertain/);
-  assert.equal(await s.command('checkTransfer'), 'transferInstalled');
+  assert.equal(await s.command('install'), 'transferInstalled');
+  assert.equal(await s.command('checkTransfer'), 'transferChecked');
   assert.equal(s.count('/bridge/request/extension/save'), 1);
   assert.deepEqual(s.system().stored, original);
   assert.deepEqual(JSON.parse(await readFile(s.backup, 'utf8')).systems[0].stored, original);

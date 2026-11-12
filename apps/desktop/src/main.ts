@@ -14,7 +14,7 @@ import {promptCredentials} from './credential-prompt.js';
 import {Credentials, readCredentialFile, type CredentialCommand} from './credentials.js';
 import {smokeProjects} from './smoke-projects.js';
 import {osProtection} from './os-protection.js';
-import {MqttReader, parseTLS, type NetworkCommand} from './mqtt-reader.js';
+import {MqttReader, parseTLS, validNetworkCommand, type NetworkCommand} from './mqtt-reader.js';
 import {AutomaticConnections} from './auto-connect.js';
 import {boundedRead} from './project-files.js';
 import {connect} from 'mqtt';
@@ -118,7 +118,8 @@ async function designer(command: DesignerCommand): Promise<unknown> {
 let runtime: RuntimeControl;
 function networkState() {
   const state = reader.state();
-  return {...state, sequence: state.sequence + automaticConnections.sequence,
+  const update = transfers.updateState();
+  return {...state, sequence: state.sequence + automaticConnections.sequence + update.sequence, extensionUpdates: update.updates,
     brokers: state.brokers.map(broker => ({...broker, autoConnect: automaticConnections.setting(broker.id)})), bundledExtension};
 }
 async function network(command: NetworkCommand): Promise<unknown> {
@@ -134,6 +135,7 @@ async function network(command: NetworkCommand): Promise<unknown> {
     }
     case 'activate': case 'deactivate': case 'run_once': case 'stop_rule': {
       if (smoke) throw new Error('invalidRequest');
+      if ((command.action === 'activate' || command.action === 'run_once') && transfers.updatePending(command.id)) throw new Error('extensionUpdatePending');
       try {
         const outcome = await runtime.command(command.action, command);
         return {...networkState(), outcome};
@@ -306,6 +308,8 @@ async function open(): Promise<void> {
       debug.record('rejected'); throw new Error('Unauthorized desktop request.');
     }
     if (channel !== 'project' && channel !== 'credential' && channel !== 'network' && channel !== 'designer') return handle(channel, args[0]);
+    // A read-only projection must remain available while an update owns the mutation queue.
+    if (channel === 'network' && validNetworkCommand(args[0]) && args[0].action === 'status') return {ok: true, state: networkState()};
     // Error responses expose only known codes and bounded, structured validation feedback.
     return projects.serialize(async () => {
       try { return {ok: true, state: await handle(channel, args[0])}; }
@@ -318,7 +322,7 @@ async function open(): Promise<void> {
         }
         debug.record('projectFailed');
         const key = error instanceof Error ? error.message : '';
-        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'credentialPromptUnavailable', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'credentialsMissing', 'credentialsLocked', 'autoConnectSettings', 'connectionError', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferUncertain', 'transferBridge', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly'].includes(key) ? key : 'failed'};
+        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'credentialPromptUnavailable', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'credentialsMissing', 'credentialsLocked', 'autoConnectSettings', 'connectionError', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferUncertain', 'transferBridge', 'extensionUpdatePending', 'extensionStopUncertain', 'extensionSaveUncertain', 'extensionRestartUncertain', 'extensionRestoreUncertain', 'extensionVerifyUncertain', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly'].includes(key) ? key : 'failed'};
       }
     });
   });

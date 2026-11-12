@@ -69,6 +69,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
   let view;
   let state = {sequence: -1, brokers: [], systems: []};
   let pending = false;
+  let deferredStateChange = false;
   let polling = false;
   let selected = '';
   let operationFeedback;
@@ -84,10 +85,11 @@ export function installNetwork(bridge, workspace, settleEditor) {
     if (next.sequence < state.sequence) return;
     const changed = next.sequence !== state.sequence;
     state = next;
-    if (changed) document.dispatchEvent(new Event('z2ma-project-changed'));
+    if (changed && pending) deferredStateChange = true;
+    else if (changed) document.dispatchEvent(new Event('z2ma-project-changed'));
   }
   async function refresh() {
-    if (pending || polling) return;
+    if (polling) return;
     polling = true;
     try {
       const response = await bridge.network({action: 'status', id: ''});
@@ -110,6 +112,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
     catch { failed(); }
     finally {
       pending = false;
+      if (deferredStateChange) { deferredStateChange = false; document.dispatchEvent(new Event('z2ma-project-changed')); }
       if (picker) picker.disabled = false;
       workspace.review.removeAttribute('aria-busy');
       paint();
@@ -207,10 +210,11 @@ export function installNetwork(bridge, workspace, settleEditor) {
   const setup = document.createElement('details'); setup.className = 'desktop-card'; workspace.pages.connection.append(setup);
   const setupTitle = document.createElement('summary'); bindText(setupTitle, () => t('desktop.setup.connection')); setup.append(setupTitle);
   const versions = document.createElement('p'); setup.append(versions);
+  const updateHelp = document.createElement('p'); bindText(updateHelp, () => t('project.extensionUpdateHelp')); setup.append(updateHelp);
   const connectionSettings = actions(setup);
   const setupResult = status(setup);
   const install = button(connectionSettings, 'mqtt-install', 'mqtt.install', () => systemCommand('install', (key, name) => { setupFeedback = {key, name}; }));
-  const resolveInstall = workspace.link(connectionSettings, 'transfer', 'desktop.review.checkTransfer');
+  const resolveInstall = button(connectionSettings, 'mqtt-install-check', 'project.extensionCheck', () => systemCommand('checkTransfer', (key, name) => { setupFeedback = {key, name}; }));
 
   const brokerChoice = document.querySelector('#project-brokerChoice');
   const tls = document.createElement('details'); tls.className = 'desktop-tls'; brokerChoice.closest('.desktop-card').append(tls);
@@ -261,8 +265,12 @@ export function installNetwork(bridge, workspace, settleEditor) {
     nextDraft.classList.toggle('primary', Boolean(system?.fresh));
     editBroker.hidden = !broker?.error && !broker?.autoConnect?.issue;
     editSystem.hidden = !system?.error;
-    bindText(setupResult, () => feedbackText(setupFeedback));
-    resolveInstall.hidden = setupFeedback?.key !== 'project.transferUncertain';
+    const update = state.extensionUpdates?.find(update => update.id === system?.id);
+    const updating = Boolean(update && !update.failed && update.stage !== 'complete');
+    bindText(setupResult, () => updating ? t('project.extensionUpdate.' + update.stage) : feedbackText(setupFeedback));
+    setup.setAttribute('aria-busy', String(updating));
+    resolveInstall.hidden = !update?.failed && setupFeedback?.key !== 'project.transferUncertain';
+    resolveInstall.disabled = pending || !connected;
     disconnect.disabled = pending || (!connected && !connecting);
     install.disabled = pending || !connected;
     versions.hidden = !system;

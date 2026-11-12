@@ -118,7 +118,8 @@ export function installDraftReview(bridge, workspace, {current, perform, command
     if (!fresh && result?.key === 'ready') result = {...result, key: 'local'};
     if (fresh && result?.key === 'ready' && result.remote
       && (system.revision !== result.remote.revision || system.build !== result.remote.build)) result = {...result, key: 'changed'};
-    const running = system?.executing || system?.runtime?.resume || system?.runtime?.runs.some(run => run.state === 'running');
+    const running = system?.executing || system?.runtime?.resume && system.runtime.recovery !== 'stopped'
+      || system?.runtime?.runs.some(run => run.state === 'running');
     const checked = result?.key === 'ready';
     const ready = checked && fresh && !running && !stored;
     const blocked = busy() || !system || stored;

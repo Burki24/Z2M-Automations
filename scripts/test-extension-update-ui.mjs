@@ -1,0 +1,112 @@
+import {spawn} from 'node:child_process';
+import {createRequire} from 'node:module';
+import {mkdtemp, readFile, rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join, resolve, dirname, basename, extname} from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+// DOM and layout assertions only. No desktop/window/image capture.
+const require = createRequire(import.meta.url);
+const root = fileURLToPath(new URL('../', import.meta.url));
+if (!process.versions.electron) {
+  const profile = await mkdtemp(join(tmpdir(), 'z2ma-update-ui-'));
+  try {
+    const env = {...process.env, Z2MA_UPDATE_TEST_PROFILE: profile}; delete env.ELECTRON_RUN_AS_NODE;
+    const child = spawn(require('electron'), [fileURLToPath(import.meta.url)], {cwd: root, env, windowsHide: true, stdio: 'inherit'});
+    const timer = setTimeout(() => child.kill(), 30000);
+    try {
+      const code = await new Promise((done, reject) => { child.once('error', reject); child.once('close', done); });
+      if (code !== 0) throw new Error('Extension update DOM test failed: ' + code);
+    } finally { clearTimeout(timer); }
+  } finally {
+    const target = resolve(profile);
+    if (dirname(target) !== resolve(tmpdir()) || !basename(target).startsWith('z2ma-update-ui-')) throw new Error('Unexpected test profile');
+    await rm(target, {recursive: true, force: true});
+  }
+} else {
+  const {app, BrowserWindow, protocol} = await import('electron');
+  const {assetPath, csp, rendererPreferences} = require('../apps/desktop/.build/security.js');
+  app.setPath('userData', process.env.Z2MA_UPDATE_TEST_PROFILE);
+  protocol.registerSchemesAsPrivileged([{scheme: 'z2ma', privileges: {standard: true, secure: true, supportFetchAPI: true}}]);
+  if (process.platform === 'linux' && process.env.CI === 'true') app.disableHardwareAcceleration();
+  const run = async () => {
+    await app.whenReady();
+    const assets = join(root, 'apps/desktop/.build/renderer');
+    const names = new Set(['network.js', 'draft-review.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
+    protocol.handle('z2ma', async request => {
+      if (request.url === 'z2ma://app/index.html') return new Response('<!doctype html><meta charset="utf-8"><body></body>', {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
+      const name = assetPath(request.url, request.method, names);
+      if (!name) return new Response(null, {status: 404});
+      return new Response(await readFile(join(assets, name)), {headers: {'Content-Type': extname(name) === '.css' ? 'text/css' : extname(name) === '.html' ? 'text/html' : 'application/javascript', 'Content-Security-Policy': csp}});
+    });
+    const window = new BrowserWindow({show: false, width: 1000, height: 800, webPreferences: {...rendererPreferences, backgroundThrottling: false}});
+    await window.loadURL('z2ma://app/index.html');
+    await window.webContents.executeJavaScript('(' + rendererTest + ')()');
+    await window.loadURL('z2ma://app/confirmation.html');
+    for (const width of [320, 540]) for (const theme of ['light', 'dark']) {
+      window.setContentSize(width, 310);
+      await window.webContents.executeJavaScript(`(async () => {
+        document.documentElement.style.colorScheme = '${theme}';
+        document.querySelector('#question').textContent = 'Extension installieren und Zigbee2MQTT neu starten?';
+        document.querySelector('#detail').textContent = ${JSON.stringify('Synthetic target · Broker (127.0.0.1:1883) · Build old → new. '.repeat(12))};
+        document.querySelector('#cancel').textContent = 'Abbrechen'; document.querySelector('#accept').textContent = 'Fortfahren';
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const footer = document.querySelector('footer').getBoundingClientRect();
+        if (footer.bottom > innerHeight + 1 || footer.top < 0) throw new Error('Confirmation buttons outside viewport');
+        const detail = document.querySelector('#detail');
+        if (detail.scrollHeight <= detail.clientHeight) throw new Error('Long update review needs its own scroll area');
+        detail.scrollTop = detail.scrollHeight;
+        if (document.scrollingElement.scrollTop !== 0) throw new Error('Confirmation body must not scroll');
+      })()`);
+    }
+    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/stop-preference/confirmation-layout'); app.exit(0);
+  };
+  run().catch(error => { console.error('EXTENSION_UPDATE_DOM_FAILED ' + error.stack); app.exit(1); });
+}
+
+async function rendererTest() {
+  const {installNetwork} = await import('./network.js');
+  const {setLanguage} = await import('./localization.js');
+  const assert = (value, message) => { if (!value) throw new Error(message); };
+  const wait = async test => { for (let n = 0; n < 200; n++) { if (test()) return; await new Promise(resolve => setTimeout(resolve, 20)); } throw new Error('UI condition timed out'); };
+  const node = tag => { const value = document.createElement(tag); document.body.append(value); return value; };
+  const brokerCard = node('div'); brokerCard.className = 'desktop-card';
+  const choice = document.createElement('select'); choice.id = 'project-brokerChoice'; brokerCard.append(choice);
+  const picker = node('select'); picker.id = 'designer-system';
+  node('div').id = 'draft-local-actions'; node('div').id = 'draft-stored-actions';
+  const workspace = {pages: Object.fromEntries(['operation', 'connection', 'draft', 'review', 'transfer'].map(key => [key, node('section')])), actions: node('div'), review: node('div'), show: () => true,
+    link: parent => { const value = document.createElement('button'); parent.append(value); return value; }};
+  const id = '11111111-1111-4111-8111-111111111111';
+  const state = {sequence: 0, brokers: [{id: 'broker', state: 'connected'}], systems: [{id, brokerId: 'broker', name: 'Synthetic', baseTopic: 'synthetic', fresh: true, stored: true,
+    devices: 0, scenes: 0, executing: false, runtime: {resume: true, recovery: 'stopped', runs: [], rules: []}}], extensionUpdates: []};
+  let finish, installing = false, polls = 0, view;
+  const bridge = {snapshot: async () => structuredClone(view), designer: async () => ({ok: true}), network: async ({action}) => {
+    if (action === 'status') { polls++; return {ok: true, state: structuredClone(state)}; }
+    if (action === 'install') {
+      installing = true; state.sequence++; state.extensionUpdates = [{id, stage: 'waiting', failed: false}];
+      await new Promise(resolve => { finish = resolve; });
+      state.sequence++; state.extensionUpdates = [{id, stage: 'complete', failed: false}];
+      return {ok: true, state: {...structuredClone(state), outcome: 'transferInstalled'}};
+    }
+    return {ok: true, state: {...structuredClone(state), outcome: 'transferValidated'}};
+  }};
+  setLanguage('en', {persist: false, report: false});
+  const update = installNetwork(bridge, workspace, async () => {});
+  view = {desktop: {project: true, projectId: id, epoch: 1, source: 'draft', draftRevision: 1}, workspaceContext: {systemId: id},
+    configuration: {automations: [], sequences: []}, module: {baseTopic: 'synthetic'}, devices: [], status: {confirmed: true}};
+  update(view);
+  await wait(() => !document.querySelector('#mqtt-install').disabled);
+  document.querySelector('#mqtt-validate').click();
+  await wait(() => !document.querySelector('#mqtt-validate').disabled);
+  assert(!document.querySelector('#mqtt-store').disabled, 'Stopped restart preference must not block storage: ' + document.querySelector('#desktop-transfer-message').textContent);
+  document.querySelector('#mqtt-install').click();
+  await wait(() => installing);
+  const before = polls;
+  await wait(() => document.body.textContent.includes('Waiting for a confirmed Z2M restart'));
+  assert(polls > before, 'Progress must poll while update is pending');
+  assert(document.querySelector('#mqtt-install').disabled, 'No duplicate update while pending');
+  setLanguage('de', {persist: false, report: false});
+  assert(document.body.textContent.includes('Warte auf den bestätigten Z2M-Neustart'), 'Progress follows central language');
+  finish(); await wait(() => !document.querySelector('#mqtt-install').disabled);
+  assert(document.body.textContent.includes('Die mitgelieferte Extension ist bestätigt'), 'Completion feedback');
+}

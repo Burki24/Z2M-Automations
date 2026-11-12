@@ -8,6 +8,8 @@ import {record, type RemoteRead, type RemoteStatus} from './mqtt-protocol.js';
 import type {MqttReader} from './mqtt-reader.js';
 import type {ProjectService} from './project-service.js';
 import {projectBytes, type Configuration, type Project, type ProjectSystem} from './project.js';
+import {runtimeStopped} from './runtime-state.js';
+import {ExtensionUpdate} from './extension-update.js';
 
 const sha = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
 const artifactRoot = join(__dirname, 'extension');
@@ -27,16 +29,31 @@ interface Dialogs {
   backup(conflict: boolean, review?: Review): Promise<string | null>;
 }
 interface Receipt {base: RemoteStatus; yaml: string; checksum: string; configuration: Configuration; draft: string; assertCurrent(): void}
-const running = (status: RemoteStatus) => status.executing || status.resumeEnabled || status.execution?.runs.some(run => run.state === 'running');
+const running = (status: RemoteStatus) => !runtimeStopped(status);
 const same = (a: RemoteStatus, b: RemoteStatus) => a.session === b.session && a.build === b.build
   && a.revision === b.revision && a.checksum === b.checksum && a.executing === b.executing && a.resumeEnabled === b.resumeEnabled && Boolean(running(a)) === Boolean(running(b));
 const checksumOf = (config: Configuration) => sha(JSON.stringify(config));
 
 export class ExtensionTransfer {
   private receipts = new Map<string, Receipt>();
-  private uncertain = new Map<string, {action: 'store' | 'install'; session?: string; checksum?: string | null; revision?: number}>();
+  private uncertain = new Map<string, {action: 'store'; session?: string; checksum?: string | null}>();
   private epoch = -1;
-  constructor(private readonly projects: ProjectService, private readonly reader: MqttReader, private readonly dialogs: Dialogs) {}
+  private readonly updates: ExtensionUpdate;
+  constructor(private readonly projects: ProjectService, private readonly reader: MqttReader, private readonly dialogs: Dialogs,
+    options?: {timeout: number; poll: number}) {
+    this.updates = new ExtensionUpdate(projects, reader, {code: artifact, build: manifest.build}, {
+      confirm: (system, base) => dialogs.confirm('install', this.review(system, base)),
+      backup: async (system, remote) => {
+        this.observe(system.id, remote);
+        const path = await dialogs.backup(false);
+        if (!path) return false;
+        await projects.backup(path); return true;
+      },
+      read: wire => this.read(wire), observe: (id, remote) => this.observe(id, remote)
+    }, options);
+  }
+  updateState() { return {updates: this.updates.state(), sequence: this.updates.sequence}; }
+  updatePending(id: string) { return this.updates.pending(id); }
   private observe(id: string, remote: RemoteRead): void {
     this.projects.observe(this.projects.data().id, this.projects.generation(), id, {
       revision: remote.status.revision, checksum: remote.status.checksum, configuration: remote.configuration, yaml: remote.yaml
@@ -59,13 +76,7 @@ export class ExtensionTransfer {
       this.projects.acceptStoredBase(id);
       this.uncertain.delete(key);
       return 'transferStored';
-    } else if (pending.action === 'install' && current.build === manifest.build && current.session !== pending.session && current.revision === pending.revision && current.checksum === pending.checksum && !current.executing) {
-      const remote = await this.read(wire);
-      if (!same(current, remote.status)) throw new Error('transferUncertain');
-      this.observe(id, remote);
-      this.uncertain.delete(key);
-      return 'transferInstalled';
-    } else if (pending.action === 'install' || current.session === pending.session) throw new Error('transferUncertain');
+    } else if (current.session === pending.session) throw new Error('transferUncertain');
     this.uncertain.delete(key);
     return undefined;
   }
@@ -82,11 +93,14 @@ export class ExtensionTransfer {
     const uncertaintyKey = sha(JSON.stringify([project.id, id, system.baseTopic, broker?.host, broker?.port, broker?.tls]));
     const resolved = await this.resolveUncertainty(uncertaintyKey, wire, id);
     if (resolved) return resolved;
+    if (action === 'install' || action === 'checkTransfer' && this.updates.has(uncertaintyKey)) {
+      this.receipts.delete(id);
+      return this.updates.command(uncertaintyKey, system, action === 'checkTransfer');
+    }
     if (action === 'checkTransfer') {
       this.observe(id, await this.read(wire));
       return 'transferChecked';
     }
-    if (action === 'install') return this.install(uncertaintyKey, system, wire);
     const remote = await this.read(wire);
     const base = remote.status;
     if ((system.baseline?.revision ?? 0) !== base.revision || (system.baseline?.checksum ?? null) !== base.checksum) {
@@ -195,41 +209,5 @@ export class ExtensionTransfer {
       revision: base?.revision ?? 0, next: next?.revision ?? 0,
       rules: next?.automations.length ?? 0, enabled: next?.automations.filter(rule => rule['enabled'] === true).length ?? 0, changes: changes.slice(0, 16).join(', ') + (changes.length > 16 ? ' …' : ''),
       build: (base?.build?.slice(0, 12) ?? '—') + ' → ' + manifest.build.slice(0, 12)};
-  }
-  private async install(key: string, system: ProjectSystem, wire: Wire): Promise<string> {
-    const probe = async () => {
-      if (wire.bridge().online !== true) throw new Error('transferBridge');
-      try { return await wire.status(); }
-      catch (error) {
-        if (error instanceof Error && error.message === 'timeout' && wire.bridge().installed === false && !system.stored?.revision) return null;
-        throw error;
-      }
-    };
-    const base = await probe();
-    if (base?.build === manifest.build) return 'transferInstalled';
-    if (base && running(base)) throw new Error('transferRunning');
-    if (!await this.dialogs.confirm('install', this.review(system, base))) return 'transferCanceled';
-    if (base?.revision) {
-      const remote = await this.read(wire);
-      if (!same(base, remote.status)) throw new Error('transferChanged');
-      this.observe(system.id, remote);
-      const path = await this.dialogs.backup(false);
-      if (!path) return 'transferCanceled';
-      await this.projects.backup(path);
-    }
-    const current = await probe();
-    if (base ? !current || !same(base, current) : current !== null) throw new Error('transferChanged');
-    this.receipts.delete(system.id);
-    if (this.uncertain.size >= 32) throw new Error('transferUncertain');
-    this.uncertain.set(key, {action: 'install', revision: base?.revision ?? 0, checksum: base?.checksum ?? null, ...(base ? {session: base.session} : {})});
-    try {
-      await wire.install(artifact);
-      const remote = await this.read(wire);
-      if (remote.status.build !== manifest.build || remote.status.session === base?.session || remote.status.executing
-        || remote.status.revision !== (base?.revision ?? 0) || remote.status.checksum !== (base?.checksum ?? null)) throw new Error();
-      this.observe(system.id, remote);
-      this.uncertain.delete(key);
-      return 'transferInstalled';
-    } catch { throw new Error('transferUncertain'); }
   }
 }

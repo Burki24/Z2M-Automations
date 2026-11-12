@@ -1,6 +1,7 @@
 import {executionData, record, statusData, uuid, type RemoteStatus} from './mqtt-protocol.js';
 import type {MqttReader, NetworkCommand, RuntimeAction} from './mqtt-reader.js';
 import type {ProjectService} from './project-service.js';
+import {runtimeStopped} from './runtime-state.js';
 
 interface Review {system: string; broker: string; topic: string; revision: number; rule: string; run: string; recovery: boolean; enabled: number}
 const same = (a: RemoteStatus, b: RemoteStatus) => a.session === b.session && a.revision === b.revision
@@ -52,16 +53,19 @@ export class RuntimeControl {
         this.uncertain.add(endpoint);
       }
       try {
-        const result = await wire.runtime(action, fields);
+        const result = await wire.runtime(action, fields).catch(error => {
+          if (action !== 'deactivate') throw error;
+          // A lost stop reply can be confirmed independently; never send it twice.
+          return undefined;
+        });
         const verified = await wire.status();
         if (verified.session !== base.session || verified.revision !== base.revision || verified.checksum !== base.checksum
           || verified.build !== base.build || !verified.execution) throw new Error('protocol');
         if (action === 'activate' || action === 'deactivate') {
           const check = (status: RemoteStatus) => status.session === base.session && status.revision === base.revision
             && status.checksum === base.checksum && status.build === base.build && status.executing === (action === 'activate')
-            && status.resumeEnabled === (action === 'activate' && command.resume === true)
-            && (action === 'activate' ? status.activeMatches : !status.execution?.runs.some(run => run.state === 'running'));
-          if (!check(statusData(result)) || !check(verified)) throw new Error('protocol');
+            && (action === 'activate' ? status.resumeEnabled === (command.resume === true) && status.activeMatches : runtimeStopped(status));
+          if (result !== undefined && !check(statusData(result)) || !check(verified)) throw new Error('protocol');
           this.uncertain.delete(endpoint);
         } else {
           const response = executionData(result, base);

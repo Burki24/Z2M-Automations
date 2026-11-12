@@ -11,20 +11,22 @@ import type {AutoConnectMode} from './auto-connect.js';
 
 export const runtimeActions = ['activate', 'deactivate', 'run_once', 'stop_rule'] as const;
 export type RuntimeAction = typeof runtimeActions[number];
-const wireOperations = [...readOperations, 'validate', 'store', 'install', ...runtimeActions] as const;
+const wireOperations = [...readOperations, 'validate', 'store', 'install', 'restart', ...runtimeActions] as const;
 type WireOperation = typeof wireOperations[number];
 const wireTopic = (base: string, operation: WireOperation, direction: 'request' | 'response'): string =>
-  operation === 'install' ? base + '/bridge/' + direction + '/extension/save' : base + extensionPrefix + direction + '/' + operation;
+  operation === 'install' ? base + '/bridge/' + direction + '/extension/save'
+    : operation === 'restart' ? base + '/bridge/' + direction + '/restart' : base + extensionPrefix + direction + '/' + operation;
 const systemTopics = (base: string): string[] => [base + '/bridge/state', base + '/bridge/extensions', base + extensionPrefix + 'status', base + extensionPrefix + 'runs',
   ...wireOperations.map(operation => wireTopic(base, operation, 'response'))];
 
 export interface NetworkCommand {action: 'status' | 'connect' | 'disconnect' | 'autoConnect' | 'refresh' | 'linkPlan' | 'linkCheck' | 'certificates' | 'clearCertificates' | 'view' | 'validate' | 'store' | 'install' | 'checkTransfer' | 'validateEnabled' | 'runtimeStatus' | RuntimeAction; id: string; peerId?: string; source?: 'draft' | 'stored'; rule?: string; run?: string; resume?: boolean; mode?: AutoConnectMode}
 export interface TLSMaterial {ca?: string; cert?: string; key?: string; passphrase?: string}
-interface Pending {topic: string; generation: number; operation: 'read' | 'validate' | 'store' | 'install' | RuntimeAction; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>}
+interface Pending {topic: string; generation: number; operation: 'read' | 'validate' | 'store' | 'install' | 'restart' | RuntimeAction; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>}
 interface Connection {
   client: MqttClient; signature: string; generation: number; state: string; error: string; ready: boolean;
   pending: Map<string, Pending>; systems: ProjectSystem[]; reads: Map<string, Promise<void>>; closed: boolean;
   bridges: Map<string, {online?: boolean; installed?: boolean}>;
+  cycles: Map<string, {offline: boolean; sequence: number}>;
   subscription: ReturnType<typeof setTimeout> | null;
 }
 export function parseTLS(bytes: Buffer): TLSMaterial {
@@ -107,7 +109,7 @@ export class MqttReader {
       || this.signature(currentBroker, this.project.systems.filter(system => system.brokerId === id)) !== signature) throw new Error('stale');
     if (this.connections.has(id)) return;
     const client = this.factory(mqttOptions(broker, secret, this.tls.get(id)?.material ?? {}));
-    const connection: Connection = {client, signature: this.signature(broker, systems), generation: 0, state: 'connecting', error: '', ready: false, pending: new Map(), systems, reads: new Map(), closed: false, bridges: new Map(), subscription: null};
+    const connection: Connection = {client, signature: this.signature(broker, systems), generation: 0, state: 'connecting', error: '', ready: false, pending: new Map(), systems, reads: new Map(), closed: false, bridges: new Map(), cycles: new Map(), subscription: null};
     this.connections.set(id, connection); this.sequence++;
     this.debug.record('mqttConnect', undefined, undefined, {operation: 'connect', broker: id});
     const invalidate = () => {
@@ -170,6 +172,15 @@ export class MqttReader {
       if (topic === system.baseTopic + '/bridge/state') {
         if (record(value) && ['online', 'offline'].includes(String(value['state']))) {
           bridge.online = value['state'] === 'online'; connection.bridges.set(system.id, bridge);
+          // Only a live offline/online cycle proves a requested Z2M restart.
+          // Keep evidence across MQTT reconnects; retained startup state is insufficient.
+          if (!packet.retain) {
+            const cycle = connection.cycles.get(system.id) ?? {offline: false, sequence: 0};
+            if (!bridge.online) cycle.offline = true;
+            else if (cycle.offline) { cycle.sequence++; cycle.offline = false; }
+            connection.cycles.set(system.id, cycle);
+          }
+          this.sequence++;
         }
         if (record(value) && value['state'] === 'offline') { const old = this.remote.get(system.id); if (old) old.fresh = false; this.sequence++; }
         return;
@@ -196,7 +207,7 @@ export class MqttReader {
       if (!connection.ready || packet.retain || !record(value) || typeof value['transaction'] !== 'string') return;
       const pending = connection.pending.get(value['transaction']);
       if (!pending || pending.topic !== topic || pending.generation !== connection.generation) return;
-      if (topic !== wireTopic(system.baseTopic, 'install', 'response') && value['protocol_version'] !== 1) return;
+      if (!['install', 'restart'].includes(pending.operation) && value['protocol_version'] !== 1) return;
       connection.pending.delete(value['transaction']); clearTimeout(pending.timer);
       this.debug.record('mqttReply', system.id, undefined, {operation: pending.operation, transaction: value['transaction']});
       if (value['status'] === 'ok' && record(value['data'])) pending.resolve(value['data']);
@@ -218,12 +229,15 @@ export class MqttReader {
       const diagnostic = operation === 'status' || operation === 'editor' ? 'read' : operation;
       connection.pending.set(transaction, {topic, generation: connection.generation, operation: diagnostic, resolve, reject, timer});
       this.debug.record(diagnostic === 'read' ? 'mqttRead' : 'mqttTransfer', system.id, undefined, {operation: diagnostic, transaction});
-      connection.client.publish(wireTopic(system.baseTopic, operation, 'request'), JSON.stringify({...fields, ...(operation === 'install' ? {} : {protocol_version: 1}), transaction}), {qos: 0, retain: false}, error => {
+      connection.client.publish(wireTopic(system.baseTopic, operation, 'request'), JSON.stringify({...fields, ...(['install', 'restart'].includes(operation) ? {} : {protocol_version: 1}), transaction}), {qos: 0, retain: false}, error => {
         if (error && connection.pending.has(transaction)) { connection.pending.delete(transaction); clearTimeout(timer); reject(new Error('connectionError')); }
       });
     });
   }
   private runtimeLocks = new Set<string>();
+  noteUpdate(id: string, phase: string, failed: boolean): void {
+    this.debug.record('extensionUpdate', id, undefined, {operation: 'install', phase, ...(failed ? {reason: 'protocol'} : {})});
+  }
   async runtime<T>(id: string, task: (wire: ReturnType<MqttReader['transfer']>) => Promise<T>): Promise<T> {
     if (this.runtimeLocks.has(id)) throw new Error('runtimeChanged');
     const wire = this.transfer(id);
@@ -244,7 +258,7 @@ export class MqttReader {
     const send = async (operation: WireOperation, fields?: Record<string, unknown>) => {
       assertCurrent();
       if (connection.bridges.get(id)?.online === false) throw new Error('transferBridge');
-      if (operation === 'store' || operation === 'install') {
+      if (operation === 'store' || operation === 'install' || operation === 'restart') {
         // A read captured before a write must never publish its old snapshot later.
         connection.reads.delete(id);
         const previous = this.remote.get(id);
@@ -264,10 +278,11 @@ export class MqttReader {
       },
       runtime: (action: RuntimeAction, fields: Record<string, unknown>) => send(action, fields),
       editor: async (): Promise<RemoteRead> => editorData(await send('editor')),
-      bridge: () => { assertCurrent(); return {...connection.bridges.get(id)}; },
+      bridge: () => { assertCurrent(); return {...connection.bridges.get(id), restartSequence: connection.cycles.get(id)?.sequence ?? 0}; },
       validate: (yaml: string) => send('validate', {yaml}),
       store: (yaml: string, base: RemoteStatus) => send('store', {yaml, session: base.session, expected_revision: base.revision}),
-      install: (code: string) => send('install', {name: 'z2m-automations.mjs', code})
+      install: (code: string) => send('install', {name: 'z2m-automations.mjs', code}),
+      restart: () => send('restart')
     };
   }
   async refresh(id: string): Promise<void> {

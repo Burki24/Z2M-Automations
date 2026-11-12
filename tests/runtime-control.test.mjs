@@ -6,6 +6,7 @@ import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import Extension from '../apps/desktop/extension/z2m-automations.mjs';
+import LegacyExtension from './fixtures/extension-0.2.0/z2m-automations.mjs';
 import {remoteFixture, startPeer} from './support/mqtt-peer.mjs';
 
 const require = createRequire(import.meta.url);
@@ -15,7 +16,7 @@ const {Diagnostics} = require('../apps/desktop/.build/diagnostics.js');
 const {RuntimeControl} = require('../apps/desktop/.build/runtime-control.js');
 const {ExtensionTransfer} = require('../apps/desktop/.build/extension-transfer.js');
 
-async function setup(t, {delay = 0, systems = 1} = {}) {
+async function setup(t, {delay = 0, systems = 1, extensionClass = Extension} = {}) {
   const base = 'synthetic/runtime';
   const directory = await mkdtemp(join(tmpdir(), 'z2ma-runtime-'));
   const fixture = remoteFixture();
@@ -28,7 +29,7 @@ async function setup(t, {delay = 0, systems = 1} = {}) {
   let receive, state, send, suppress;
   const zigbee = {devicesIterator: () => [sensor, light].values(), groupsIterator: () => [].values(),
     resolveEntity: id => [sensor, light].find(device => device.ID === id)};
-  const extension = new Extension(zigbee, {publish: async (topic, bytes) => {
+  const extension = new extensionClass(zigbee, {publish: async (topic, bytes) => {
     if (!topic.endsWith('/response/' + suppress)) send?.(JSON.parse(bytes), base + '/' + topic);
   }}, {get: () => ({})}, null, {
     onMQTTMessage: (_owner, handler) => { receive = handler; },
@@ -109,6 +110,27 @@ test('activation persists across desktop disconnect and the opted-in Z2M restart
   assert.equal(s.effects.length, 1);
   assert.equal(s.extension.status().executing, true);
 });
+
+for (const [name, extensionClass] of [['0.2.0', LegacyExtension], ['bundled', Extension]]) {
+  test('stopping ' + name + ' confirms a stopped runtime with its persisted restart preference', async t => {
+    const s = await setup(t, {extensionClass});
+    assert.equal(await s.command('activate', {resume: true}), 'runtimeConfirmed');
+    assert.equal(s.extension.status().resume_enabled, true);
+    assert.equal(await s.command('deactivate'), 'runtimeConfirmed');
+    assert.equal(s.extension.status().executing, false);
+    assert.equal(s.extension.status().resume_status, 'stopped');
+    await s.restart();
+    assert.equal(s.extension.status().executing, false);
+    assert.equal(s.extension.status().resume_status, 'stopped');
+  });
+  test('a lost stop acknowledgement from ' + name + ' is confirmed by reading without resending', async t => {
+    const s = await setup(t, {extensionClass});
+    await s.command('activate', {resume: true}); s.suppress('deactivate');
+    assert.equal(await s.command('deactivate'), 'runtimeConfirmed');
+    assert.equal(s.extension.status().executing, false);
+    assert.equal(s.peer.publications.filter(packet => packet.topic.endsWith('/request/deactivate')).length, 1);
+  });
+}
 
 test('cancellation and uncertainty never cause a second start publication', async t => {
   const s = await setup(t);

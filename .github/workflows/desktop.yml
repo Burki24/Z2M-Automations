@@ -48,6 +48,9 @@ jobs:
       - name: Verify system-link assistant without image capture on Windows
         if: runner.os == 'Windows'
         run: npm run test:system-link-ui
+      - name: Verify extension update UI without image capture on Windows
+        if: runner.os == 'Windows'
+        run: npm run test:extension-update-ui
       - name: Verify packaged Windows application and runtime dependencies
         if: runner.os == 'Windows'
         run: npm run smoke:packaged
@@ -62,6 +65,9 @@ jobs:
       - name: Verify system-link assistant without image capture on Linux
         if: runner.os == 'Linux'
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x900x24" npm run test:system-link-ui
+      - name: Verify extension update UI without image capture on Linux
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x900x24" npm run test:extension-update-ui
       - name: Verify packaged Linux application and runtime dependencies
         if: runner.os == 'Linux'
         run: xvfb-run --auto-servernum --server-args="-screen 0 3840x2160x24" npm run smoke:packaged
