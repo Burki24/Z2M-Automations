@@ -1,5 +1,6 @@
 import {t, bindText, onLanguageChange, sortByName, formatNumber, language} from './localization.js';
 import {installDraftReview} from './draft-review.js';
+import {installOperationFlags} from './operation-flags.js';
 
 function button(parent, id, key, action) {
   const element = document.createElement('button'); element.type = 'button';
@@ -160,12 +161,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
     if (run) runtimeAction('stop_rule', {rule: run.rule, run: run.run});
   });
   const runs = document.createElement('ul'); runs.className = 'mqtt-overview'; operation.append(runs);
-  const flags = document.createElement('details'); flags.className = 'desktop-card'; workspace.pages.operation.append(flags);
-  const flagsTitle = document.createElement('summary'); bindText(flagsTitle, () => t('desktop.operation.flags')); flags.append(flagsTitle);
-  const flagsHelp = document.createElement('p'); bindText(flagsHelp, () => t('desktop.operation.flagsHelp')); flags.append(flagsHelp);
-  const flagActions = actions(flags);
-  workspace.link(flagActions, 'automations');
-  workspace.link(flagActions, 'review');
+  const flags = installOperationFlags(workspace, {operation, automatic, activate, current, perform, command, busy: () => pending, button});
   const review = installDraftReview(bridge, workspace, {current, perform, command, busy: () => pending, button});
 
   const connection = document.createElement('section'); connection.className = 'desktop-card';
@@ -252,7 +248,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
     const connected = broker?.state === 'connected';
     const connecting = ['connecting', 'reconnecting'].includes(broker?.state);
     const viewRuntime = system?.runtime;
-    const runtimeReady = Boolean(connected && viewRuntime);
+    const runtimeReady = Boolean(connected && system?.fresh && !system.reading && viewRuntime);
     const name = system?.name ?? '';
     const connectionMessage = () => t(connectionKey(system, broker), {name, broker: broker?.name ?? ''});
     bindText(connectionState, () => feedbackText(connectionFeedback) || connectionMessage());
@@ -283,15 +279,16 @@ export function installNetwork(bridge, workspace, settleEditor) {
     connectOperation.hidden = connected || !system;
     runtimeStatus.hidden = !connected;
     runtimeStatus.disabled = pending || Boolean(system?.reading);
-    automatic.hidden = single.hidden = flags.hidden = !system;
+    automatic.hidden = single.hidden = !system;
     bindText(operationState, () => !runtimeReady ? connectionMessage() : t(system.executing ? 'desktop.operation.active' : 'desktop.operation.stopped', {name}));
     setOptions(rules, sortByName(viewRuntime?.rules ?? []).map(rule => [rule.id, rule.name + ' · ' + t(rule.enabled ? 'mqtt.ruleEnabled' : 'mqtt.ruleDisabled')]), t('mqtt.chooseRule'));
     const running = viewRuntime?.runs.find(run => run.rule === rules.value && run.state === 'running');
     resume.disabled = pending || !runtimeReady || system.executing;
-    activate.disabled = pending || !runtimeReady || system.executing || !viewRuntime.rules.some(rule => rule.enabled);
+    activate.disabled = pending || !runtimeReady || system.executing || !viewRuntime.rules.some(rule => rule.enabled)
+      || system.transferPending || system.updatePending;
     deactivate.disabled = pending || !connected;
     rules.disabled = pending || !runtimeReady;
-    runOnce.disabled = pending || !runtimeReady || !rules.value || Boolean(running);
+    runOnce.disabled = pending || !runtimeReady || !rules.value || Boolean(running) || system.transferPending || system.updatePending;
     stopRule.disabled = pending || !running;
     bindText(runtimeResult, () => feedbackText(operationFeedback) || (runtimeReady && !viewRuntime.rules.length ? t('desktop.operation.noRules') : ''));
     const identity = JSON.stringify([viewRuntime?.runs, viewRuntime?.rules, document.documentElement.lang]);
@@ -305,6 +302,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
       }));
     }
     certificates.disabled = clearCertificates.disabled = pending || !brokerChoice.value;
+    flags.paint();
     review.paint();
   }
   function update(data) {

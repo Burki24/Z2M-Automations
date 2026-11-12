@@ -167,6 +167,14 @@ Toggle regressions cover writable versus read-only state channels, untouched
 read values, native TOGGLE selection/reopening in DE/EN, and validation, storage
 and single execution of TOGGLE plus brightness through the real pinned extension
 against isolated synthetic peers.
+Operation-permission checks cover confirmed counts, zero-enabled explanations,
+sorted checkboxes, DE/EN preservation, cancellation, stale selections and pending
+transfer guards. DOM-only layout checks exercise long, independently scrollable
+lists at 360/1280 pixels in both themes. Source smoke verifies system-scoped
+selection preservation and prohibits permission writes from the smoke profile.
+Tests with the real pinned extension verify switch-only storage, explicit consent,
+backup cancellation, preservation of divergent drafts, revoking the last rule,
+unknown/duplicate IDs and refusal to replay an unconfirmed stop.
 
 Use `npm run smoke -- --no-capture` for the complete source smoke without images,
 or `npm run smoke:packaged -- --no-capture` after packaging. The flag disables

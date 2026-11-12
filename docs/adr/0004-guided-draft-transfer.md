@@ -36,6 +36,15 @@ An unconfirmed stop blocks storage; an unconfirmed store blocks another upload
 and manual starts until reconciled. Status checks send no control requests.
 Missing replies are resolved through independent evidence, never command replay.
 
+The Operation page also offers direct stored-rule permissions with a confirmed
+enabled/total count. A bounded `setRuleFlags` command carries selected stable IDs
+and an opaque context bound to project, endpoint, local draft and stored identity.
+Main rereads the stored document and applies only the selected switches through
+the same validation, explicit confirmation, backup, stop and verified storage
+path. Matching drafts are synchronized after success; divergent local content is
+preserved. Context changes reject stale selections. This action never starts
+operation and cannot bypass unresolved transfer/update guards.
+
 ## Scope and evidence
 
 Only desktop orchestration, desktop renderer and DE/EN messages change. Symcon

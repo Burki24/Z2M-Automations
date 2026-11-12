@@ -105,6 +105,87 @@ test('one draft check automatically preserves enabled flags when only switches c
   assert.equal(s.peer.publications.some(packet => packet.topic.endsWith('/request/store')), false);
 });
 
+test('operation grants confirm and store selected rule switches directly while keeping operation stopped', async t => {
+  const s = await setup(t, {enabled: false, systems: 2});
+  const original = structuredClone(s.reader.current(s.id).configuration);
+  s.projects.replaceDraft(s.id, original);
+  let confirmations = 0;
+  const transfer = new ExtensionTransfer(s.projects, s.reader, {
+    confirm: async (action, review) => { confirmations++; assert.equal(action, 'store'); assert.equal(review.kind, 'flags'); assert.equal(review.enabled, 1); return true; },
+    backup: async () => join(s.directory, 'operation-flags.z2ma')
+  });
+  const context = transfer.flagsContext(s.id);
+  assert.match(context, /^[a-f0-9]{64}$/);
+  assert.equal(await transfer.applyFlags(s.id, context, ['remote-rule']), 'transferStored');
+  await s.reader.refresh(s.id);
+  const saved = s.reader.current(s.id).configuration;
+  assert.deepEqual({...saved, revision: original.revision, automations: saved.automations.map(rule => ({...rule, enabled: false}))}, original);
+  assert.equal(saved.automations[0].enabled, true);
+  assert.equal(s.projects.data().systems[0].configuration.automations[0].enabled, true);
+  assert.equal(s.extension.status().executing, false); assert.equal(confirmations, 1); assert.equal(s.effects.length, 0);
+  assert.ok(s.peer.publications.filter(packet => /\/request\/(validate|store)$/.test(packet.topic)).every(packet => packet.topic.startsWith(s.base + '/')));
+  assert.equal(s.peer.publications.some(packet => /\/request\/(activate|run_once)$/.test(packet.topic)), false);
+});
+
+test('operation grants preserve unrelated local draft content and can revoke the last enabled rule', async t => {
+  const s = await setup(t);
+  const draft = structuredClone(s.reader.current(s.id).configuration); draft.automations[0].name = 'Unsubmitted local change';
+  draft.mesh_peers = ['unsubmitted-peer']; s.projects.replaceDraft(s.id, draft);
+  await s.command('activate', {resume: true}); await s.reader.refresh(s.id);
+  const transfer = new ExtensionTransfer(s.projects, s.reader, {confirm: async (_action, review) => {
+    assert.equal(review.enabled, 0); assert.equal(review.running, true); return true;
+  }, backup: async () => join(s.directory, 'revoke-flags.z2ma')});
+  assert.equal(await transfer.applyFlags(s.id, transfer.flagsContext(s.id), []), 'transferStored');
+  await s.reader.refresh(s.id);
+  assert.deepEqual(s.projects.data().systems[0].configuration, draft);
+  assert.equal(s.reader.current(s.id).configuration.automations[0].name, 'Synthetic remote rule');
+  assert.deepEqual(s.reader.current(s.id).configuration.mesh_peers, []);
+  assert.equal(s.reader.current(s.id).configuration.automations[0].enabled, false);
+  assert.equal(s.extension.status().executing, false); assert.equal(s.effects.length, 0);
+});
+
+for (const canceled of ['confirm', 'backup']) test('canceling direct rule permissions at ' + canceled + ' leaves stored rules and local input unchanged', async t => {
+  const s = await setup(t); const draft = structuredClone(s.reader.current(s.id).configuration);
+  s.projects.replaceDraft(s.id, draft); await s.command('activate', {resume: false}); await s.reader.refresh(s.id);
+  const before = s.peer.publications.length;
+  const transfer = new ExtensionTransfer(s.projects, s.reader, {confirm: async () => canceled !== 'confirm',
+    backup: async () => null});
+  assert.equal(await transfer.applyFlags(s.id, transfer.flagsContext(s.id), []), 'transferCanceled');
+  assert.equal(s.extension.status().executing, true);
+  assert.deepEqual(s.projects.data().systems[0].configuration, draft);
+  assert.equal(s.peer.publications.slice(before).some(packet => /\/request\/(store|deactivate|activate|run_once)$/.test(packet.topic)), false);
+});
+
+test('direct rule permission requests reject stale contexts, unknown or duplicate IDs and pending input without writing', async t => {
+  const s = await setup(t, {enabled: false});
+  const transfer = new ExtensionTransfer(s.projects, s.reader, {confirm: async () => { throw new Error('Unexpected confirmation'); }, backup: async () => null});
+  const context = transfer.flagsContext(s.id);
+  await assert.rejects(transfer.applyFlags(s.id, 'f'.repeat(64), ['remote-rule']), /runtimeFlagsChanged/);
+  await assert.rejects(transfer.applyFlags(s.id, context, ['missing-rule']), /runtimeFlagsChanged/);
+  await assert.rejects(transfer.applyFlags(s.id, context, ['remote-rule', 'remote-rule']), /invalidRequest/);
+  s.projects.editorState(true);
+  await assert.rejects(transfer.applyFlags(s.id, context, ['remote-rule']), /applyFirst/); s.projects.editorState(false);
+  assert.equal(await transfer.applyFlags(s.id, context, []), 'transferUnchanged');
+  const draft = s.projects.data().systems[0].configuration; draft.revision++; s.projects.replaceDraft(s.id, draft);
+  await assert.rejects(transfer.applyFlags(s.id, context, ['remote-rule']), /runtimeFlagsChanged/);
+  for (const invalid of [{action: 'setRuleFlags', id: s.id, context, enabled: ['remote-rule'], path: 'private'},
+    {action: 'setRuleFlags', id: s.id, context: '', enabled: []}, {action: 'setRuleFlags', id: s.id, context, enabled: ['other/topic']}]) {
+    assert.equal(validNetworkCommand(invalid), false);
+  }
+  assert.equal(validNetworkCommand({action: 'setRuleFlags', id: s.id, context, enabled: []}), true);
+  assert.equal(s.peer.publications.some(packet => /\/request\/(validate|store|deactivate|activate|run_once)$/.test(packet.topic)), false);
+});
+
+test('an unconfirmed direct-grant stop blocks a second attempt instead of replaying control commands', async t => {
+  const s = await setup(t); await s.command('activate', {resume: true}); await s.reader.refresh(s.id);
+  const transfer = new ExtensionTransfer(s.projects, s.reader, {confirm: async () => true, backup: async () => join(s.directory, 'uncertain-flags.z2ma')});
+  const context = transfer.flagsContext(s.id); s.reject('deactivate');
+  await assert.rejects(transfer.applyFlags(s.id, context, []), /transferStopUncertain/);
+  await assert.rejects(transfer.applyFlags(s.id, context, []), /transferUncertain/);
+  assert.equal(s.peer.publications.filter(packet => packet.topic.endsWith('/request/deactivate')).length, 1);
+  assert.equal(s.peer.publications.some(packet => packet.topic.endsWith('/request/store')), false);
+});
+
 test('the pinned extension validates, stores and executes native state TOGGLE together with another command value', async t => {
   const s = await setup(t, {brightness: true});
   const draft = structuredClone(s.reader.current(s.id).configuration);

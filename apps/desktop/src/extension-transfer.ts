@@ -63,6 +63,62 @@ export class ExtensionTransfer {
   updateState() { return {updates: this.updates.state(), sequence: this.updates.sequence}; }
   updatePending(id: string) { return this.updates.pending(id); }
   transferPending(id: string) { return [...this.uncertain.values()].some(item => item.id === id); }
+  private flagsKey(project: Project, system: ProjectSystem, remote: RemoteRead): string {
+    const broker = project.brokers.find(item => item.id === system.brokerId);
+    return sha(JSON.stringify([project.id, this.projects.generation(), system.id, system.baseTopic, broker,
+      system.configuration, remote.status.session, remote.status.revision, remote.status.checksum, remote.status.build]));
+  }
+  flagsContext(id: string): string {
+    if (!this.projects.active) return '';
+    const project = this.projects.data(); const system = project.systems.find(item => item.id === id);
+    const remote = this.reader.current(id);
+    return system && remote?.fresh && remote.status.execution ? this.flagsKey(project, system, remote) : '';
+  }
+  async applyFlags(id: string, context: string, enabled: string[]): Promise<string> {
+    if (!Array.isArray(enabled) || enabled.length > 100 || new Set(enabled).size !== enabled.length
+      || enabled.some(rule => typeof rule !== 'string' || !/^[a-z][a-z0-9_-]{0,63}$/.test(rule))) throw new Error('invalidRequest');
+    this.reset();
+    if (this.projects.hasPendingInput()) throw new Error('applyFirst');
+    if (this.transferPending(id)) throw new Error('transferUncertain');
+    if (this.updates.pending(id)) throw new Error('extensionUpdatePending');
+    if (!context || context !== this.flagsContext(id)) throw new Error('runtimeFlagsChanged');
+    return this.reader.runtime(id, async wire => {
+      const project = this.projects.data(); const system = project.systems.find(item => item.id === id);
+      if (!system || context !== this.flagsContext(id)) throw new Error('runtimeFlagsChanged');
+      const remote = await this.read(wire);
+      if (context !== this.flagsKey(project, system, remote)) throw new Error('runtimeFlagsChanged');
+      const configuration = checkedDocument(structuredClone(remote.configuration));
+      if (enabled.some(id => !configuration.automations.some(rule => rule['id'] === id))) throw new Error('runtimeFlagsChanged');
+      for (const rule of configuration.automations) rule['enabled'] = enabled.includes(String(rule['id']));
+      if (isDeepStrictEqual(comparable(configuration), comparable(remote.configuration))) return 'transferUnchanged';
+      configuration.revision = remote.status.revision + 1;
+      checkedDocument(configuration);
+      const synchronize = isDeepStrictEqual(comparable(system.configuration), comparable(remote.configuration));
+      const nextDraft = structuredClone(system.configuration);
+      if (synchronize) {
+        nextDraft.revision++;
+        for (const rule of nextDraft.automations) rule['enabled'] = enabled.includes(String(rule['id']));
+      }
+      await this.checkCatalog(project, system, configuration, remote);
+      const yaml = exportDraft(configuration).toString('utf8');
+      if (Buffer.byteLength(yaml) > 131072) throw new Error('draftLimit');
+      const receipt: Receipt = {base: remote.status, yaml, checksum: sha(yaml), configuration, draft: checksumOf(system.configuration),
+        kind: 'flags', review: this.review(system, remote.status, configuration, remote.configuration, 'flags'), assertCurrent: wire.assertCurrent};
+      if (synchronize) {
+        const preview = structuredClone(project); const owner = preview.systems.find(item => item.id === id)!;
+        owner.configuration = nextDraft;
+        owner.stored = {revision: configuration.revision, checksum: receipt.checksum, configuration, yaml};
+        projectBytes(preview);
+      }
+      this.receipts.delete(id); this.sequence++;
+      await this.validate(wire, receipt);
+      const broker = project.brokers.find(item => item.id === system.brokerId);
+      const key = sha(JSON.stringify([project.id, id, system.baseTopic, broker?.host, broker?.port, broker?.tls]));
+      const outcome = await this.store(key, project, system, remote, receipt, wire);
+      if (outcome === 'transferStored' && synchronize) this.projects.replaceDraft(id, nextDraft);
+      return outcome;
+    });
+  }
   private reset(): void {
     const epoch = this.projects.generation();
     if (this.epoch !== epoch) { this.receipts.clear(); this.progress.clear(); this.epoch = epoch; this.sequence++; }
@@ -262,6 +318,8 @@ export class ExtensionTransfer {
     };
     if (conditionTopics.size && !supportsConditions(remote)) throw new Error('draftRemoteConditionVersion');
     const checkedProject = structuredClone(project);
+    const checkingSystem = {...system, configuration};
+    checkedProject.systems.find(item => item.id === system.id)!.configuration = configuration;
     await Promise.all([...targetTopics].map(async topic => {
       const owners = checkedProject.systems.filter(item => item.baseTopic === topic && item.id !== system.id);
       if (owners.length !== 1 || !owners[0]) throw new Error('draftPermission');
@@ -272,7 +330,7 @@ export class ExtensionTransfer {
       catalogs.set(owner.id, {...observed, fresh: true});
     }));
     const catalog = {current: (id: string) => catalogs.get(id) ?? null};
-    checkConfigurationCapabilities(configuration, checkedProject, system, catalog);
+    checkConfigurationCapabilities(configuration, checkedProject, checkingSystem, catalog);
   }
   private review(system: ProjectSystem, base: RemoteStatus | null, next?: Configuration, previous?: Configuration, kind: CheckKind = 'configuration'): Review {
     const changes: string[] = [];

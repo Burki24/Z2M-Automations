@@ -32,9 +32,9 @@ if (!process.versions.electron) {
   const run = async () => {
     await app.whenReady();
     const assets = join(root, 'apps/desktop/.build/renderer');
-    const names = new Set(['network.js', 'draft-review.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
+    const names = new Set(['network.js', 'operation-flags.js', 'draft-review.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
     protocol.handle('z2ma', async request => {
-      if (request.url === 'z2ma://app/index.html') return new Response('<!doctype html><meta charset="utf-8"><body></body>', {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
+      if (request.url === 'z2ma://app/index.html') return new Response('<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="designer.css"><link rel="stylesheet" href="desktop-palette.css"><link rel="stylesheet" href="desktop.css"><body class="desktop-foundation"></body>', {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
       const name = assetPath(request.url, request.method, names);
       if (!name) return new Response(null, {status: 404});
       return new Response(await readFile(join(assets, name)), {headers: {'Content-Type': extname(name) === '.css' ? 'text/css' : extname(name) === '.html' ? 'text/html' : 'application/javascript', 'Content-Security-Policy': csp}});
@@ -42,6 +42,28 @@ if (!process.versions.electron) {
     const window = new BrowserWindow({show: false, width: 1000, height: 800, webPreferences: {...rendererPreferences, backgroundThrottling: false}});
     await window.loadURL('z2ma://app/index.html');
     await window.webContents.executeJavaScript('(' + rendererTest + ')()');
+    await window.webContents.executeJavaScript(`(() => {
+      const panel = document.querySelector('#mqtt-rule-flags');
+      for (const child of document.body.children) if (!child.contains(panel)) child.hidden = true;
+      const list = panel.querySelector('ul'); const row = list.firstElementChild;
+      for (let index = 0; index < 40; index++) {
+        const copy = row.cloneNode(true); copy.querySelector('strong').textContent = 'Synthetic long automation name '.repeat(6); list.append(copy);
+      }
+    })()`);
+    for (const width of [360, 1280]) for (const theme of ['light', 'dark']) {
+      window.setContentSize(width, 800);
+      await window.webContents.executeJavaScript(`(async () => {
+        document.documentElement.style.colorScheme = '${theme}';
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const panel = document.querySelector('#mqtt-rule-flags'); const list = panel.querySelector('ul');
+        if (panel.getBoundingClientRect().right > innerWidth + 1 || document.scrollingElement.scrollWidth > innerWidth + 1) throw new Error('Rule permissions overflow the workspace');
+        if (list.scrollHeight <= list.clientHeight || getComputedStyle(list).overflowY !== 'auto') throw new Error('Rule selection needs its own bounded scroll area');
+        list.scrollTop = list.scrollHeight;
+        if (Math.abs(list.scrollTop + list.clientHeight - list.scrollHeight) > 1) throw new Error('The last rule must remain reachable');
+        const input = list.querySelector('input'); input.focus();
+        if (document.activeElement !== input || input.getBoundingClientRect().width < 18) throw new Error('Rule checkboxes must remain keyboard accessible');
+      })()`);
+    }
     await window.loadURL('z2ma://app/confirmation.html');
     for (const width of [320, 540]) for (const theme of ['light', 'dark']) {
       window.setContentSize(width, 310);
@@ -59,7 +81,7 @@ if (!process.versions.electron) {
         if (document.scrollingElement.scrollTop !== 0) throw new Error('Confirmation body must not scroll');
       })()`);
     }
-    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/capability-findings/confirmation-layout'); app.exit(0);
+    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/capability-findings/operation-flags/confirmation-layout'); app.exit(0);
   };
   run().catch(error => { console.error('EXTENSION_UPDATE_DOM_FAILED ' + error.stack); app.exit(1); });
 }
@@ -79,12 +101,21 @@ async function rendererTest() {
     link: parent => { const value = document.createElement('button'); parent.append(value); return value; }};
   const id = '11111111-1111-4111-8111-111111111111';
   const state = {sequence: 0, brokers: [{id: 'broker', state: 'connected'}], systems: [{id, brokerId: 'broker', name: 'Synthetic', baseTopic: 'synthetic', fresh: true, stored: true,
-    devices: 0, scenes: 0, executing: false, runtime: {resume: true, recovery: 'stopped', runs: [], rules: []}}], extensionUpdates: []};
-  let finish, installing = false, polls = 0, view, finishTransfer, transferring = false, kind = 'flags', validationFailure;
+    flagsContext: 'a'.repeat(64), devices: 0, scenes: 0, executing: false, runtime: {resume: true, recovery: 'stopped', runs: [], rules: [
+      {id: 'rule_a', name: 'Zulu', enabled: false}, {id: 'rule_b', name: 'Alpha', enabled: false}]}}], extensionUpdates: []};
+  let finish, installing = false, polls = 0, view, finishTransfer, transferring = false, kind = 'flags', validationFailure, flagsCanceled = false;
   const commands = [];
-  const bridge = {snapshot: async () => structuredClone(view), designer: async () => ({ok: true}), network: async ({action}) => {
+  const bridge = {snapshot: async () => structuredClone(view), designer: async () => ({ok: true}), network: async ({action, enabled, context}) => {
     if (action === 'status') { polls++; return {ok: true, state: structuredClone(state)}; }
     commands.push(action);
+    if (action === 'setRuleFlags') {
+      assert(context === state.systems[0].flagsContext, 'Submit the displayed stored-state context');
+      if (flagsCanceled) return {ok: true, state: {...structuredClone(state), outcome: 'transferCanceled'}};
+      for (const rule of state.systems[0].runtime.rules) rule.enabled = enabled.includes(rule.id);
+      state.systems[0].executing = false;
+      state.systems[0].flagsContext = 'b'.repeat(64); state.sequence++;
+      return {ok: true, state: {...structuredClone(state), outcome: 'transferStored'}};
+    }
     if (action === 'validate') {
       if (validationFailure) return {ok: false, error: 'draftValue', validation: structuredClone(validationFailure)};
       state.sequence++; state.draftChecks = [{id, kind, added: 0, changed: kind === 'unchanged' ? 0 : 1, removed: 0, enabled: kind === 'flags' ? 1 : 0}];
@@ -170,6 +201,48 @@ async function rendererTest() {
   large.issues[0].reason = 'capability_enum'; large.issues[0].capability.allowed = Array(32).fill('x'.repeat(96));
   assert(validationSummary(large).length < 3000, 'Editor error summaries must stay within the transport response bound');
   validationFailure = undefined;
+  setLanguage('en', {persist: false, report: false});
+  const ruleList = document.querySelector('#mqtt-rule-flags-list');
+  const permission = id => ruleList.querySelector('[data-rule-id="' + id + '"]');
+  const choose = (id, checked) => { const input = permission(id); input.checked = checked; input.dispatchEvent(new Event('change', {bubbles: true})); };
+  assert(document.querySelector('#mqtt-rule-count').textContent.includes('0 of 2')
+    && document.querySelector('#mqtt-operation-reason').textContent.includes('No automation is enabled')
+    && document.querySelector('#mqtt-activate').disabled, 'Explain the zero-enabled start block beside the operation controls');
+  assert([...ruleList.querySelectorAll('strong')].map(node => node.textContent).join('|') === 'Alpha|Zulu', 'Operation rules must be alphabetical');
+  choose('rule_b', true);
+  setLanguage('de', {persist: false, report: false});
+  assert(permission('rule_b').checked && document.querySelector('#mqtt-rule-count').textContent.includes('0 von 2'), 'Selection is pending and survives the central language switch');
+  document.querySelector('#mqtt-apply-flags').click();
+  await wait(() => document.querySelector('#mqtt-rule-count').textContent.includes('1 von 2') && document.querySelector('#mqtt-apply-flags').disabled);
+  assert(document.querySelector('#mqtt-rule-flags-feedback').textContent.includes('Freigaben sind in Z2M bestätigt')
+    && !document.querySelector('#mqtt-activate').disabled, 'Confirmed permissions unlock a separate start without starting automatically');
+  assert(!permission('rule_a').checked && permission('rule_b').checked, 'Apply only the selected rules');
+  choose('rule_b', false); flagsCanceled = true;
+  document.querySelector('#mqtt-apply-flags').click();
+  await wait(() => document.querySelector('#mqtt-rule-flags-feedback').textContent.includes('Abgebrochen'));
+  assert(!permission('rule_b').checked && document.querySelector('#mqtt-rule-count').textContent.includes('1 von 2'), 'Cancellation preserves the pending choice and actual stored count');
+  flagsCanceled = false; state.systems[0].flagsContext = 'c'.repeat(64); state.sequence++; update(view);
+  await wait(() => document.querySelector('#mqtt-apply-flags').disabled);
+  assert(document.querySelector('#mqtt-rule-flags').textContent.includes('Stand wurde inzwischen geändert') && !permission('rule_b').checked,
+    'An external revision must not silently overwrite or rebase a pending selection');
+  document.querySelector('#mqtt-reset-flags').click();
+  assert(permission('rule_b').checked, 'Refresh selection explicitly adopts confirmed flags');
+  choose('rule_a', true);
+  state.systems[0].fresh = false; state.sequence++; update(view);
+  await wait(() => permission('rule_a').disabled);
+  assert(document.querySelector('#mqtt-rule-count').textContent.includes('noch nicht frisch bestätigt'), 'A stale read cannot claim a confirmed enabled count');
+  state.systems[0].fresh = true; state.sequence++; update(view);
+  await wait(() => !permission('rule_a').disabled);
+  assert(permission('rule_a').checked, 'Refreshing unchanged state preserves the selected permissions');
+  state.systems[0].transferPending = true; state.sequence++; update(view);
+  await wait(() => !document.querySelector('#mqtt-check-flags').hidden);
+  assert(document.querySelector('#mqtt-activate').disabled && document.querySelector('#mqtt-operation-reason').textContent.includes('ungeklärt'),
+    'Unresolved transfer status blocks starting and offers read-only reconciliation');
+  state.systems[0].transferPending = false; state.sequence++; update(view);
+  await wait(() => !permission('rule_a').disabled);
+  document.querySelector('#mqtt-reset-flags').click();
+  assert(commands.filter(action => action === 'setRuleFlags').length === 2
+    && commands.every(action => ['validate', 'store', 'setRuleFlags'].includes(action)), 'Rule selection never issues activation or device commands');
   setLanguage('en', {persist: false, report: false});
   state.systems[0].executing = false;
   document.querySelector('#mqtt-install').click();

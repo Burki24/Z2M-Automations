@@ -63,6 +63,13 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     assert(!document.querySelector('#desktop-view-operation').hidden && document.querySelector('#desktop-view-automations').hidden
       && !document.querySelector('#desktop-view-operation #mqtt-store'), 'operation is separate from editing and transfer');
     await wait(() => [...document.querySelector('#mqtt-rule').options].some(option => option.textContent.includes('Synthetic remote rule')));
+    const permission = () => document.querySelector('#mqtt-rule-flags-list input');
+    await wait(() => permission() && !permission().disabled);
+    assert(document.querySelector('#mqtt-rule-count').dataset.enabled === '1'
+      && document.querySelector('#mqtt-rule-count').dataset.total === '1', 'operation must count stored automations independently of the local draft');
+    permission().checked = false; permission().dispatchEvent(new Event('change', {bubbles: true}));
+    assert(document.querySelector('#mqtt-rule-count').dataset.enabled === '1' && !document.querySelector('#mqtt-apply-flags').disabled,
+      'changing a selection must not claim that permissions were stored');
     const picker = document.querySelector('#designer-system');
     picker.value = project.systems[1].id; picker.dispatchEvent(new Event('change'));
     await wait(() => [...document.querySelector('#mqtt-rule').options].some(option => option.textContent.includes('Other stored rule')));
@@ -71,6 +78,13 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
       'the selected system replaces both catalog lists and shows its empty group list');
     picker.value = id; picker.dispatchEvent(new Event('change'));
     await wait(() => [...document.querySelector('#mqtt-rule').options].some(option => option.textContent.includes('Synthetic remote rule')));
+    await wait(() => permission() && !permission().disabled);
+    assert(!permission().checked, 'a pending rule selection must survive switching systems');
+    document.querySelector('#mqtt-reset-flags').click();
+    assert(permission().checked, 'selection refresh must restore the confirmed stored switch');
+    const flagsContext = (await state()).systems.find(system => system.id === id).flagsContext;
+    assert(!(await bridge.network({action: 'setRuleFlags', id, context: flagsContext, enabled: []})).ok,
+      'the smoke profile must not allow direct rule-grant transfers');
     navigate('automations');
     document.querySelector('[data-area="catalog"]').click();
     assert(document.querySelector('#entry-list').textContent.includes('Synthetic light'), 'catalog stays in the automation workspace');

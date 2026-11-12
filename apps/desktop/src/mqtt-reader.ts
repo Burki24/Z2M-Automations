@@ -19,7 +19,7 @@ const wireTopic = (base: string, operation: WireOperation, direction: 'request' 
 const systemTopics = (base: string): string[] => [base + '/bridge/state', base + '/bridge/extensions', base + extensionPrefix + 'status', base + extensionPrefix + 'runs',
   ...wireOperations.map(operation => wireTopic(base, operation, 'response'))];
 
-export interface NetworkCommand {action: 'status' | 'connect' | 'disconnect' | 'autoConnect' | 'refresh' | 'linkPlan' | 'linkCheck' | 'certificates' | 'clearCertificates' | 'view' | 'validate' | 'store' | 'install' | 'checkTransfer' | 'validateEnabled' | 'runtimeStatus' | RuntimeAction; id: string; peerId?: string; source?: 'draft' | 'stored'; rule?: string; run?: string; resume?: boolean; mode?: AutoConnectMode}
+export interface NetworkCommand {action: 'status' | 'connect' | 'disconnect' | 'autoConnect' | 'refresh' | 'linkPlan' | 'linkCheck' | 'certificates' | 'clearCertificates' | 'view' | 'validate' | 'store' | 'install' | 'checkTransfer' | 'validateEnabled' | 'runtimeStatus' | 'setRuleFlags' | RuntimeAction; id: string; peerId?: string; source?: 'draft' | 'stored'; rule?: string; run?: string; resume?: boolean; mode?: AutoConnectMode; context?: string; enabled?: string[]}
 export interface TLSMaterial {ca?: string; cert?: string; key?: string; passphrase?: string}
 interface Pending {topic: string; generation: number; operation: 'read' | 'validate' | 'store' | 'install' | 'restart' | RuntimeAction; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>}
 interface Connection {
@@ -382,6 +382,10 @@ export function validNetworkCommand(value: unknown): value is NetworkCommand {
   if (value['action'] === 'autoConnect') return exact(value, ['action', 'id', 'mode']) && validId(value['id'])
     && typeof value['mode'] === 'string' && ['off', 'credentials', 'anonymous'].includes(value['mode']);
   if (value['action'] === 'view') return exact(value, ['action', 'id', 'source']) && ['draft', 'stored'].includes(String(value['source']));
+  if (value['action'] === 'setRuleFlags') return exact(value, ['action', 'id', 'context', 'enabled']) && validId(value['id'])
+    && typeof value['context'] === 'string' && /^[a-f0-9]{64}$/.test(value['context']) && Array.isArray(value['enabled'])
+    && value['enabled'].length <= 100 && new Set(value['enabled']).size === value['enabled'].length
+    && value['enabled'].every(rule => typeof rule === 'string' && /^[a-z][a-z0-9_-]{0,63}$/.test(rule));
   if (value['action'] === 'activate') return exact(value, ['action', 'id', 'resume']) && validId(value['id']) && typeof value['resume'] === 'boolean';
   if (value['action'] === 'run_once' || value['action'] === 'stop_rule') return exact(value, ['action', 'id', 'rule', ...(value['action'] === 'stop_rule' ? ['run'] : [])])
     && validId(value['id']) && typeof value['rule'] === 'string' && /^[a-z][a-z0-9_-]{0,63}$/.test(value['rule'])
