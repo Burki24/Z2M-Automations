@@ -13,10 +13,13 @@ if (!process.versions.electron) {
   try {
     const env = {...process.env, Z2MA_UPDATE_TEST_PROFILE: profile}; delete env.ELECTRON_RUN_AS_NODE;
     const child = spawn(require('electron'), [fileURLToPath(import.meta.url)], {cwd: root, env, windowsHide: true, stdio: 'inherit'});
-    const timer = setTimeout(() => child.kill(), 30000);
+    const started = Date.now(); let expired = false;
+    const timer = setTimeout(() => { expired = true; child.kill(); }, 30000);
     try {
-      const code = await new Promise((done, reject) => { child.once('error', reject); child.once('close', done); });
-      if (code !== 0) throw new Error('Extension update DOM test failed: ' + code);
+      const {code, signal} = await new Promise((done, reject) => {
+        child.once('error', reject); child.once('close', (code, signal) => done({code, signal}));
+      });
+      if (expired || code !== 0) throw new Error('Extension update DOM test failed: ' + JSON.stringify({timeout: expired, elapsedMs: Date.now() - started, code, signal}));
     } finally { clearTimeout(timer); }
   } finally {
     const target = resolve(profile);
@@ -30,7 +33,17 @@ if (!process.versions.electron) {
   protocol.registerSchemesAsPrivileged([{scheme: 'z2ma', privileges: {standard: true, secure: true, supportFetchAPI: true}}]);
   if (process.platform === 'linux' && process.env.CI === 'true') app.disableHardwareAcceleration();
   const run = async () => {
-    await app.whenReady();
+    const started = Date.now();
+    const step = async (phase, action) => {
+      console.log('EXTENSION_UPDATE_DOM_STEP ' + JSON.stringify({phase, elapsedMs: Date.now() - started}));
+      let timer;
+      try {
+        return await Promise.race([Promise.resolve().then(action), new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Extension update DOM phase timed out: ' + phase)), 8000);
+        })]);
+      } finally { clearTimeout(timer); }
+    };
+    await step('app-ready', () => app.whenReady());
     const assets = join(root, 'apps/desktop/.build/renderer');
     const names = new Set(['network.js', 'operation-flags.js', 'draft-review.js', 'drafts.js', 'desktop-workspace.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
     protocol.handle('z2ma', async request => {
@@ -41,17 +54,34 @@ if (!process.versions.electron) {
       return new Response(await readFile(join(assets, name)), {headers: {'Content-Type': extname(name) === '.css' ? 'text/css' : extname(name) === '.html' ? 'text/html' : 'application/javascript', 'Content-Security-Policy': csp}});
     });
     const window = new BrowserWindow({show: false, width: 1000, height: 800, webPreferences: {...rendererPreferences, backgroundThrottling: false}});
-    await window.loadURL('z2ma://app/workspace.html');
-    await window.webContents.executeJavaScript('(' + prepareWorkspaceLayout + ')()');
-    window.webContents.debugger.attach('1.3');
-    await window.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', {enabled: true});
-    await window.webContents.debugger.sendCommand('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
-    await window.webContents.debugger.sendCommand('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
-    for (const [width, height, fontSize] of [[1440, 900, 16], [1440, 600, 16], [1440, 500, 16], [1024, 768, 16], [1024, 768, 24], [360, 740, 16]]) for (const theme of ['light', 'dark']) {
+    const evaluate = (phase, source) => step(phase, () => window.webContents.executeJavaScript(source));
+    const load = (page, url) => step('load-' + page, () => window.loadURL(url));
+    const resize = async (width, height) => {
       window.setContentSize(width, height);
-      await window.webContents.executeJavaScript(`(async () => {
+      const deadline = Date.now() + 3000; let viewport;
+      do {
+        viewport = await window.webContents.executeJavaScript('({width: innerWidth, height: innerHeight})');
+        if (viewport.width === width && viewport.height === height) return;
+        await new Promise(resolve => setTimeout(resolve, 10));
+      } while (Date.now() < deadline);
+      throw new Error('Renderer viewport did not resize: ' + JSON.stringify({expected: {width, height}, actual: viewport}));
+    };
+    const layout = (phase, width, height, source) => step(phase, async () => {
+      await resize(width, height);
+      return window.webContents.executeJavaScript(source);
+    });
+    await load('workspace', 'z2ma://app/workspace.html');
+    await evaluate('prepare-workspace', '(' + prepareWorkspaceLayout + ')()');
+    await step('keyboard-focus-mode', async () => {
+      window.webContents.debugger.attach('1.3');
+      await window.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', {enabled: true});
+      await window.webContents.debugger.sendCommand('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
+      await window.webContents.debugger.sendCommand('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
+    });
+    // Layout reads flush styles; verify renderer dimensions without waiting for hidden-window paint.
+    for (const [width, height, fontSize] of [[1440, 900, 16], [1440, 600, 16], [1440, 500, 16], [1024, 768, 16], [1024, 768, 24], [360, 740, 16]]) for (const theme of ['light', 'dark']) {
+      await layout(`workspace-${width}x${height}-${fontSize}-${theme}`, width, height, `(async () => {
         document.documentElement.style.colorScheme = '${theme}'; document.documentElement.style.fontSize = '${fontSize}px';
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const list = document.querySelector('#entry-list'); const workspace = document.querySelector('.workspace');
         const rect = list.getBoundingClientRect();
         if (getComputedStyle(workspace).display === 'grid' && (rect.bottom > innerHeight + 1 || rect.top < 0)) throw new Error('Automation list extends below the visible window: ' + JSON.stringify({viewport: [innerWidth, innerHeight], list: [rect.top, rect.bottom], workspace: [workspace.getBoundingClientRect().top, workspace.clientHeight], navigation: list.parentElement.clientHeight}));
@@ -81,14 +111,16 @@ if (!process.versions.electron) {
         if (!list.lastElementChild.dispatchEvent(new WheelEvent('wheel', {bubbles: true, cancelable: true, deltaY: 120})) || !wheelReceived) throw new Error('The automation list must receive wheel input without cancellation');
       })()`);
     }
-    window.webContents.debugger.detach();
-    await window.webContents.executeJavaScript("document.documentElement.style.fontSize = '';");
-    window.setContentSize(1000, 800);
-    await window.loadURL('z2ma://app/index.html');
-    await window.webContents.executeJavaScript('(' + workspaceSummaryTest + ')()');
-    await window.loadURL('z2ma://app/index.html');
-    await window.webContents.executeJavaScript('(' + rendererTest + ')()');
-    await window.webContents.executeJavaScript(`(() => {
+    await step('reset-workspace', async () => {
+      window.webContents.debugger.detach();
+      await window.webContents.executeJavaScript("document.documentElement.style.fontSize = '';");
+      await resize(1000, 800);
+    });
+    await load('draft-summaries', 'z2ma://app/index.html');
+    await evaluate('draft-summaries', '(' + workspaceSummaryTest + ')()');
+    await load('network-controls', 'z2ma://app/index.html');
+    await evaluate('network-controls', '(' + rendererTest + ')()');
+    await evaluate('prepare-rule-list', `(() => {
       const panel = document.querySelector('#mqtt-rule-flags');
       for (const child of document.body.children) if (!child.contains(panel)) child.hidden = true;
       const list = panel.querySelector('ul'); const row = list.firstElementChild;
@@ -97,10 +129,8 @@ if (!process.versions.electron) {
       }
     })()`);
     for (const width of [360, 1280]) for (const theme of ['light', 'dark']) {
-      window.setContentSize(width, 800);
-      await window.webContents.executeJavaScript(`(async () => {
+      await layout(`rule-list-${width}-${theme}`, width, 800, `(() => {
         document.documentElement.style.colorScheme = '${theme}';
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const panel = document.querySelector('#mqtt-rule-flags'); const list = panel.querySelector('ul');
         if (panel.getBoundingClientRect().right > innerWidth + 1 || document.scrollingElement.scrollWidth > innerWidth + 1) throw new Error('Rule permissions overflow the workspace');
         if (list.scrollHeight <= list.clientHeight || getComputedStyle(list).overflowY !== 'auto') throw new Error('Rule selection needs its own bounded scroll area');
@@ -110,15 +140,13 @@ if (!process.versions.electron) {
         if (document.activeElement !== input || input.getBoundingClientRect().width < 18) throw new Error('Rule checkboxes must remain keyboard accessible');
       })()`);
     }
-    await window.loadURL('z2ma://app/confirmation.html');
+    await load('confirmation', 'z2ma://app/confirmation.html');
     for (const width of [320, 540]) for (const theme of ['light', 'dark']) {
-      window.setContentSize(width, 310);
-      await window.webContents.executeJavaScript(`(async () => {
+      await layout(`confirmation-${width}-${theme}`, width, 310, `(() => {
         document.documentElement.style.colorScheme = '${theme}';
         document.querySelector('#question').textContent = 'Extension installieren und Zigbee2MQTT neu starten?';
         document.querySelector('#detail').textContent = ${JSON.stringify('Synthetic target · Broker (127.0.0.1:1883) · Build old → new. '.repeat(12))};
         document.querySelector('#cancel').textContent = 'Abbrechen'; document.querySelector('#accept').textContent = 'Fortfahren';
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const footer = document.querySelector('footer').getBoundingClientRect();
         if (footer.bottom > innerHeight + 1 || footer.top < 0) throw new Error('Confirmation buttons outside viewport');
         const detail = document.querySelector('#detail');
@@ -127,7 +155,7 @@ if (!process.versions.electron) {
         if (document.scrollingElement.scrollTop !== 0) throw new Error('Confirmation body must not scroll');
       })()`);
     }
-    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/capability-findings/operation-flags/confirmation-layout'); app.exit(0);
+    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/capability-findings/operation-flags/confirmation-layout elapsedMs=' + (Date.now() - started)); app.exit(0);
   };
   run().catch(error => { console.error('EXTENSION_UPDATE_DOM_FAILED ' + error.stack); app.exit(1); });
 }

@@ -192,6 +192,13 @@ It verifies that the outer window does not scroll, the list remains bounded,
 the last rule is reachable and keyboard focus reveals its name. Synthetic wheel
 delivery checks uncancelled event propagation; native pointer scrolling remains
 part of installed-app acceptance. No image capture is used.
+Layout checks wait for the renderer's requested viewport size and read actual
+DOM geometry, without waiting for animation frames in the hidden test window.
+Those frames can be delayed by seconds and previously exhausted the unchanged
+30-second process limit. `EXTENSION_UPDATE_DOM_STEP` reports fixed phase names,
+viewport/theme cases and elapsed time; each phase also has an eight-second
+deadline. Process failures report timeout, elapsed time, exit code and signal.
+These diagnostics contain synthetic test metadata only and capture no images.
 
 Use `npm run smoke -- --no-capture` for the complete source smoke without images,
 or `npm run smoke:packaged -- --no-capture` after packaging. The flag disables
