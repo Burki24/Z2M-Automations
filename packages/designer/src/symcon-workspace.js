@@ -123,6 +123,9 @@ export function installSymconWorkspace({getData, reload = async () => false}) {
         shell.mountDesigner();
         // Request failures must remain visible in setup, review and operation too.
         shell.context.after(document.querySelector('.designer-feedback'));
+        const catalogShortcut = shell.link(document.querySelector('.designer-feedback'), 'connection', 'symcon.catalog.openRefresh');
+        catalogShortcut.id = 'symcon-open-device-refresh'; catalogShortcut.hidden = true;
+        nodes.catalogShortcut = catalogShortcut;
         document.querySelector('#validate-button')?.addEventListener('click', () => shell.show('connection'));
         document.addEventListener('z2ma-workflow-next', event => shell.show(event.detail?.next === 'store' ? 'transfer' : event.detail?.next === 'review' ? 'review' : 'connection'));
         document.querySelector('.system-selector')?.addEventListener('change', () => shell.show('automations', false));
@@ -175,6 +178,7 @@ export function installSymconWorkspace({getData, reload = async () => false}) {
         if (!data?.workspace) return;
         data.guidedUI = true;
         if (!shell) mount();
+        nodes.catalogShortcut.hidden = data.catalogAvailable !== false || !data.catalogRefresh || !data.workspaceContext?.systemId;
         const systems = [...data.workspace.systems].sort((a, b) => new Intl.Collator(locale(), {numeric: true, sensitivity: 'base'}).compare(a.name, b.name));
         const brokers = [...new Set(systems.map(system => system.binding?.mqttParent))];
         shell.updateProject({active: true, project: {name: data.module.name, brokers: brokers.length ? brokers : [{}], systems}}, initial);

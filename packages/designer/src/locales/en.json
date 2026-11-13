@@ -805,7 +805,7 @@
     "ui.device.data.has.loaded.the.3d94e1f2": "Device data has loaded. The view could not be refreshed yet. Choose “Refresh view”.",
     "ui.device.data.has.loaded.your.f59288f4": "Device data has loaded. Your input has been preserved. Close the editor and choose “Refresh view”.",
     "ui.device.data.is.missing.for.23e595fa": "Device data is missing for this connection. In the native module, choose “Refresh device data only”, then choose “Refresh view” here. Drafts are preserved.",
-    "ui.device.data.is.missing.for.db0f1bfb": "Device data is missing for this system. Choose “Refresh device data” above. Drafts are preserved.",
+    "ui.device.data.is.missing.for.db0f1bfb": "Device data is missing for this system. Open step 4 “Connect and read inventory” and choose “Refresh device data”. Drafts are preserved.",
     "ui.device.data.last.refreshed.7a5587aa": " Device data last refreshed: {{p1}}.",
     "ui.device.data.loaded.de8568c7": "Device data loaded",
     "ui.device.data.missing.25af8c67": "{{p1}}{{p2}}{{p3}} (device data missing)",
@@ -1094,7 +1094,7 @@
     "ui.save.the.validated.draft.for.7095eb90": "Save the validated draft for “{{p1}}” in Z2M? If changed, its current automatic operation stops. No automation is activated.",
     "ui.save.validated.draft.in.z2m.a3205ccc": "Save validated draft in Z2M",
     "ui.saved.5e2338e2": "Saved",
-    "ui.saved.device.data.is.not.ee025668": "Saved device data is not currently confirmed. Choose “Refresh device data” above. Drafts are preserved.",
+    "ui.saved.device.data.is.not.ee025668": "Saved device data is not currently confirmed. Open step 4 “Connect and read inventory” and choose “Refresh device data”. Drafts are preserved.",
     "ui.saving.replaces.only.this.system.76c800ba": "Saving replaces only this system’s automation file. If changed, its previous execution stops. No automation is activated.",
     "ui.scene.46b80b02": "{{p1}} · Scene: {{p2}}{{p3}}",
     "ui.scene.7e27863f": "Scene",
@@ -2115,5 +2115,6 @@
     "symcon.systems.assigned": "Already assigned",
     "symcon.systems.available": "Available – select to assign",
     "symcon.systems.unavailable": "Unavailable – check the binding and owner in Symcon",
-    "symcon.systems.reopen": "Please reopen the designer from the module to assign systems."
+    "symcon.systems.reopen": "Please reopen the designer from the module to assign systems.",
+    "symcon.catalog.openRefresh": "Open step 4: device data"
 }

@@ -805,7 +805,7 @@
     "ui.device.data.has.loaded.the.3d94e1f2": "Gerätedaten sind geladen. Die Ansicht konnte noch nicht nachgeladen werden. Bitte „Ansicht aktualisieren“ wählen.",
     "ui.device.data.has.loaded.your.f59288f4": "Gerätedaten sind geladen. Ihre Eingaben bleiben erhalten. Bitte die Bearbeitung schließen und anschließend „Ansicht aktualisieren“ wählen.",
     "ui.device.data.is.missing.for.23e595fa": "Gerätedaten fehlen für diese Verbindung. Im nativen Modul „Nur Gerätedaten aktualisieren“ wählen, danach hier „Ansicht aktualisieren“. Entwürfe bleiben erhalten.",
-    "ui.device.data.is.missing.for.db0f1bfb": "Gerätedaten fehlen für dieses System. Oben „Gerätedaten aktualisieren“ wählen. Entwürfe bleiben erhalten.",
+    "ui.device.data.is.missing.for.db0f1bfb": "Gerätedaten fehlen für dieses System. Öffne Schritt 4 „Verbinden und Bestand lesen“ und wähle dort „Gerätedaten aktualisieren“. Entwürfe bleiben erhalten.",
     "ui.device.data.last.refreshed.7a5587aa": " Gerätedaten zuletzt aktualisiert: {{p1}}.",
     "ui.device.data.loaded.de8568c7": "Gerätedaten geladen",
     "ui.device.data.missing.25af8c67": "{{p1}}{{p2}}{{p3}} (Gerätedaten fehlen)",
@@ -1094,7 +1094,7 @@
     "ui.save.the.validated.draft.for.7095eb90": "Geprüften Entwurf für „{{p1}}“ in Z2M speichern? Bei Änderungen stoppt dort der bisherige Automatikbetrieb. Es wird keine Automation aktiviert.",
     "ui.save.validated.draft.in.z2m.a3205ccc": "Geprüften Entwurf in Z2M speichern",
     "ui.saved.5e2338e2": "Gespeichert",
-    "ui.saved.device.data.is.not.ee025668": "Gespeicherte Gerätedaten sind derzeit nicht bestätigt. Oben „Gerätedaten aktualisieren“ wählen. Entwürfe bleiben erhalten.",
+    "ui.saved.device.data.is.not.ee025668": "Gespeicherte Gerätedaten sind derzeit nicht bestätigt. Öffne Schritt 4 „Verbinden und Bestand lesen“ und wähle dort „Gerätedaten aktualisieren“. Entwürfe bleiben erhalten.",
     "ui.saving.replaces.only.this.system.76c800ba": "Speichern ersetzt nur die Automationsdatei dieses Systems. Bei Änderungen stoppt dort die bisherige Ausführung. Es wird keine Automation aktiviert.",
     "ui.scene.46b80b02": "{{p1}} · Szene: {{p2}}{{p3}}",
     "ui.scene.7e27863f": "Szene",
@@ -2115,5 +2115,6 @@
     "symcon.systems.assigned": "Bereits zugeordnet",
     "symcon.systems.available": "Verfügbar – zum Zuordnen anhaken",
     "symcon.systems.unavailable": "Nicht verfügbar – Zuordnung und Besitzer in Symcon prüfen",
-    "symcon.systems.reopen": "Bitte den Designer für die Systemzuordnung erneut im Modul öffnen."
+    "symcon.systems.reopen": "Bitte den Designer für die Systemzuordnung erneut im Modul öffnen.",
+    "symcon.catalog.openRefresh": "Zu Schritt 4: Gerätedaten"
 }

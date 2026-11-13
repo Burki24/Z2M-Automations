@@ -14,6 +14,11 @@ local rule switches, cancellation and explicit scoped stop/check/store in both
 browser and tile. It contacts only its own loopback fixture. Keep native installed
 acceptance and platform CI evidence separate from these local checks.
 
+Symcon's missing/unconfirmed catalogue guidance names step 4 and offers a
+navigation shortcut. Opening that step or refreshing the module view must not
+start a device read. The offline browser/tile fixture verifies the explicit
+catalogue request separately and checks that drafts survive it in DE/EN.
+
 ## Setup and checks
 
 ~~~sh

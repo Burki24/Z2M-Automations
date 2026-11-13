@@ -143,6 +143,8 @@
 .guided-foundation .desktop-content > .designer-feedback { flex: none; max-height: 20dvh; overflow: auto; padding: .4rem 1rem; }
 .guided-foundation .desktop-content > .designer-feedback:has(#feedback:empty) { display: none; }
 .symcon-foundation .app-header :is(#new-automation-button, .preview-label) { display: none; }
+.symcon-foundation .designer-feedback:has(#symcon-open-device-refresh:not([hidden])) { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.symcon-foundation .designer-feedback:has(#symcon-open-device-refresh:not([hidden])) #feedback { flex: 1 1 24rem; min-width: 0; }
 @media (max-width: 900px), (max-height: 650px) {
   /* Native access controls and wrapped context must not consume the whole work area. */
   .symcon-foundation .desktop-content { overflow-y: auto; }
