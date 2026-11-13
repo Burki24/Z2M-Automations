@@ -14,10 +14,10 @@ const {checkedDocument, checkConfigurationCapabilities} = require('../apps/deskt
 const {DraftExchange, importDraft, exportDraft} = require('../apps/desktop/.build/draft-exchange.js');
 const {editorData} = require('../apps/desktop/.build/mqtt-protocol.js');
 const {parseProject} = require('../apps/desktop/.build/project.js');
-async function setup() {
+async function setup(dialogs = {}) {
   const debug = new Diagnostics(); debug.control('start');
   const service = new ProjectService({status: async () => 'none', protectedAvailable: async () => false, clearSession() {}}, {
-    chooseOpen: async () => null, chooseSave: async () => null, confirmDiscard: async () => true, confirmRestore: async () => true, confirmDelete: async () => true
+    chooseOpen: async () => null, chooseSave: async () => null, confirmDiscard: async () => true, confirmRestore: async () => true, confirmDelete: async () => true, ...dialogs
   }, debug);
   await service.command({action: 'new'});
   const broker = {id: randomUUID(), name: 'Synthetic', host: 'broker.invalid', port: 1883, tls: false};
@@ -295,6 +295,40 @@ test('adopting stored state requires a private backup and never changes stored d
   assert.deepEqual(s.system().stored, before.stored); assert.equal(s.system().configuration.automations[0].enabled, false);
   assert.equal(s.system().configuration.automations[0].id, 'remote-rule');
 });
+test('adopted rules and their timing survive project save and a new service without restoring the pre-import backup', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'z2ma-adopt-reopen-')); t.after(() => rm(dir, {recursive: true, force: true}));
+  const path = join(dir, 'current.z2ma'); const backup = join(dir, 'before-adopt.z2ma');
+  const s = await setup({chooseSave: async () => path});
+  s.send('create', {rule: {...s.rule(), name: 'Obsolete hallway rule'}});
+  await s.service.command({action: 'save'});
+  const before = s.service.data();
+  const configuration = structuredClone(s.remotes.get(s.id).configuration);
+  const on = configuration.automations[0]; on.id = 'hallway-on'; on.name = 'Hallway on'; on.enabled = true;
+  const off = structuredClone(on); off.id = 'hallway-off'; off.name = 'Hallway off';
+  off.triggers[0].value = false; off.triggers[0].for_seconds = 30;
+  off.actions[0].values = {state: 'OFF'}; off.actions[0].delay_seconds = 0;
+  configuration.automations.push(off); configuration.revision = 74;
+  const yaml = exportDraft(configuration).toString('utf8');
+  const stored = {revision: 74, checksum: createHash('sha256').update(yaml).digest('hex'), configuration, yaml};
+  s.service.observe(s.service.data().id, s.service.generation(), s.id, stored);
+  s.views.set(s.id, 'stored');
+  const exchange = new DraftExchange(s.service, s.editor, {
+    chooseImport: async () => null, chooseExport: async () => null, chooseBackup: async () => backup, confirm: async () => true
+  });
+  await exchange.command(s.command('adopt'));
+  const adopted = s.service.data();
+  assert.equal(s.reader.source(s.id), 'draft'); assert.equal(s.service.isDirty(), true);
+  assert.deepEqual(parseProject(await readFile(backup)).systems[0].configuration, before.systems[0].configuration);
+  assert.deepEqual(s.system().configuration.automations.map(rule => [rule.id, rule.enabled]), [['hallway-on', false], ['hallway-off', false]]);
+  assert.notEqual(s.system().configuration.revision, stored.revision, 'Local and remote revision counters are independent');
+  await s.service.command({action: 'save'});
+  const reopened = await setup({chooseOpen: async () => path}); await reopened.service.command({action: 'open'});
+  assert.deepEqual(reopened.service.data(), adopted); assert.equal(reopened.service.isDirty(), false);
+  assert.deepEqual(reopened.service.data().systems[0].stored, stored, 'Saved Z2M flags remain separate from imported disabled drafts');
+  assert.deepEqual(reopened.service.data().systems[0].configuration.automations[1].triggers[0], off.triggers[0]);
+  assert.deepEqual(importDraft(exportDraft(reopened.service.data().systems[0].configuration)), s.system().configuration);
+});
+
 test('YAML exports the complete local draft without saving or changing the selected source', async t => {
   const s = await setup();
   const dir = await mkdtemp(join(tmpdir(), 'z2ma-export-')); t.after(() => rm(dir, {recursive: true, force: true}));

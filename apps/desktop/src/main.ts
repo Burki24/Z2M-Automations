@@ -10,6 +10,7 @@ import {Diagnostics} from './diagnostics.js';
 import {OfflineWorkspace} from './offline-workspace.js';
 import {configureSmokeRendering, smokeCaptureEnabled} from './smoke-rendering.js';
 import {ProjectService, type ProjectCommand} from './project-service.js';
+import type {Configuration} from './project.js';
 import {promptCredentials} from './credential-prompt.js';
 import {Credentials, readCredentialFile, type CredentialCommand} from './credentials.js';
 import {smokeProjects} from './smoke-projects.js';
@@ -48,6 +49,10 @@ let automaticConnections: AutomaticConnections;
 let drafts: DraftEditor;
 let exchange: DraftExchange;
 let transfers: ExtensionTransfer;
+const configurationSummary = (configuration?: Configuration) => configuration ? {
+  rules: configuration.automations.length, enabled: configuration.automations.filter(rule => rule['enabled'] === true).length,
+  sequences: configuration.sequences.length
+} : null;
 function message(key: string): string {
   const catalog = JSON.parse(readFileSync(join(assetsRoot, 'locales', language + '.json'), 'utf8')) as Record<string, string>;
   return catalog['project.' + key] ?? key;
@@ -61,7 +66,9 @@ function snapshot(): unknown {
   const source = system ? reader.source(system.id) : 'draft';
   const configuration = source === 'stored' ? remote?.configuration ?? system?.stored?.configuration : system?.configuration;
   return {...base, desktop: {...base.desktop, project: true, projectId: project.id, epoch: projects.generation(), source, systemName: system?.name ?? '',
-    draftRevision: system?.configuration.revision ?? null, projectDirty: projects.isDirty()}, module: {...base.module, name: project.name, baseTopic: system?.baseTopic ?? ''}, devices: remote?.devices ?? [], scenes: remote?.scenes ?? [],
+    draftRevision: system?.configuration.revision ?? null, projectDirty: projects.isDirty(),
+    draftSummary: configurationSummary(system?.configuration), storedSummary: configurationSummary(remote?.configuration ?? system?.stored?.configuration)},
+    module: {...base.module, name: project.name, baseTopic: system?.baseTopic ?? ''}, devices: remote?.devices ?? [], scenes: remote?.scenes ?? [],
     status: {...base.status, mqttConnected: system ? reader.connected(system.brokerId) : false, autoConnectIssue: system ? automaticConnections.setting(system.brokerId).issue : '', confirmed: remote?.fresh ?? false,
       storedRevision: remote?.status.revision ?? system?.stored?.revision ?? null,
       executing: remote?.fresh ? remote.status.executing : false, activeRevision: remote?.fresh && remote.status.executing ? remote.status.revision : null},

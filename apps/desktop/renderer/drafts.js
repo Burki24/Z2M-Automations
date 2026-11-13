@@ -5,11 +5,12 @@ export function installDraftExchange(bridge, workspace) {
     const panel = document.createElement('section'); panel.className = 'desktop-card';
     const title = document.createElement('h2'); bindText(title, () => t('desktop.steps.' + key));
     const summary = document.createElement('p');
+    const counts = document.createElement('p'); counts.id = 'draft-' + key + '-counts';
     const help = document.createElement('p'); bindText(help, () => t('desktop.steps.' + key + 'Help'));
     const controls = document.createElement('div'); controls.id = 'draft-' + key + '-actions'; controls.className = 'project-actions';
     const feedback = document.createElement('p'); feedback.className = 'desktop-feedback'; feedback.setAttribute('role', 'status');
-    panel.append(title, summary, help, controls, feedback); workspace.pages.draft.append(panel);
-    return {summary, controls, feedback};
+    panel.append(title, summary, counts, help, controls, feedback); workspace.pages.draft.append(panel);
+    return {summary, counts, controls, feedback};
   }
   const local = card('local');
   const stored = card('stored');
@@ -25,6 +26,12 @@ export function installDraftExchange(bridge, workspace) {
     bindText(stored.summary, () => revision == null ? t('desktop.steps.noStored') : revision === 0 && view?.status.confirmed
       ? t('desktop.steps.noStoredRules')
       : t(view.status.confirmed ? 'desktop.steps.storedSource' : 'desktop.steps.lastReadSource', {revision: formatNumber(revision)}));
+    for (const [card, counts] of [[local, view?.desktop.draftSummary], [stored, view?.desktop.storedSummary]]) {
+      card.counts.hidden = !counts;
+      bindText(card.counts, () => counts ? t('desktop.steps.configurationCounts', {
+        count: counts.rules, rules: formatNumber(counts.rules), enabled: formatNumber(counts.enabled), sequences: formatNumber(counts.sequences)
+      }) : '');
+    }
     for (const [route, button] of buttons) {
       button.hidden = route === 'import' && showingStored;
       button.disabled = busy || !view?.workspaceContext?.systemId || (route === 'adopt' && !(revision > 0));

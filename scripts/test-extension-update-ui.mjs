@@ -32,7 +32,7 @@ if (!process.versions.electron) {
   const run = async () => {
     await app.whenReady();
     const assets = join(root, 'apps/desktop/.build/renderer');
-    const names = new Set(['network.js', 'operation-flags.js', 'draft-review.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
+    const names = new Set(['network.js', 'operation-flags.js', 'draft-review.js', 'drafts.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
     protocol.handle('z2ma', async request => {
       if (request.url === 'z2ma://app/index.html') return new Response('<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="designer.css"><link rel="stylesheet" href="desktop-palette.css"><link rel="stylesheet" href="desktop.css"><body class="desktop-foundation"></body>', {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
       const name = assetPath(request.url, request.method, names);
@@ -40,6 +40,8 @@ if (!process.versions.electron) {
       return new Response(await readFile(join(assets, name)), {headers: {'Content-Type': extname(name) === '.css' ? 'text/css' : extname(name) === '.html' ? 'text/html' : 'application/javascript', 'Content-Security-Policy': csp}});
     });
     const window = new BrowserWindow({show: false, width: 1000, height: 800, webPreferences: {...rendererPreferences, backgroundThrottling: false}});
+    await window.loadURL('z2ma://app/index.html');
+    await window.webContents.executeJavaScript('(' + workspaceSummaryTest + ')()');
     await window.loadURL('z2ma://app/index.html');
     await window.webContents.executeJavaScript('(' + rendererTest + ')()');
     await window.webContents.executeJavaScript(`(() => {
@@ -84,6 +86,29 @@ if (!process.versions.electron) {
     window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/capability-findings/operation-flags/confirmation-layout'); app.exit(0);
   };
   run().catch(error => { console.error('EXTENSION_UPDATE_DOM_FAILED ' + error.stack); app.exit(1); });
+}
+
+async function workspaceSummaryTest() {
+  const {installDraftExchange} = await import('./drafts.js');
+  const {setLanguage} = await import('./localization.js');
+  const panel = document.createElement('section'); document.body.append(panel);
+  const workspace = {pages: {draft: panel}, review: document.createElement('div'), link: parent => {
+    const button = document.createElement('button'); parent.append(button); return button;
+  }};
+  installDraftExchange({}, workspace);
+  const view = {desktop: {project: true, source: 'stored', draftRevision: 13,
+    draftSummary: {rules: 8, enabled: 1, sequences: 0}, storedSummary: {rules: 8, enabled: 7, sequences: 0}},
+    status: {storedRevision: 74, confirmed: true}, workspaceContext: {systemId: 'synthetic'}, configuration: {automations: []}};
+  document.dispatchEvent(new CustomEvent('z2ma-designer-view', {detail: view}));
+  const local = document.querySelector('#draft-local-counts'); const stored = document.querySelector('#draft-stored-counts');
+  setLanguage('de', {persist: false, report: false});
+  if (!local.textContent.includes('8 Automationen · 1 freigegeben') || !stored.textContent.includes('8 Automationen · 7 freigegeben')) throw new Error('Show local and stored counts independently of the selected source');
+  if (!panel.textContent.includes('unabhängig') || !panel.textContent.includes('bisherigen Entwurf')) throw new Error('Explain independent revisions and pre-import backups');
+  setLanguage('en', {persist: false, report: false});
+  if (!local.textContent.includes('8 automations · 1 enabled') || !stored.textContent.includes('8 automations · 7 enabled')) throw new Error('Workspace summaries must follow the central language');
+  view.desktop.storedSummary = null; view.status.storedRevision = null;
+  document.dispatchEvent(new CustomEvent('z2ma-designer-view', {detail: view}));
+  if (!stored.hidden || local.hidden) throw new Error('A missing Z2M snapshot must not imply an empty or matching draft');
 }
 
 async function rendererTest() {
