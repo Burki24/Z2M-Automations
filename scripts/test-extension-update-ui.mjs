@@ -32,14 +32,58 @@ if (!process.versions.electron) {
   const run = async () => {
     await app.whenReady();
     const assets = join(root, 'apps/desktop/.build/renderer');
-    const names = new Set(['network.js', 'operation-flags.js', 'draft-review.js', 'drafts.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
+    const names = new Set(['network.js', 'operation-flags.js', 'draft-review.js', 'drafts.js', 'desktop-workspace.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
     protocol.handle('z2ma', async request => {
       if (request.url === 'z2ma://app/index.html') return new Response('<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="designer.css"><link rel="stylesheet" href="desktop-palette.css"><link rel="stylesheet" href="desktop.css"><body class="desktop-foundation"></body>', {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
+      if (request.url === 'z2ma://app/workspace.html') return new Response((await readFile(join(assets, 'index.html'), 'utf8')).replace('<script type="module" src="desktop.js"></script>', ''), {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
       const name = assetPath(request.url, request.method, names);
       if (!name) return new Response(null, {status: 404});
       return new Response(await readFile(join(assets, name)), {headers: {'Content-Type': extname(name) === '.css' ? 'text/css' : extname(name) === '.html' ? 'text/html' : 'application/javascript', 'Content-Security-Policy': csp}});
     });
     const window = new BrowserWindow({show: false, width: 1000, height: 800, webPreferences: {...rendererPreferences, backgroundThrottling: false}});
+    await window.loadURL('z2ma://app/workspace.html');
+    await window.webContents.executeJavaScript('(' + prepareWorkspaceLayout + ')()');
+    window.webContents.debugger.attach('1.3');
+    await window.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', {enabled: true});
+    await window.webContents.debugger.sendCommand('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
+    await window.webContents.debugger.sendCommand('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
+    for (const [width, height, fontSize] of [[1440, 900, 16], [1440, 600, 16], [1440, 500, 16], [1024, 768, 16], [1024, 768, 24], [360, 740, 16]]) for (const theme of ['light', 'dark']) {
+      window.setContentSize(width, height);
+      await window.webContents.executeJavaScript(`(async () => {
+        document.documentElement.style.colorScheme = '${theme}'; document.documentElement.style.fontSize = '${fontSize}px';
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const list = document.querySelector('#entry-list'); const workspace = document.querySelector('.workspace');
+        const rect = list.getBoundingClientRect();
+        if (getComputedStyle(workspace).display === 'grid' && (rect.bottom > innerHeight + 1 || rect.top < 0)) throw new Error('Automation list extends below the visible window: ' + JSON.stringify({viewport: [innerWidth, innerHeight], list: [rect.top, rect.bottom], workspace: [workspace.getBoundingClientRect().top, workspace.clientHeight], navigation: list.parentElement.clientHeight}));
+        if (document.scrollingElement.scrollHeight > innerHeight + 1 || document.scrollingElement.scrollWidth > innerWidth + 1) throw new Error('The outer application window must not scroll');
+        if (list.clientHeight < 60 || list.scrollHeight <= list.clientHeight || getComputedStyle(list).overflowY !== 'auto') throw new Error('Automation list must retain usable independent scrolling');
+        list.scrollTop = list.scrollHeight;
+        const last = list.lastElementChild.getBoundingClientRect();
+        if (last.bottom > list.getBoundingClientRect().bottom + 1) throw new Error('The last automation must be reachable inside its list');
+        if (workspace.getBoundingClientRect().width > document.querySelector('#desktop-view-automations').clientWidth) throw new Error('Automation workspace overflows horizontally');
+        for (const [panelName, contentName] of [['canvas', 'canvas-scroll'], ['inspector', 'inspector-fields']]) {
+          const panel = workspace.querySelector('.' + panelName); const content = panel.querySelector('.' + contentName);
+          const scroller = getComputedStyle(panel).overflowY === 'auto' && panel.scrollHeight > panel.clientHeight + 1 ? panel : content;
+          if (scroller.clientHeight < 30 || scroller.scrollHeight <= scroller.clientHeight) throw new Error('Long automation details need an accessible scroll area: ' + JSON.stringify({viewport: [innerWidth, innerHeight], panel: panelName, height: scroller.clientHeight, scroll: scroller.scrollHeight}));
+          scroller.scrollTop = scroller.scrollHeight;
+          if (content.lastElementChild.getBoundingClientRect().bottom > scroller.getBoundingClientRect().bottom + 1) throw new Error('The end of automation details must remain reachable');
+          scroller.scrollTop = 0;
+        }
+        list.scrollTop = 0; list.focus();
+        if (document.activeElement !== list) throw new Error('Automation list needs keyboard access');
+        list.lastElementChild.focus();
+        await Promise.resolve();
+        const title = list.lastElementChild.querySelector('strong').getBoundingClientRect();
+        const focusedList = list.getBoundingClientRect();
+        if (title.top < focusedList.top - 1 || title.bottom > focusedList.bottom + 1 || document.scrollingElement.scrollTop) throw new Error('Keyboard focus must reveal the last automation name without scrolling the screen: ' + JSON.stringify({viewport: [innerWidth, innerHeight], title: [title.top, title.bottom], list: [focusedList.top, focusedList.bottom], focusVisible: list.lastElementChild.matches(':focus-visible'), height: list.clientHeight, page: document.scrollingElement.scrollTop}));
+        // Synthetic wheel delivery checks cancellation; native pointer scrolling remains an installed-app check.
+        let wheelReceived = false; list.addEventListener('wheel', () => { wheelReceived = true; }, {once: true});
+        if (!list.lastElementChild.dispatchEvent(new WheelEvent('wheel', {bubbles: true, cancelable: true, deltaY: 120})) || !wheelReceived) throw new Error('The automation list must receive wheel input without cancellation');
+      })()`);
+    }
+    window.webContents.debugger.detach();
+    await window.webContents.executeJavaScript("document.documentElement.style.fontSize = '';");
+    window.setContentSize(1000, 800);
     await window.loadURL('z2ma://app/index.html');
     await window.webContents.executeJavaScript('(' + workspaceSummaryTest + ')()');
     await window.loadURL('z2ma://app/index.html');
@@ -86,6 +130,45 @@ if (!process.versions.electron) {
     window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/capability-findings/operation-flags/confirmation-layout'); app.exit(0);
   };
   run().catch(error => { console.error('EXTENSION_UPDATE_DOM_FAILED ' + error.stack); app.exit(1); });
+}
+
+async function prepareWorkspaceLayout() {
+  const {installDesktopWorkspace} = await import('./desktop-workspace.js');
+  document.body.classList.add('module-designer', 'desktop-foundation', 'desktop-editable');
+  for (const selector of ['#save-button', '#activate-button', '#stop-button', '.toolbar-divider', '.navigation-footer']) document.querySelector(selector)?.remove();
+  const menu = document.createElement('details'); menu.className = 'designer-menu';
+  for (const id of ['draft-wizard-start', 'new-sequence-button']) {
+    const button = document.createElement('button'); button.id = id; button.textContent = id === 'draft-wizard-start' ? 'Neue Automation als Entwurf' : 'Neue Aktionsfolge'; menu.append(button);
+  }
+  document.body.append(menu);
+  const feedback = document.createElement('div'); feedback.className = 'designer-feedback';
+  const notice = document.createElement('p'); notice.textContent = 'Synthetic workspace feedback'; feedback.append(notice); document.body.append(feedback);
+  const systems = document.createElement('label'); systems.className = 'system-selector'; systems.textContent = 'Z2M-System';
+  const select = document.createElement('select'); select.append(new Option('Synthetic system', 'synthetic')); systems.append(select); document.body.append(systems);
+  const categories = document.querySelector('#categories');
+  for (const name of ['Geräteausgelöst', 'Zeit & Astro', 'Aktionsfolgen', 'Geräte & Kanäle']) {
+    const button = document.createElement('button'); button.className = 'category'; button.textContent = name; categories.append(button);
+  }
+  const filter = document.createElement('label'); filter.className = 'rule-state-filter'; filter.textContent = 'Regelschalter im Entwurf';
+  const choice = document.createElement('select'); choice.append(new Option('Alle', 'all')); filter.append(choice); categories.before(filter);
+  document.querySelector('#list-label').textContent = 'Geräteausgelöst'; document.querySelector('#list-count').textContent = '30 / 30';
+  const list = document.querySelector('#entry-list');
+  for (let index = 0; index < 30; index++) {
+    const button = document.createElement('button'); button.className = 'entry';
+    const title = document.createElement('strong'); title.textContent = 'Synthetic automation ' + index;
+    const detail = document.createElement('small'); detail.textContent = 'Synthetic device event with a long description '.repeat(3);
+    button.append(title, detail); list.append(button);
+  }
+  for (const selector of ['#flow', '.inspector-fields']) {
+    const content = document.querySelector(selector);
+    for (let index = 0; index < 30; index++) {
+      const row = document.createElement('p'); row.textContent = 'Synthetic automation detail '.repeat(8); content.append(row);
+    }
+  }
+  const workspace = installDesktopWorkspace();
+  workspace.mountDesigner();
+  workspace.updateProject({active: true, project: {name: 'Synthetic project', brokers: [{}], systems: [{}]}}, true);
+  workspace.update({desktop: {project: true, source: 'draft', draftRevision: 13}, workspaceContext: {systemId: 'synthetic'}, status: {mqttConnected: true}});
 }
 
 async function workspaceSummaryTest() {

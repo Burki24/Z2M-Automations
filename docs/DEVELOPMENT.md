@@ -185,6 +185,13 @@ Step-8 receipt regressions cover enabled switch-only storage versus disabled
 content storage, fresh readback counts in DE/EN, a later start, lost freshness
 and a newer stored revision. Completed or invalidated transfers must not keep
 planned-upload instructions or authorize another upload.
+The desktop workspace layout regression uses the actual markup and desktop shell
+with 30 long synthetic rules. Both themes cover 1440-pixel windows down to 500
+pixels high, a two-column workspace, 150% text and a narrow stacked layout.
+It verifies that the outer window does not scroll, the list remains bounded,
+the last rule is reachable and keyboard focus reveals its name. Synthetic wheel
+delivery checks uncancelled event propagation; native pointer scrolling remains
+part of installed-app acceptance. No image capture is used.
 
 Use `npm run smoke -- --no-capture` for the complete source smoke without images,
 or `npm run smoke:packaged -- --no-capture` after packaging. The flag disables

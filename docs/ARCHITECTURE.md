@@ -14,6 +14,12 @@ Windows and Ubuntu use the same designer and business logic. Platform-specific
 concerns are file paths, dialogs, protected secret storage, desktop integration
 and packages. Do not maintain different feature sets per operating system.
 
+The desktop shell fills the window. Setup pages scroll inside their work area;
+the automation workspace gives its existing list, canvas and inspector the
+remaining height below the compact header and tools. In short windows the list's
+controls may scroll separately, preserving space for rules. Narrow layouts stack
+panels inside the work area. These overrides and moved controls are desktop-only.
+
 Responsibilities (local project/platform and MQTT services currently live in `apps/desktop/src`;
 core, mqtt and platform packages are not empty placeholders):
 

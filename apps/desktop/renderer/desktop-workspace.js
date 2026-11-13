@@ -93,6 +93,7 @@ export function installDesktopWorkspace() {
       else button.removeAttribute('aria-current');
     }
     active = picker.value = key;
+    sections.get(key).section.scrollTop = sections.get(key).body.scrollTop = 0;
     window.scrollTo(0, 0);
     if (focus) sections.get(key).title.focus({preventScroll: true});
     return true;
@@ -132,6 +133,20 @@ export function installDesktopWorkspace() {
     actions.prepend(create, menu.querySelector('#new-sequence-button'));
     const permissions = menu.querySelector('.permissions-open');
     if (permissions) document.querySelector('#desktop-partner-actions').append(permissions);
+    const navigation = document.querySelector('.workspace .navigation');
+    const entries = navigation.querySelector('#entry-list');
+    const tools = document.createElement('div'); tools.className = 'desktop-navigation-tools';
+    const heading = navigation.querySelector('.list-label');
+    for (const child of [...navigation.children]) if (child !== entries && child !== heading) tools.append(child);
+    navigation.prepend(tools);
+    entries.tabIndex = 0;
+    entries.setAttribute('role', 'region'); entries.setAttribute('aria-labelledby', 'list-label');
+    entries.addEventListener('focusin', event => {
+      const entry = event.target.closest('.entry');
+      if (entry?.matches(':focus-visible') && entry.offsetHeight > entries.clientHeight) {
+        queueMicrotask(() => entry.querySelector('strong')?.scrollIntoView({block: 'nearest'}));
+      }
+    });
     pages.automations.append(document.querySelector('.designer-feedback'), document.querySelector('.workspace'));
   }
 
