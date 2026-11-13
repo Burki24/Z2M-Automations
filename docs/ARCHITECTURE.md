@@ -18,7 +18,9 @@ The desktop shell fills the window. Setup pages scroll inside their work area;
 the automation workspace gives its existing list, canvas and inspector the
 remaining height below the compact header and tools. In short windows the list's
 controls may scroll separately, preserving space for rules. Narrow layouts stack
-panels inside the work area. These overrides and moved controls are desktop-only.
+panels inside the work area. The numbered shell and viewport rules are shared
+with Symcon through the versioned designer package; product adapters supply the
+page contents and palettes. See [ADR 0005](adr/0005-shared-guided-workspace.md).
 
 Responsibilities (local project/platform and MQTT services currently live in `apps/desktop/src`;
 core, mqtt and platform packages are not empty placeholders):
@@ -32,8 +34,9 @@ core, mqtt and platform packages are not empty placeholders):
 | `packages/platform` | OS paths, dialogs and protected credentials |
 | `tests` | Synthetic contract, integration, UI and platform cases |
 
-The interface uses a defined adapter contract. The Symcon adapter stays in the
-Symcon repository; the desktop adapter runs behind restricted IPC. The renderer
+The interface uses a defined adapter contract. Symcon's presentation adapter is
+part of the shared package; its PHP authority and persistence stay in the Symcon
+repository. The desktop adapter runs behind restricted IPC. The renderer
 has no Node access, broker secrets or MQTT clients.
 
 ## One canonical source per component

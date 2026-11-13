@@ -1,9 +1,17 @@
 # Project context: Z2M-Automations
 
-As of 2026-11-08. Repository Burki24/Z2M-Automations; working branch dev,
+As of 2026-11-13. Repository Burki24/Z2M-Automations; working branch dev,
 primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 ## Current state
+
+The owner completed the three workflow acceptance cases with app 0.99.0.
+The accepted numbered workspace is now shared with the Symcon browser designer
+and native tile through a pinned package. Native connections, persistence,
+permissions and transport stay under Symcon authority; the standalone app keeps
+its own project, credential and transfer services. See
+[ADR 0005](docs/adr/0005-shared-guided-workspace.md). Native acceptance of this
+new Symcon UI after a module update remains separate from desktop acceptance.
 
 D0 localization is implemented. D1 now provides a shared TypeScript/Electron/
 Forge foundation: offline renderer, two synthetic systems, strict preload IPC,

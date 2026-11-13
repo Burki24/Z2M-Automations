@@ -1,3 +1,4 @@
+import {installSymconWorkspace} from './symcon-workspace.js';
 import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse} from './localization.js';
 import {isDesktop} from './transport.js';
 import {selectedSystemName} from './workspace.js';
@@ -32,7 +33,8 @@ export function workflowStatus(data, desktop = isDesktop()) {
     return {system: selectedSystemName(data), stored, projectFile, next};
 }
 
-export function installLayout({getData}) {
+export function installLayout({getData, reload}) {
+    const guided = isDesktop() ? () => {} : installSymconWorkspace({getData, reload});
     const node = (tag, className, text) => {
         const el = document.createElement(tag);
         if (className) el.className = className;
@@ -150,6 +152,7 @@ export function installLayout({getData}) {
             item.body.hidden = opened !== name;
         }
         document.body.dataset.designerTheme = 'browser';
+        guided();
     }
     update();
     return update;

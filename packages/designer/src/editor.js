@@ -21,9 +21,8 @@ const compare = localizeRecord(() => ({eq: t("ui.is.equal.to.456b1261"), ne: t("
 const kinds = localizeRecord(() => {
     const deviceKinds = {status: t('editor.deviceStatus'), measurement: t('editor.measurement')};
     return {
-        triggers: isDesktop() ? {...deviceKinds, time: t("ui.time.317f0a69"), sunrise: t("ui.sunrise.5788b301"), sunset: t("ui.sunset.5998441f")}
-            : {device: t("ui.device.event.704e02c3"), time: t("ui.time.317f0a69"), sun: t("ui.solar.event.63a4e157")},
-        conditions: {...(isDesktop() ? deviceKinds : {device_value: t("ui.device.value.e2721139")}), weekday: t("ui.weekdays.b73421c5"), time_window: t("ui.time.window.85f012d6")},
+        triggers: {...deviceKinds, time: t("ui.time.317f0a69"), sunrise: t("ui.sunrise.5788b301"), sunset: t("ui.sunset.5998441f")},
+        conditions: {...deviceKinds, weekday: t("ui.weekdays.b73421c5"), time_window: t("ui.time.window.85f012d6")},
         actions: {set: t("ui.set.values.b905b29c"), toggle: t("ui.toggle.77fec02e"), scene: t("ui.recall.scene.a6fb0e6f"), sequence: t("ui.call.action.sequence.f1795acb")}
     };
 });
@@ -50,14 +49,15 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
     const dialog = document.createElement('dialog');
     dialog.id = 'edit-dialog'; dialog.className = 'creation-dialog rule-edit-dialog'; dialog.setAttribute('aria-labelledby', 'edit-title');
     const desktop = isDesktop();
+    const guided = () => desktop || !!getData()?.workspace;
     bindHTML(dialog, () => `<form id="edit-form" novalidate>
-        ${desktop ? '<div id="edit-content">' : ''}
+        <div id="edit-content">
         <span class="eyebrow"></span><h2 id="edit-title"></h2>
         <p id="edit-system" class="field-help"></p><p id="edit-usage" hidden></p>
         <div id="edit-fields"></div>
         <p id="edit-message" role="status" aria-live="polite" hidden></p>
         ${desktop ? '' : `<p id="edit-export-help" class="field-help">${t('editor.exportHelp')}</p>`}
-        ${desktop ? '</div>' : ''}
+        </div>
         <div class="dialog-actions">
             <button type="button" id="edit-reload">${t("ui.reload.and.discard.input.56f16c4b")}</button>
             <button type="button" id="edit-submit">${t("ui.apply.changes.to.draft.1e42a9b6")}</button>
@@ -108,7 +108,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
     function field(parent, label, value, set, options = {}) {
         const wrap = node('label', undefined, 'field'); wrap.append(node('span', label));
         const input = document.createElement(options.choices ? 'select' : 'input'); input.id = 'edit-field-' + (++serial);
-        if (isDesktop() && options.field) input.dataset.draftField = options.field;
+        if (options.field) input.dataset.draftField = options.field;
         bindAttribute(input, 'aria-label', label);
         if (options.choices) {
             const choices = () => options.choices();
@@ -244,7 +244,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         if (!values.length) values.push(['', undefined]);
         for (const [key, value] of values) {
             const command = node('fieldset', undefined, 'edit-command'); command.append(node('legend', () => (t("ui.value.to.set.7446af2f")))); parent.append(command);
-            if (desktop) command.dataset.draftProperty = key;
+            command.dataset.draftProperty = key;
             field(command, () => (t("ui.property.channel.b524f965")), key, property => {
                 delete item.values[key];
                 const selected = properties.find(meta => meta.id === property);
@@ -252,14 +252,13 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
                 renderFields();
             }, {field: 'property', choices: () => [['', t("ui.select.property.channel.9718e7d6")], ...properties.filter(meta => meta.id === key || !Object.hasOwn(item.values, meta.id)).map(meta => [meta.id, meta.label])]});
             const meta = properties.find(property => property.id === key);
-            propertyValue(command, meta ? {...meta, actionValues: desktop ? meta.actionValues : meta.actionValues.filter(v => v !== 'TOGGLE')} : null, 'target', value, next => { item.values[key] = next; });
+            propertyValue(command, meta, 'target', value, next => { item.values[key] = next; });
             if (values.length > 1) button(command, () => (t("ui.remove.value.aba676af")), () => { delete item.values[key]; renderFields(); });
         }
         button(parent, () => (t("ui.add.another.value.d10e439d")), () => { item.values[''] = undefined; renderFields(); }, values.length >= 8 || values.some(([key]) => !key));
-        parent.append(node('p', () => t(desktop ? 'editor.stateValuesHelp' : 'ui.multiple.values.are.sent.as.43bb3602'), 'field-help'));
+        parent.append(node('p', () => t('editor.stateValuesHelp'), 'field-help'));
     }
     function entryKind(item) {
-        if (!desktop) return item.type;
         if (item.type === 'sun' && ['sunrise', 'sunset'].includes(item.event)) return item.event;
         if (item.type !== 'device' && item.type !== 'device_value') return item.type;
         const device = targetDevice(getData(), {type: 'device', id: item.device, ...(item.system ? {system: item.system} : {})});
@@ -320,19 +319,18 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
                 const controls = node('div', undefined, 'edit-row-fields'); row.append(controls);
                 field(controls, () => (t("ui.entry.type.176dd624")), kind, type => {
                     const replacement = newItem(section, type);
-                    if (desktop && item.type === 'sun' && replacement.type === 'sun') Object.assign(replacement, item, {event: type});
+                    if (item.type === 'sun' && replacement.type === 'sun') Object.assign(replacement, item, {event: type});
                     if (section === 'actions') {
                         replacement.delay_seconds = item.delay_seconds ?? 0;
                         if (item.target && type !== 'sequence') replacement.target = copy(item.target);
                     }
                     if (item.timezone && replacement.timezone) replacement.timezone = item.timezone;
                     working[section][index] = replacement; renderFields();
-                    if (desktop) root.querySelectorAll(`[data-section="${section}"] > fieldset`)[index]?.querySelector('select')?.focus({preventScroll: true});
+                    root.querySelectorAll(`[data-section="${section}"] > fieldset`)[index]?.querySelector('select')?.focus({preventScroll: true});
                 }, {field: 'type', choices: () => Object.entries(itemKinds)});
-                if (item.type === 'device' || item.type === 'device_value') sourceFields(controls, item, desktop ? kind : '');
+                if (item.type === 'device' || item.type === 'device_value') sourceFields(controls, item, kind);
                 else if (item.type === 'time') { time(controls, () => (t("ui.time.317f0a69")), item, 'at'); zone(controls, item); }
                 else if (item.type === 'sun') {
-                    if (!desktop) field(controls, () => (t("ui.solar.event.fb338afc")), item.event, value => { item.event = value; }, {choices: () => [['sunrise', t("ui.sunrise.5788b301")], ['sunset', t("ui.sunset.5998441f")]]});
                     number(controls, () => (t("ui.latitude.c5049879")), item, 'latitude', 0, -90, 90, 'any'); number(controls, () => (t("ui.longitude.4c9aacde")), item, 'longitude', 0, -180, 180, 'any');
                     number(controls, () => (t("ui.offset.minutes.b529be97")), item, 'offset_minutes', 0, -720, 720); zone(controls, item);
                 } else if (item.type === 'weekday') { weekdays(controls, item); zone(controls, item); }
@@ -352,7 +350,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
                 renderFields();
                 root.querySelector(`details[data-section="${section}"] > fieldset:last-of-type select`)?.focus();
             }, working[section].length >= (section === 'triggers' ? 8 : 16));
-            if (isDesktop()) add.dataset.draftField = 'add';
+            add.dataset.draftField = 'add';
             if (section === 'actions' && working.actions.length > 1) {
                 details.append(node('p', () => (t("ui.drag.steps.by.the.move.6d048d37")), 'field-help'));
                 sorting = installActionSorting(details, {getItems: () => working.actions, canMove: () => !busy && dialog.open, onMove: reorder, scrollArea});
@@ -412,11 +410,12 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         $('fields').replaceChildren();
         renderFields(); hint();
         if (exportButton) {
-            exportButton.hidden = $('export-help').hidden = sequenceMode;
-            exportButton.type = sequenceMode ? 'button' : 'submit';
+            exportButton.hidden = $('export-help').hidden = sequenceMode || guided();
+            exportButton.type = sequenceMode || guided() ? 'button' : 'submit';
         }
-        submit.type = desktop || sequenceMode ? 'submit' : 'button';
-        submit.classList.toggle('primary', desktop || sequenceMode);
+        dialog.querySelector('[data-language-picker]')?.toggleAttribute('hidden', guided());
+        submit.type = guided() || sequenceMode ? 'submit' : 'button';
+        submit.classList.toggle('primary', guided() || sequenceMode);
         bindText(submit, () => creatingRule ? t("ui.add.to.draft.disabled.aea3e1b7") : creatingSequence ? t("ui.apply.action.sequence.to.draft.e6ecbfcd") : t("ui.apply.changes.to.draft.1e42a9b6"));
         setSubmitDisabled(!canSave());
         if (!dialog.open) dialog.showModal();
@@ -461,7 +460,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
                 busy = false;
                 $('reload').disabled = false;
                 setSubmitDisabled(stale || !canSave());
-                if (!stale) (exportButton ?? submit).focus();
+                if (!stale) (guided() ? submit : exportButton ?? submit).focus();
             }
             return;
         }
@@ -558,10 +557,10 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
             }
         }
     }
-    if (!desktop) submit.addEventListener('click', () => { if (!sequenceMode) void apply(false); });
+    if (!desktop) submit.addEventListener('click', () => { if (!guided() && !sequenceMode) void apply(false); });
     $('form').addEventListener('submit', event => {
         event.preventDefault();
-        void apply(!desktop && !sequenceMode);
+        void apply(!guided() && !sequenceMode);
     });
     function openFinding(entry, path, reason, property) {
         if (busy || dialog.open || !(entry.kind === 'sequence' ? getData()?.sequenceAllowed : getData()?.editAllowed)) return false;

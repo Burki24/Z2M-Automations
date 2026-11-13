@@ -1,0 +1,150 @@
+/* Shared numbered workspace; products provide semantic palette tokens. */
+.guided-foundation { display: flex; flex-direction: column; height: 100dvh; min-height: 0; overflow: hidden; }
+.guided-foundation .app-header { flex: none; padding: .6rem 1rem; gap: .6rem; }
+.desktop-shell {
+  flex: 1; display: grid; grid-template-columns: clamp(12rem, 20vw, 16rem) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr); min-height: 0; overflow: hidden; background: var(--surface);
+}
+.desktop-steps {
+  position: relative; z-index: 12; align-self: start;
+  padding: .6rem; min-width: 0; max-height: 100%; overflow: auto; background: var(--surface);
+}
+.desktop-steps ol { display: grid; gap: .3rem; margin: 0; padding: 0; list-style: none; }
+.desktop-steps button {
+  display: grid; grid-template-columns: 2rem minmax(0, 1fr); align-items: center; gap: .55rem;
+  width: 100%; padding: .5rem; border-color: transparent;
+  text-align: start; white-space: normal; overflow-wrap: anywhere; line-height: 1.35;
+}
+.desktop-steps button:hover { background: var(--surface-soft); }
+.desktop-steps [aria-current] { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+.desktop-step-number {
+  display: grid; place-items: center; min-height: 2rem; border-radius: .4rem;
+  background: var(--surface-soft); font-variant-numeric: tabular-nums;
+}
+.desktop-steps [aria-current] .desktop-step-number { background: var(--primary); color: var(--on-primary); }
+.desktop-steps .desktop-operation-link { margin-block-start: .8rem; border-block-start-color: var(--line); }
+.desktop-step-picker { display: none; }
+.desktop-content { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-inline-start: 1px solid var(--line); background: var(--page); }
+.desktop-context {
+  flex: none; position: relative; z-index: 11; min-width: 0;
+  display: flex; align-items: center; flex-wrap: wrap; gap: .4rem 1rem;
+  padding: .4rem clamp(.75rem, 2vw, 1rem); border-bottom: 1px solid var(--line); background: var(--surface);
+}
+.desktop-context .system-selector { padding: 0; background: transparent; border: 0; min-width: 0; max-width: 100%; gap: .4rem; }
+.desktop-context .system-selector select { width: min(17rem, 100%); min-width: 0; }
+.desktop-context:not([data-has-system="true"]) .system-selector, .desktop-context .system-selector > span { display: none; }
+.desktop-project-context, .desktop-source { font-size: .875rem; color: var(--muted); overflow-wrap: anywhere; }
+#desktop-connection { color: var(--muted); font-size: .875rem; }
+#desktop-connection[data-connected="true"] { color: var(--success); }
+.desktop-view { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: .65rem clamp(.75rem, 2vw, 1rem); container: desktop-page / inline-size; }
+.desktop-view > h1 { flex: none; width: fit-content; max-width: 100%; margin: 0 0 .45rem; font-size: clamp(1.25rem, 2vw, 1.5rem); }
+.desktop-view > h1:focus-visible { outline: 2px solid var(--focus); outline-offset: .25rem; }
+.desktop-step-body, .desktop-prerequisite { max-width: 68rem; }
+#desktop-view-automations .desktop-step-body { max-width: none; }
+#desktop-view-automations { display: flex; flex-direction: column; overflow: hidden; }
+#desktop-view-automations > .desktop-step-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#desktop-view-automations .desktop-source, #desktop-view-automations .desktop-workbar, #desktop-view-automations .designer-feedback { flex: none; }
+.desktop-card, .desktop-debug {
+  margin-block-end: .75rem; padding: clamp(.75rem, 1.6vw, 1rem); border: 1px solid var(--line);
+  border-radius: .75rem; background: var(--surface); overflow-wrap: anywhere;
+}
+
+.desktop-no-entry .workspace > .inspector { display: none; }
+.desktop-no-entry .workspace > .canvas { grid-column: 2 / -1; min-height: 0; }
+.guided-foundation .canvas-heading:has(#entry-subtitle:empty) #entry-subtitle { display: none; }
+.guided-foundation .workspace {
+  grid-template-columns: minmax(11rem, 1fr) minmax(0, 2.3fr) minmax(12rem, 1fr);
+  grid-template-rows: minmax(0, 1fr); align-items: stretch; flex: 1; height: auto; min-height: 0; padding: 0;
+}
+.guided-foundation .workspace > .panel { min-width: 0; min-height: 0; }
+.guided-foundation .workspace .navigation { position: static; max-height: none; }
+.desktop-navigation-tools { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.guided-foundation .navigation .panel-heading { padding: .75rem .85rem .5rem; }
+.guided-foundation .navigation .search { margin: 0 .75rem .5rem; }
+.guided-foundation .navigation .rule-state-filter { margin: 0 .75rem .5rem; }
+.guided-foundation .navigation .categories { gap: .15rem; padding: 0 .5rem .5rem; }
+.guided-foundation .navigation .category { padding: .45rem .5rem; }
+.guided-foundation .navigation .list-label { flex: none; padding: .6rem .85rem .35rem; }
+.guided-foundation .entry-list { flex: 1 0 min(10rem, 45%); min-height: 0; max-height: none; scrollbar-gutter: stable; }
+.guided-foundation .entry-list:focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; }
+.guided-foundation .inspector-fields { min-height: 0; max-height: none; overflow-y: auto; }
+.guided-foundation .canvas-scroll { min-height: 0; max-height: none; overflow-y: auto; }
+.guided-foundation .entry-tools { flex-shrink: 1; flex-wrap: wrap; }
+.guided-foundation .designer-feedback { padding: 0 0 .65rem; }
+
+@container desktop-page (max-width: 64rem) {
+  .guided-foundation .workspace { grid-template-columns: minmax(11rem, .8fr) minmax(0, 2fr); grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
+  .guided-foundation .workspace .navigation { grid-row: 1 / span 2; }
+  .guided-foundation .workspace .canvas { min-height: 0; }
+  .guided-foundation .workspace .inspector { grid-column: 2; display: block; overflow-y: auto; }
+  .guided-foundation .workspace .inspector-fields { overflow-y: visible; }
+}
+@container desktop-page (max-width: 42rem) {
+  .desktop-read-catalog { grid-template-columns: minmax(0, 1fr); }
+  .project-overview button { grid-template-columns: minmax(0, 1fr); gap: .2rem; }
+  #desktop-view-automations > .desktop-step-body { overflow-y: auto; }
+  .guided-foundation .workspace { flex: none; display: flex; flex-direction: column; gap: .75rem; }
+  .guided-foundation .workspace > .panel { width: 100%; }
+  .guided-foundation .workspace .navigation { height: min(32rem, 65dvh); flex: none; }
+  .guided-foundation .workspace .canvas-scroll { max-height: 65dvh; }
+  .guided-foundation .workspace .inspector-fields { max-height: 45dvh; overflow-y: auto; }
+}
+@media (max-height: 650px) {
+  .guided-foundation .workspace .canvas, .guided-foundation .workspace .inspector { display: block; overflow-y: auto; }
+  .guided-foundation .workspace .canvas-scroll, .guided-foundation .workspace .inspector-fields { max-height: none; overflow-y: visible; }
+}
+
+@media (max-width: 900px) {
+  .desktop-shell { display: flex; flex-direction: column; }
+  .desktop-steps { flex: none; align-self: stretch; border-block-end: 1px solid var(--line); padding: .55rem .75rem; }
+  .desktop-steps ol, .desktop-steps .desktop-operation-link { display: none; }
+  .desktop-step-picker { display: grid; gap: .25rem; font-size: .875rem; }
+  .desktop-step-picker select {
+    width: 100%; min-width: 0; font: inherit; padding: .55rem;
+    color: var(--ink); background: var(--surface-soft); border: 1px solid var(--line-strong); border-radius: .5rem;
+  }
+  .desktop-content { flex: 1; border: 0; }
+  .desktop-context { position: static; }
+}
+
+.guided-foundation .preview-notice, .guided-foundation .status-strip, .guided-foundation .designer-controls, .guided-foundation .draft-wizard-entry { display: none !important; }
+.guided-inventory { max-height: 24rem; overflow: auto; overscroll-behavior: contain; }
+.guided-choice { display: flex; align-items: start; gap: .75rem; margin: .6rem 0; }
+.guided-choice input { width: 1.25rem; height: 1.25rem; flex: none; }
+
+.guided-foundation .rule-edit-dialog[open] { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.guided-foundation #edit-form { display: flex; flex-direction: column; min-height: 0; }
+.guided-foundation #edit-content {
+  min-height: 0; padding: clamp(.9rem, 2vw, 1.6rem); overflow-y: auto;
+  overscroll-behavior: contain; scroll-padding-block: .6rem;
+}
+.guided-foundation .rule-edit-dialog .edit-section[data-section="triggers"] {
+  background-color: var(--when-soft);
+}
+.guided-foundation .rule-edit-dialog .edit-section[data-section="conditions"] {
+  background-color: var(--warning-soft);
+}
+.guided-foundation .rule-edit-dialog .edit-section[data-section="actions"] {
+  background-color: var(--action-soft);
+}
+.guided-foundation .rule-edit-dialog .dialog-actions {
+  position: static; flex: none; align-items: center; margin: 0; padding: .65rem clamp(.9rem, 2vw, 1.6rem);
+}
+
+.guided-foundation dialog [data-language-picker] { display: none; }
+.guided-foundation .desktop-workbar { display: flex; flex-wrap: wrap; gap: .5rem; margin-block-end: .5rem; }
+.guided-foundation .desktop-context .status-chip { font-size: .8rem; }
+.guided-foundation .desktop-card [data-tone="error"] { color: var(--danger); }
+.guided-foundation .desktop-card [data-tone="warning"] { color: var(--warning); }
+.guided-foundation .desktop-card [data-tone="success"] { color: var(--success); }
+.guided-foundation .desktop-findings { padding-inline-start: 0; list-style: none; }
+.guided-foundation .desktop-findings li { padding: .75rem; border: 1px solid var(--danger); border-radius: .5rem; margin-block: .5rem; }
+.guided-foundation .desktop-findings button { margin-block-start: .5rem; }
+.guided-foundation .desktop-content > .designer-feedback { flex: none; max-height: 20dvh; overflow: auto; padding: .4rem 1rem; }
+.guided-foundation .desktop-content > .designer-feedback:has(#feedback:empty) { display: none; }
+.symcon-foundation .app-header :is(#new-automation-button, .preview-label) { display: none; }
+@media (max-width: 900px), (max-height: 650px) {
+  /* Native access controls and wrapped context must not consume the whole work area. */
+  .symcon-foundation .desktop-content { overflow-y: auto; }
+  .symcon-foundation .desktop-view { flex: 1 0 min(25rem, 65dvh); min-height: min(25rem, 65dvh); }
+}

@@ -99,7 +99,8 @@ import {installNativeEmbedding} from './embedding.js';
     }});
     const updateDiagnostics = installDiagnostics({getData: () => data, isLoading: () => busy, chooseSystem: id => updateSystems.choose(id), message, reload: () => load()});
     const updatePermissions = installPermissions({getData: () => data, isLoading: () => busy, message, reload: () => load()});
-    const updateTransfers = installTransfers({getData: () => data, reload: () => load(), isLoading: () => busy, message});
+    const updateTransfers = installTransfers({getData: () => data, reload: () => load(), isLoading: () => busy, message,
+        onStatus: () => { paintStatus(); updateRuntime(); updateLayout(); }});
     const updateCatalog = installCatalogRefresh({getData: () => data, reload: () => load(), isLoading: () => busy, message});
     const updateRuntime = installRuntime({getData: () => data, reload: () => load(), isLoading: () => busy, message, onStatus: () => renderRuntimeStatus()});
     function renderRuntimeStatus() {
@@ -397,14 +398,17 @@ import {installNativeEmbedding} from './embedding.js';
         filterChanged: value => { stateFilter = value; renderNavigation(); }});
     eventImport = installEventImport({getData: () => data, isLoading: () => busy, reload: () => load(), message,
         onImported: async ruleId => { if (!await load(ruleId)) message(() => (t("ui.event.imported.disabled.refresh.the.338172e3"))); }});
-    updateLayout = installLayout({getData: () => data});
+    updateLayout = installLayout({getData: () => data, reload: () => load()});
     onLanguageChange(() => { paintStatus(); render(); updateTransfers(); updateRuntime(); updateCatalog(); updateLayout(); });
     render();
     if (isDesktop()) {
         document.addEventListener('z2ma-project-changed', () => { if (busy) projectReloadPending = true; else void load(); });
+    }
+    {
         document.addEventListener('z2ma-open-draft-issue', event => {
             const {systemId: owner, revision, kind, id, path, message: reason, property} = event.detail;
-            if (data?.desktop?.source !== 'draft' || systemId !== owner || data.desktop.draftRevision !== revision || document.querySelector('dialog[open]')) return;
+            if ((isDesktop() && data?.desktop?.source !== 'draft') || systemId !== owner
+                || (isDesktop() ? data.desktop.draftRevision : data?.configuration?.revision) !== revision || document.querySelector('dialog[open]')) return;
             const entry = entries().find(item => item.id === id && (item.kind === 'sequence') === (kind === 'sequences'));
             if (!entry) return;
             category = entry.kind; selected = entryKey(entry); selectedPart = null;

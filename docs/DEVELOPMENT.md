@@ -4,6 +4,16 @@ Use Node 24.20.0 and npm 11 on Windows 11 x64 or Ubuntu Desktop LTS x64.
 All repository documentation and commit messages are English. Localized UI text
 belongs in the local DE/EN JSON catalogs. The user alone commits and pushes.
 
+The shared guided shell and Symcon presentation adapter are canonical under
+`packages/designer/src`; the desktop workspace entry point re-exports the shell.
+After changing them, verify the desktop and import `npm run pack:designer` output
+into Symcon with its checked importer. Run Symcon's PHP/Node suite and the
+capture-free `tests/designer-localization.browser.mjs` using an existing Playwright
+installation. That fixture covers actual list/editor wheel input, field correction,
+local rule switches, cancellation and explicit scoped stop/check/store in both
+browser and tile. It contacts only its own loopback fixture. Keep native installed
+acceptance and platform CI evidence separate from these local checks.
+
 ## Setup and checks
 
 ~~~sh

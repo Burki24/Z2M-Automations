@@ -2,6 +2,50 @@ import {designerRequest as fetch} from './transport.js';
 import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse} from './localization.js';
 import {createUUID} from './identity.js';
 import {systemHeaders} from './workspace.js';
+import {runtimeRequest} from './runtime.js';
+import {confirmAction} from './confirmation.js';
+
+/* Every mutation is sent once; polling only observes its cached result. */
+export async function runGuidedTransfer({getData, reload, token, runtime = runtimeRequest, transfer = transferRequest,
+    observe = () => {}, wait = ms => new Promise(resolve => setTimeout(resolve, ms)), now = Date.now, timeout = 120000}) {
+    const original = getData();
+    const identity = data => JSON.stringify([data?.workspaceContext?.systemId, data?.workspaceContext?.generation, data?.configuration]);
+    const approved = identity(original);
+    const current = () => {
+        const data = getData();
+        if (identity(data) !== approved) throw new MessageError('symcon.transfer.changed');
+        return data;
+    };
+    const deadline = now() + timeout;
+    const complete = async (kind, result) => {
+        current(); observe(kind, result);
+        while (result.pending) {
+            if (now() >= deadline) throw new MessageError('symcon.transfer.unconfirmed');
+            await wait(250); current();
+            result = kind === 'runtime' ? await runtime(current(), 'poll', {token}) : await transfer(current(), 'status', {token});
+            current(); observe(kind, result);
+        }
+        return result;
+    };
+    let operation = await complete('runtime', await runtime(current(), 'status', {token}));
+    if (!operation.confirmed) throw new MessageError('symcon.transfer.unconfirmed');
+    current().runtime = operation;
+    const needsStop = value => value.executing || value.resumeAfterRestart || Object.values(value.rules ?? {}).some(rule => rule.state === 'running');
+    if (needsStop(operation)) {
+        operation = await complete('runtime', await runtime(current(), 'deactivate', {token, resume: false}));
+        if (!operation.confirmed || needsStop(operation)) throw new MessageError('symcon.transfer.unconfirmed');
+        current().runtime = operation;
+    }
+    if (await reload() === false) throw new MessageError('symcon.transfer.unconfirmed');
+    current();
+    const checked = await complete('transfer', await transfer(current(), 'validate', {token}));
+    if (!checked.canStore || checked.status !== 'validated') throw new MessageError('symcon.transfer.checkFailed');
+    current().transfer = checked;
+    const stored = await complete('transfer', await transfer(current(), 'store', {token}));
+    current().transfer = stored;
+    if (stored.status !== 'stored' || stored.receiverConfirmed !== true) throw new MessageError('symcon.transfer.unconfirmed');
+    return stored;
+}
 
 /* A POST is sent only after an explicit click. Polling reads cached module results. */
 export async function transferRequest(data, action, {token, request = fetch, base = location.href, requestId = createUUID()} = {}) {
@@ -30,7 +74,7 @@ export async function transferRequest(data, action, {token, request = fetch, bas
     } finally { clearTimeout(timeout); }
 }
 
-export function installTransfers({getData, reload, isLoading = () => false, message}) {
+export function installTransfers({getData, reload, isLoading = () => false, message, onStatus = () => {}}) {
     const panel = document.createElement('section'); panel.className = 'system-transfer'; panel.hidden = true;
     const heading = document.createElement('strong');
     const status = document.createElement('p'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
@@ -56,6 +100,7 @@ export function installTransfers({getData, reload, isLoading = () => false, mess
         buttons.validate.disabled = busy || isLoading() || !view.canValidate;
         buttons.store.disabled = busy || isLoading() || !view.canStore;
         buttons.status.disabled = busy || isLoading();
+        panel.setAttribute('aria-busy', String(busy || view.pending));
     };
     const schedule = () => {
         clearTimeout(timer);
@@ -66,11 +111,25 @@ export function installTransfers({getData, reload, isLoading = () => false, mess
         const data = getData(); if (!data?.transfer) return;
         if (action !== 'status' && document.querySelector('dialog[open]')) { message(() => (t("ui.apply.or.close.the.open.fc12a342"))); return; }
         if (action === 'validate' && !data.transfer.canValidate || action === 'store' && !data.transfer.canStore) return;
-        if (action === 'store' && !confirm(t("ui.save.the.validated.draft.for.7095eb90", {p1: data.module.baseTopic}))) return;
+        if (action === 'store') {
+            const approved = JSON.stringify([data.workspaceContext, data.configuration, data.transfer.context]);
+            const accepted = data.guidedUI ? await confirmAction({title: () => t('symcon.transfer.confirm'),
+                detail: () => t('symcon.transfer.detail', {name: data.module.baseTopic, count: data.configuration?.automations?.length ?? 0,
+                    enabled: data.configuration?.automations?.filter(rule => rule.enabled).length ?? 0})})
+                : confirm(t("ui.save.the.validated.draft.for.7095eb90", {p1: data.module.baseTopic}));
+            if (!accepted) return;
+            if (JSON.stringify([getData()?.workspaceContext, getData()?.configuration, getData()?.transfer?.context]) !== approved) { message(() => t('symcon.transfer.changed')); return; }
+        }
         busy = true; clearTimeout(timer); paint();
         if (!automatic) windowEnd = Date.now() + 120000;
         try {
-            const view = await transferRequest(data, action, {token: location.hash.slice(1)});
+            const view = action === 'store' && data.guidedUI
+                ? await runGuidedTransfer({getData, reload, token: location.hash.slice(1), observe: (kind, value) => {
+                    getData()[kind] = value;
+                    if (kind === 'runtime') getData().status = {...getData().status, confirmed: value.confirmed, executing: value.executing, activeRevision: value.activeRevision};
+                    paint(); onStatus();
+                }})
+                : await transferRequest(data, action, {token: location.hash.slice(1)});
             if (!current(data)) return;
             // A stale read must never replace the model of a newer local edit.
             if (getData() !== data) { await reload(); return; }
@@ -80,7 +139,7 @@ export function installTransfers({getData, reload, isLoading = () => false, mess
                     storedRevision: view.storedRevision ?? data.status?.storedRevision};
             }
             if (view.fingerprint !== data.workspaceContext.fingerprint) await reload();
-            else paint();
+            else { paint(); onStatus(); }
         } catch (error) {
             if (current(data)) message(() => (error.name === 'AbortError'
                 ? t("ui.still.awaiting.a.reply.nothing.43fe03b3") : error.message));

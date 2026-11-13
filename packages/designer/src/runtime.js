@@ -2,6 +2,7 @@ import {designerRequest as fetch} from './transport.js';
 import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse} from './localization.js';
 import {createUUID} from './identity.js';
 import {systemHeaders} from './workspace.js';
+import {confirmAction} from './confirmation.js';
 
 /* Polling is read-only. Every MQTT request, including a fresh status, needs a click. */
 export async function runtimeRequest(data, action, {token, rule = '', run = '', resume = true,
@@ -42,7 +43,7 @@ export function installRuntime({getData, reload, isLoading = () => false, messag
     const status = element('p'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
     const notice = element('p'); notice.className = 'field-help';
     const resumeLabel = element('label'); const resume = element('input'); resume.type = 'checkbox';
-    resumeLabel.append(resume, element('span', ' Automatikbetrieb nach einem Z2M-Neustart wieder aufnehmen'));
+    resumeLabel.append(resume, element('span', () => t('mqtt.resume')));
     const actions = element('div'); actions.className = 'transfer-actions';
     const buttons = {};
     for (const [action, text] of [['activate', t("ui.activate.saved.automations.89243fd1")], ['deactivate', t("ui.stop.all.automations.of.this.baed310b")], ['status', t("ui.refresh.z2m.operating.status.e313db3d")]]) {
@@ -102,7 +103,12 @@ export function installRuntime({getData, reload, isLoading = () => false, messag
         const prompt = action === 'activate' ? t("ui.activate.saved.automations.in.this.d652dc69", {p1: target})
             : action === 'deactivate' ? t("ui.stop.all.automations.in.commands.da488c5b", {p1: target})
                 : action === 'run_once' ? t("ui.run.in.once.with.condition.e5366532", {p1: rule.name, p2: target}) : '';
-        if (prompt && !confirm(prompt)) return;
+        if (prompt) {
+            const approved = JSON.stringify([data.workspaceContext, data.configuration, data.runtime.context]);
+            const accepted = data.guidedUI ? await confirmAction({title: () => t('symcon.steps.operation'), detail: () => prompt}) : confirm(prompt);
+            if (!accepted) return;
+            if (JSON.stringify([getData()?.workspaceContext, getData()?.configuration, getData()?.runtime?.context]) !== approved) { message(() => t('symcon.transfer.changed')); return; }
+        }
         const choice = preferences.get(key(data)) ?? v.resumeAfterRestart;
         busy = true; clearTimeout(timer); paint(); if (!automatic) until = Date.now() + 120000;
         try {
