@@ -4,6 +4,21 @@ Use Node 24.20.0 and npm 11 on Windows 11 x64 or Ubuntu Desktop LTS x64.
 All repository documentation and commit messages are English. Localized UI text
 belongs in the local DE/EN JSON catalogs. The user alone commits and pushes.
 
+The shared guided shell and Symcon presentation adapter are canonical under
+`packages/designer/src`; the desktop workspace entry point re-exports the shell.
+After changing them, verify the desktop and import `npm run pack:designer` output
+into Symcon with its checked importer. Run Symcon's PHP/Node suite and the
+capture-free `tests/designer-localization.browser.mjs` using an existing Playwright
+installation. That fixture covers actual list/editor wheel input, field correction,
+local rule switches, cancellation and explicit scoped stop/check/store in both
+browser and tile. It contacts only its own loopback fixture. Keep native installed
+acceptance and platform CI evidence separate from these local checks.
+
+Symcon's missing/unconfirmed catalogue guidance names step 4 and offers a
+navigation shortcut. Opening that step or refreshing the module view must not
+start a device read. The offline browser/tile fixture verifies the explicit
+catalogue request separately and checks that drafts survive it in DE/EN.
+
 ## Setup and checks
 
 ~~~sh
@@ -22,6 +37,81 @@ permanent HTTP and local installer-helper errors still fail immediately.
 CI shares `electron_config_cache` between setup and Forge and caches only the
 download artifacts. Forge uses Electron's pinned checksum manifest too.
 
+Ubuntu CI uses `scripts/ubuntu-apt.mjs` for build tools and the built DEB's
+dependencies. A complete `dpkg-query` installed-state check skips network access
+when all four build packages are present; a built DEB is never skipped this way.
+Updates use `--error-on=any`: failed indexes cannot silently reuse old metadata.
+Only transient acquisition failures are retried, at most twice per mirror and
+phase with a one-second delay. Calls have up to three minutes for cold indexes
+within a shared six-minute acquisition budget plus bounded process shutdown.
+The remaining budget is divided between the selected mirrors, so a stalled first
+mirror cannot consume the fallback's time. Signature, hash, TLS verification,
+dependency and process failures remain terminal.
+
+Before necessary acquisition, read-only probes run in the same sudo environment
+as APT. They report Azure's IPv4 DNS result and probe the noble, noble-updates and
+noble-security HTTPS InRelease files on the official Ubuntu servers and the
+independently hosted [kernel.org](https://mirrors.kernel.org/) and
+[OSU Open Source Lab](https://ftp.osuosl.org/pub/ubuntu/) mirrors. Each curl probe
+has a three-second connection limit and eight-second total limit; logs distinguish
+DNS lookup, TCP connection and TLS handshake timings. Only complete, reachable
+repositories qualify, with at most two selected. IPv4 is selected only after the
+IPv4 HTTPS probes succeed. If none qualifies, acquisition fails before APT starts.
+HTTPS probes do not replace APT's signature/hash verification.
+
+All candidates use isolated Ubuntu 24.04 x64 deb822 sources and the installed
+Ubuntu archive signing key, limited to main/universe in noble, updates and
+security. No trust key is added for a mirror. Unreachable runner sources and
+unrelated third-party repositories are excluded without rewriting system files.
+Translation and DEP-11 indexes are unnecessary and disabled. A repository ID is
+remembered through `GITHUB_ENV` only after APT verifies its signed metadata; the
+next step re-probes that selection.
+
+Sources, package lists and downloads use a random directory directly under
+`/tmp`, outside potentially private runner-home ancestors. Only the two partial
+download directories are owned by `_apt`. Before APT starts, actual `_apt` checks
+verify directory traversal, partial-directory writes and source/keyring reads.
+`dpkg-deb` reads the built package's identity without sudo. The DEB is copied
+into the isolated `archives` directory as `Package_Version_Architecture.deb`,
+with mode 0644, checked against the original with SHA-256 and read-checked as
+`_apt`; the original artifact remains unchanged. Identity fields are bounded,
+with the application's canonical x.y.z version and amd64/all architecture.
+APT can read a local DEB in place during `--download-only` without populating
+its archive cache. Explicit staging makes the local archive available to the
+subsequent `--no-download` operation. A successful acquisition must not be
+assumed to cause a later call to fail. Archive lookup is implemented in
+[APT's archive handling](https://github.com/Debian/apt/blob/main/apt-pkg/acquire-item.cc).
+No runner-home permissions are broadened. An unexpected root-download fallback
+is treated as a permission failure, including when APT exits with status zero.
+Packages are downloaded before one `--no-download` installation,
+limited to two minutes. Install/configuration failures are never replayed. The
+existing installed-app smoke, removal checks and success-only artifact upload
+remain mandatory. Bounded diagnostics include phase, mirror, attempts, byte counts,
+error categories (including missing archives, dependencies and dpkg failures),
+an explicit unsandboxed-download warning flag, access-check
+scopes and the last eight APT index events. Hosts/suites/index types
+are allowlisted; private URLs, paths, process output and credentials are not
+echoed. Synthetic tests and real subprocess output checks cover readiness,
+routing, retry/fallback, identical package staging and failure paths. A native
+Linux CI regression test proves that `_apt` cannot read through a private ancestor
+and can access the new sources, caches and staged package without changing it.
+A second native test builds a tiny dependency-free DEB and exercises real APT
+acquisition with empty sources and an isolated empty package database. It follows
+the production order: stage the archive, acquire dependencies, then check
+`--no-download`. Both APT calls must succeed without acquiring an archive; the
+package bytes and database must remain unchanged. All calls are download-only:
+no package is unpacked or configured and no network repository is accessed.
+
+CI run 43069225091 confirmed the sandbox checks, HTTPS routing, signed metadata,
+dependency downloads and source/package smoke tests. Its final installation
+exited with code 100; the original APT error text was not retained.
+Run 43072699700 stopped earlier because the added native test incorrectly
+expected exit 100 after a successful acquisition; APT actually returned zero.
+That assertion is removed in favor of checking the staged archive's successful
+use. A new Ubuntu CI run must confirm installed-app smoke, removal and DEB
+upload; Windows checks and the non-installing APT regression do not establish
+that result.
+
 verify builds the canonical designer and TypeScript backend, checks UTF-8/LF,
 matching catalog keys/parameters, markup/key references, generated asset hashes,
 strict types and behavior tests. smoke opens its own Electron window with
@@ -30,14 +120,113 @@ on Windows; on Linux it is mapped onto the CI Xvfb display for image capture
 (a local Linux run briefly shows a window). It checks the real
 preload/renderer, system switching, language/input preservation, diagnostics and
 light/dark layouts. Its local screenshot is apps/desktop/out/smoke.png.
+Draft smoke labels every wait and saves bounded state diagnostics plus a
+screenshot as apps/desktop/out/smoke-failure.* on failure. CI uploads these
+separately when a job fails. The shared-broker fixture delays the second system's
+catalog response to exercise independent read timing. Draft editing waits for
+all assigned system reads and a matching rendered context.
+The cross-system form check selects foreign condition/action devices, verifies
+alphabetical ordering and stable ownership, and reopens the saved draft across
+a language change. Transfer tests use two isolated brokers and reject old
+extension versions and revoked receiver grants before validation.
 
 D2 adds real temporary project save/reopen/backup/restore, draft lifecycle,
 main-only credential file import, OS-protected storage when available and keyboard/
 wheel checks to smoke. Test dialogs choose only synthetic files in the temporary
 profile; production uses native dialogs. `tests/projects.test.mjs` also exercises
-an actual exclusive Windows file lock. Run the same checks on Ubuntu; simulated
+an actual exclusive Windows file lock. Its helper prefers installed PowerShell 7
+and falls back to Windows PowerShell. An event-driven handshake allows up to
+30 seconds for startup and requires an explicit lock-ready signal before the
+save assertion. Cleanup waits for release and process exit before removing test
+files; a failed assertion also releases the helper. The test then confirms that
+saving succeeds after unlocking.
+
+`LOCK_HELPER_DIAGNOSTICS` reports the shell name, PID, phase, elapsed time,
+exit code/signal, output byte counts and allowlisted exception type/HRESULT.
+Raw stdout/stderr, file paths and command contents are never included. Phases
+distinguish process startup, lock acquisition and release. Portable lifecycle
+tests cover delayed/fragmented readiness, spawn errors, early exit, bounded
+startup/shutdown failures and cleanup after a failed assertion. They do not
+replace the native Windows lock test, which remains mandatory in Windows CI.
+
+Run the same checks on Ubuntu; simulated
 missing/locked keyrings do not establish native secret-service acceptance.
 See [D2](D2.md) for the format, persistence and credential boundaries.
+
+After `npm run build`, `npm run test:system-link-ui` runs a separate hidden
+Electron fixture with synthetic data. It inspects DOM and layout only and never
+captures images. It covers the desktop system-link assistant's three stages,
+eight sorted system choices, DE/EN preservation, failed checks, offline/shared
+brokers, configuration selection, corrective navigation and reopening. Keyboard,
+Escape and page-local wheel input verify the dialog's internal scroll boundary.
+The wheel check waits for the observed scroll result. Layout
+checks use both themes at 360 and 1280 pixels. Linux needs Xvfb and Electron's
+sandbox setup as shown in the CI workflow. This test does not replace the
+full source/package smoke or native Ubuntu acceptance. The ordinary unit suite
+also verifies mesh-only suggestions, template safety, schema limits and actual
+correlated reads against isolated loopback MQTT peers.
+
+`npm run test:extension-update-ui` is another DOM-only check, included in both
+platform jobs. It covers pending update/transfer progress, automatic draft-check
+modes, the single check action, explicit-transfer controls and DE/EN feedback.
+Confirmation layout is checked in both themes. It captures no images. Backend
+integration tests use the real pinned extension to verify consent, backup and
+stop ordering, switch-only/unchanged drafts and lost replies without replay.
+The DOM fixture also checks detailed capability findings in DE/EN, literal label
+rendering, exact correction targets and bounded editor summaries. Draft smoke
+opens a finding for the second value of a multi-property action and verifies
+that only that value is marked and focused. Synthetic backend tests cover
+multiple invalid values, disabled rules, shared sequences, foreign-device
+ownership, numeric bounds/increments and exclusion of private feedback from logs.
+Toggle regressions cover writable versus read-only state channels, untouched
+read values, native TOGGLE selection/reopening in DE/EN, and validation, storage
+and single execution of TOGGLE plus brightness through the real pinned extension
+against isolated synthetic peers.
+Operation-permission checks cover confirmed counts, zero-enabled explanations,
+sorted checkboxes, DE/EN preservation, cancellation, stale selections and pending
+transfer guards. DOM-only layout checks exercise long, independently scrollable
+lists at 360/1280 pixels in both themes. Source smoke verifies system-scoped
+selection preservation and prohibits permission writes from the smoke profile.
+Tests with the real pinned extension verify switch-only storage, explicit consent,
+backup cancellation, preservation of divergent drafts, revoking the last rule,
+unknown/duplicate IDs and refusal to replay an unconfirmed stop.
+The DOM regression also transitions between red **Not confirmed**, yellow
+**Unknown** and green **Confirmed** permission states in DE/EN and checks the
+actual palette colors in both themes. Selection edits, cancellation, stale
+contexts, lost freshness and unresolved transfers/updates must not show a false
+green confirmation. Starting or stopping operation does not change confirmed
+permissions or issue additional control requests.
+Step-8 receipt regressions cover enabled switch-only storage versus disabled
+content storage, fresh readback counts in DE/EN, a later start, lost freshness
+and a newer stored revision. Completed or invalidated transfers must not keep
+planned-upload instructions or authorize another upload.
+The desktop workspace layout regression uses the actual markup, shared layout
+containers and desktop shell with 30 long synthetic rules. Both themes cover
+1440-pixel windows down to 500 pixels high, a two-column workspace, 150% text
+and a narrow stacked layout.
+It verifies that the outer window does not scroll, the list remains bounded,
+the last rule is reachable and keyboard focus reveals its name. Chromium wheel
+input in light/dark and normal/short windows must actually scroll the list in
+both directions while leaving its controls and outer containers stationary.
+The fixture checks trusted, uncancelled events and the observed scroll position;
+dispatching a synthetic DOM event alone is insufficient. Native OS input remains
+part of installed-app acceptance. No image capture is used.
+Layout checks wait for the renderer's requested viewport size and read actual
+DOM geometry, without waiting for animation frames in the hidden test window.
+Those frames can be delayed by seconds and previously exhausted the unchanged
+30-second process limit. `EXTENSION_UPDATE_DOM_STEP` reports fixed phase names,
+viewport/theme cases and elapsed time; each phase also has an eight-second
+deadline. Process failures report timeout, elapsed time, exit code and signal.
+These diagnostics contain synthetic test metadata only and capture no images.
+
+Use `npm run smoke -- --no-capture` for the complete source smoke without images,
+or `npm run smoke:packaged -- --no-capture` after packaging. The flag disables
+both the success screenshot and failure screenshots; bounded JSON diagnostics
+remain available. The runner rejects builds without capture-free support and
+does not remove existing PNG diagnostics in this mode. Normal CI commands retain
+their capture checks. Both modes execute the same functional, layout and
+save-on-close checks. The draft check asserts classified state and transfer
+eligibility rather than a fixed localized success sentence.
 
 ~~~sh
 npm run package

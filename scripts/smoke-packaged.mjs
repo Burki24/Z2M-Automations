@@ -30,6 +30,6 @@ function verifyDependencies(manifestPath) {
 }
 verifyDependencies('package.json');
 console.log('PACKAGED_DEPENDENCIES_OK ' + checked.size);
-const child = spawn(process.execPath, [join(root, 'scripts/smoke.mjs')], {windowsHide: true, env: {...process.env, Z2MA_SMOKE_BINARY: binary}, stdio: 'inherit'});
+const child = spawn(process.execPath, [join(root, 'scripts/smoke.mjs'), ...process.argv.slice(2)], {windowsHide: true, env: {...process.env, Z2MA_SMOKE_BINARY: binary}, stdio: 'inherit'});
 child.on('error', () => { process.exitCode = 1; });
 child.on('exit', code => { process.exitCode = code ?? 1; });

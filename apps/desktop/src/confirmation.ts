@@ -7,9 +7,15 @@ interface Confirmation {
   detail?: string;
   cancel: string;
   accept?: string;
+  save?: string;
+  saveDisabled?: boolean;
 }
 
 export async function showConfirmation(parent: BrowserWindow, options: Confirmation): Promise<boolean> {
+  return await showConfirmationChoice(parent, options) === true;
+}
+
+export async function showConfirmationChoice(parent: BrowserWindow, options: Confirmation): Promise<boolean | 'save'> {
   if (parent.isDestroyed()) return false;
   const dialog = new BrowserWindow({parent, modal: true, show: false, width: 540, height: options.detail ? 350 : 220,
     minWidth: 320, minHeight: 190, minimizable: false, maximizable: false, autoHideMenuBar: true,
@@ -28,6 +34,11 @@ export async function showConfirmation(parent: BrowserWindow, options: Confirmat
       document.querySelector('#detail').textContent = options.detail ?? '';
       const cancel = document.querySelector('#cancel');
       const accept = document.querySelector('#accept');
+      const save = document.querySelector('#save');
+      save.textContent = options.save ?? '';
+      save.hidden = !options.save;
+      save.disabled = options.saveDisabled === true;
+      save.onclick = () => resolve('save');
       cancel.textContent = options.cancel;
       accept.textContent = options.accept ?? '';
       accept.hidden = !options.accept;
@@ -39,7 +50,8 @@ export async function showConfirmation(parent: BrowserWindow, options: Confirmat
       cancel.focus();
     }))(${JSON.stringify(options)})`);
     dialog.show();
-    return await Promise.race([response, closed]) === true;
+    const result = await Promise.race([response, closed]);
+    return result === 'save' && options.save && !options.saveDisabled ? 'save' : result === true;
   } catch {
     return false;
   } finally {

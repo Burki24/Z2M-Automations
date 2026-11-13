@@ -31,6 +31,6 @@ module.exports = {
       displayLanguageSelector: true, runAfterFinish: true, deleteAppDataOnUninstall: false,
       createStartMenuShortcut: true, shortcutName: 'Z2M-Automations', menuCategory: false,
       artifactName: 'Z2M-Automations-${version}-Windows-x64-Setup.${ext}'}, ['win32']),
-    {name: '@electron-forge/maker-deb', platforms: ['linux'], config: {options: {name: 'z2m-automations', bin: 'Z2M-Automations', productName: 'Z2M-Automations', maintainer: 'Burkhard Kneiseler', homepage: 'https://github.com/Burki24/Z2M-Automations', categories: ['Utility']}}}
+    {name: '@electron-forge/maker-deb', platforms: ['linux'], config: {options: {name: 'z2m-automations', icon: path.join(__dirname, 'renderer', 'app-icon.png'), bin: 'Z2M-Automations', productName: 'Z2M-Automations', maintainer: 'Burkhard Kneiseler', homepage: 'https://github.com/Burki24/Z2M-Automations', categories: ['Utility']}}}
   ]
 };

@@ -10,14 +10,14 @@ const require = createRequire(import.meta.url);
 const {ProjectService} = require('../apps/desktop/.build/project-service.js');
 const {Diagnostics} = require('../apps/desktop/.build/diagnostics.js');
 const {DraftEditor, validDesignerCommand} = require('../apps/desktop/.build/draft-editor.js');
-const {checkedDocument} = require('../apps/desktop/.build/draft-validation.js');
+const {checkedDocument, checkConfigurationCapabilities} = require('../apps/desktop/.build/draft-validation.js');
 const {DraftExchange, importDraft, exportDraft} = require('../apps/desktop/.build/draft-exchange.js');
 const {editorData} = require('../apps/desktop/.build/mqtt-protocol.js');
 const {parseProject} = require('../apps/desktop/.build/project.js');
-async function setup() {
+async function setup(dialogs = {}) {
   const debug = new Diagnostics(); debug.control('start');
   const service = new ProjectService({status: async () => 'none', protectedAvailable: async () => false, clearSession() {}}, {
-    chooseOpen: async () => null, chooseSave: async () => null, confirmDiscard: async () => true, confirmRestore: async () => true, confirmDelete: async () => true
+    chooseOpen: async () => null, chooseSave: async () => null, confirmDiscard: async () => true, confirmRestore: async () => true, confirmDelete: async () => true, ...dialogs
   }, debug);
   await service.command({action: 'new'});
   const broker = {id: randomUUID(), name: 'Synthetic', host: 'broker.invalid', port: 1883, tls: false};
@@ -51,7 +51,7 @@ test('the canonical schema blocks invalid times, time zones, unknown fields and 
   const s = await setup(); const original = JSON.stringify(s.system());
   for (const change of [rule => rule.triggers[0].at = '25:00:00', rule => rule.triggers[0].timezone = 'invalid/zone',
     rule => rule.password = 'PRIVATE', rule => rule.actions[0].values = {brightness: 255},
-    rule => rule.actions[0].values = {occupancy: true}, rule => rule.actions[0].values = {state: 'TOGGLE'},
+    rule => rule.actions[0].values = {occupancy: true}, rule => rule.actions[0].values = {brightness: 'TOGGLE'},
     rule => rule.triggers = [{type: 'device', device: '0x0000000000000001', property: 'occupancy', operator: 'gt', value: 1}]]) {
     const rule = s.rule(); change(rule); assert.throws(() => s.send('create', {rule}), /draft/);
     assert.equal(JSON.stringify(s.system()), original);
@@ -59,6 +59,124 @@ test('the canonical schema blocks invalid times, time zones, unknown fields and 
   const light = s.remotes.get(s.id).devices[1]; light.properties.push({id: 'color', label: 'Color', type: 'color', access: 2, values: []});
   const color = s.rule(); color.actions[0].values = {color: {hex: '#12aBcD'}}; s.send('create', {rule: color});
   const invalid = s.rule(); invalid.actions[0].values = {color: {hex: 'red'}}; assert.throws(() => s.send('create', {rule: invalid}), /draftValue/);
+});
+
+test('a capability failure identifies the submitted rule, section, property, actual value and allowed values', async () => {
+  const s = await setup(); const rule = s.rule();
+  rule.name = 'Synthetic presence rule';
+  rule.triggers = [{type: 'device', device: '0x0000000000000001', property: 'occupancy', operator: 'gt', value: 1}];
+  assert.throws(() => s.send('create', {rule}), error => {
+    assert.equal(error.message, 'draftValue');
+    assert.equal(typeof error.feedback, 'function', 'Capability errors must retain their field context');
+    const feedback = error.feedback(s.system().configuration);
+    assert.equal(feedback.issues.length, 2, 'Report the invalid comparison and value separately');
+    assert.deepEqual(feedback.issues.map(issue => [issue.path, issue.name, issue.reason]), [
+      ['/automations/0/triggers/0/operator', rule.name, 'capability_operator'],
+      ['/automations/0/triggers/0/value', rule.name, 'capability_enum']
+    ]);
+    const value = feedback.issues[1].capability;
+    assert.equal(value.system, 'Synthetic'); assert.equal(value.device, 'Synthetic sensor');
+    assert.equal(value.property, 'occupancy'); assert.equal(value.actual, '1'); assert.equal(value.actualType, 'number');
+    assert.deepEqual(value.allowed, ['true', 'false']);
+    return true;
+  });
+  assert.equal(s.system().configuration.automations.length, 0);
+  assert.equal(JSON.stringify(s.debug.read()).includes(rule.name), false, 'Private draft details must stay out of recordings');
+});
+
+test('writable ON/OFF state channels offer native TOGGLE without changing read values or dropping other command values', async () => {
+  const s = await setup(); const light = s.remotes.get(s.id).devices[1];
+  light.properties.push(
+    {id: 'state_l2', label: 'Second channel', type: 'binary', access: 2, values: ['ON', 'OFF']},
+    {id: 'state_l3', label: 'Discrete channel', type: 'enum', access: 2, values: ['ON', 'OFF', 'TOGGLE']},
+    {id: 'state_ro', label: 'Read-only state', type: 'binary', access: 1, values: ['ON', 'OFF']},
+    {id: 'child_lock', label: 'Child lock', type: 'binary', access: 3, values: ['ON', 'OFF']},
+    {id: 'state_cover', label: 'Cover state', type: 'enum', access: 3, values: ['OPEN', 'CLOSE']}
+  );
+  const before = structuredClone(light);
+  const properties = s.editor.view(s.system()).devices.find(device => device.key === light.key).properties;
+  assert.deepEqual(properties.find(property => property.id === 'state').actionValues, ['ON', 'OFF', 'TOGGLE']);
+  assert.deepEqual(properties.find(property => property.id === 'state').values, ['ON', 'OFF']);
+  assert.deepEqual(properties.find(property => property.id === 'state_l2').actionValues, ['ON', 'OFF', 'TOGGLE']);
+  assert.deepEqual(properties.find(property => property.id === 'state_l3').actionValues, ['ON', 'OFF', 'TOGGLE'], 'Do not duplicate an explicitly advertised TOGGLE');
+  for (const id of ['state_ro', 'child_lock', 'state_cover']) assert.equal(properties.find(property => property.id === id).actionValues.includes('TOGGLE'), false);
+  assert.deepEqual(light, before, 'Projecting action values must preserve the confirmed catalog');
+  const rule = s.rule(); rule.actions[0].values = {state: 'TOGGLE', brightness: 100, state_l2: 'TOGGLE'};
+  const created = s.send('create', {rule});
+  const saved = s.system().configuration.automations.find(rule => rule.id === created.ruleId);
+  assert.deepEqual(saved.actions, rule.actions, 'Keep native TOGGLE and the other values in one set action');
+  for (const values of [{child_lock: 'TOGGLE'}, {state_ro: 'TOGGLE'}, {state_cover: 'TOGGLE'}]) {
+    const invalid = s.rule(); invalid.actions[0].values = values;
+    assert.throws(() => s.send('create', {rule: invalid}), /draft/);
+  }
+  const invalid = s.rule(); invalid.triggers = [{type: 'device', device: light.target.id, property: 'state', operator: 'eq', value: 'TOGGLE'}];
+  assert.throws(() => s.send('create', {rule: invalid}), /draftValue/);
+});
+
+test('capability feedback distinguishes types, bounds, increments, colours and toggle actions without altering acceptance', async () => {
+  const s = await setup();
+  s.remotes.get(s.id).devices[1].properties.push({id: 'color', label: 'Color', type: 'color', access: 2, values: []});
+  for (const [property, value, reason] of [
+    ['brightness', '200', 'capability_number'], ['brightness', -1, 'capability_minimum'],
+    ['brightness', 255, 'capability_maximum'], ['brightness', 0.5, 'capability_step'],
+    ['color', {hex: 'red'}, 'capability_color'], ['brightness', 'TOGGLE', 'capability_toggle']
+  ]) {
+    const rule = s.rule(); rule.actions[0].values = {[property]: value};
+    assert.throws(() => s.send('create', {rule}), error => {
+      assert.equal(error.message, 'draftValue');
+      const issue = error.feedback(s.system().configuration).issues[0];
+      assert.equal(issue.path, '/automations/0/actions/0/values'); assert.equal(issue.reason, reason);
+      assert.equal(issue.capability.property, property); assert.equal(issue.capability.actual, JSON.stringify(value));
+      if (property === 'brightness') {
+        assert.equal(issue.capability.minimum, 0); assert.equal(issue.capability.maximum, 254); assert.equal(issue.capability.step, 1);
+      }
+      return true;
+    });
+  }
+  const rule = s.rule();
+  rule.triggers = [{type: 'device', device: '0x0000000000000002', property: 'brightness', operator: 'lt', value: -100}];
+  rule.actions[0].values = {state: 'ON', brightness: 254};
+  const created = s.send('create', {rule});
+  const changed = {...rule, name: 'Renamed synthetic rule', actions: [{...rule.actions[0], values: {state: false}}]};
+  delete changed.enabled;
+  assert.throws(() => s.send('edit', {ruleId: created.ruleId, changes: changed}), error => {
+    assert.equal(error.feedback(s.system().configuration).issues[0].name, changed.name, 'Use the submitted name, not the previous saved name');
+    return true;
+  });
+  assert.equal(s.system().configuration.automations[0].name, rule.name);
+});
+
+test('whole-draft capability findings cover disabled rules and sequences, deduplicate callers and remain bounded', async () => {
+  const s = await setup(); const configuration = s.system().configuration;
+  configuration.sequences = [{id: 'shared', name: 'Shared synthetic sequence', actions: [
+    {type: 'set', target: {type: 'device', id: '0x0000000000000002'}, values: {state: 'ON', brightness: 255}}
+  ]}];
+  configuration.automations = Array.from({length: 2}, (_, index) => ({...s.rule(), id: 'rule-' + index, enabled: false,
+    actions: [{type: 'sequence', sequence_id: 'shared'}]}));
+  assert.throws(() => checkConfigurationCapabilities(configuration, s.service.data(), s.system(), s.reader), error => {
+    assert.deepEqual(error.details.issues.map(issue => [issue.path, issue.name, issue.capability.property]), [
+      ['/sequences/0/actions/0/values', 'Shared synthetic sequence', 'brightness']
+    ]);
+    assert.equal(error.details.truncated, false); return true;
+  });
+  configuration.sequences = [];
+  configuration.automations = Array.from({length: 25}, (_, index) => ({...s.rule(), id: 'rule-' + index, enabled: false,
+    actions: [{type: 'set', target: {type: 'device', id: '0x0000000000000002'}, values: {state: false}}]}));
+  assert.throws(() => checkConfigurationCapabilities(configuration, s.service.data(), s.system(), s.reader), error => {
+    assert.equal(error.details.issues.length, 20); assert.equal(error.details.truncated, true);
+    assert.equal(error.details.issues[19].path, '/automations/19/actions/0/values'); return true;
+  });
+});
+
+test('partner grants belong to the system configuration and survive creating, copying and editing automations', async () => {
+  const s = await setup(); const configuration = s.system().configuration;
+  configuration.mesh_peers = ['other']; s.service.replaceDraft(s.id, configuration);
+  const created = s.send('create', {rule: s.rule()});
+  const copied = s.send('manage', {operation: 'copy-rule', id: created.ruleId});
+  s.send('edit', {ruleId: copied.ruleId, changes: {name: 'Another automation'}});
+  assert.equal(s.system().configuration.automations.length, 2);
+  assert.deepEqual(s.system().configuration.mesh_peers, ['other']);
+  assert.equal(s.system().configuration.automations.some(rule => Object.hasOwn(rule, 'mesh_peers')), false);
 });
 test('read permissions never imply write permissions; scenes and directed partner permissions are independently checked', async () => {
   const s = await setup();
@@ -68,12 +186,69 @@ test('read permissions never imply write permissions; scenes and directed partne
   const rule = s.rule(); rule.actions[0].target.system = 'other';
   assert.throws(() => s.send('create', {rule}), /draftPermission/);
   const receiver = s.service.data().systems.find(system => system.id === other).configuration; receiver.mesh_peers = ['synthetic']; s.service.replaceDraft(other, receiver);
+  assert.throws(() => s.send('create', {rule}), /draftPermission/);
+  const sender = s.system().configuration; sender.mesh_peers = ['other']; s.service.replaceDraft(s.id, sender);
   s.send('create', {rule});
   const scene = s.rule(); scene.actions = [{type: 'scene', target: {type: 'device', id: '0x0000000000000002'}, scene_id: 1, endpoint: 1}];
   s.send('create', {rule: scene}); scene.actions[0].endpoint = 2; assert.throws(() => s.send('create', {rule: scene}), /draftCapability/);
   const view = s.editor.view(s.system());
   assert.equal(view.devices.find(device => device.key === '0x0000000000000001').properties[0].writable, false);
   s.remotes.get(s.id).fresh = false; assert.throws(() => s.send('create', {rule: s.rule()}), /draftCapability/);
+});
+
+test('conditions and actions select devices owned by another broker without mixing equal IEEE addresses', async () => {
+  const s = await setup(); const id = randomUUID(); const broker = {id: randomUUID(), name: 'Other broker', host: 'other.invalid', port: 1883, tls: false};
+  await s.service.command({action: 'broker', broker});
+  await s.service.command({action: 'system', system: {id, name: 'Other system', brokerId: broker.id, baseTopic: 'other'}});
+  s.remotes.set(id, structuredClone(s.remotes.get(s.id)));
+  const other = () => s.service.data().systems.find(system => system.id === id);
+  assert.equal(s.editor.view(s.system()).deviceSystems.find(owner => owner.key === 'other').reason, 'permissions');
+  for (const [owner, peer] of [[s.system(), 'other'], [other(), 'synthetic']]) {
+    const configuration = owner.configuration; configuration.mesh_peers = [peer]; s.service.replaceDraft(owner.id, configuration);
+  }
+  const rule = s.rule();
+  rule.conditions = [{type: 'device_value', system: 'other', device: '0x0000000000000001', property: 'occupancy', operator: 'eq', value: true}];
+  rule.actions[0].target.system = 'other';
+  const {ruleId} = s.send('create', {rule});
+  const saved = s.system().configuration.automations.find(rule => rule.id === ruleId);
+  assert.equal(saved.conditions[0].system, 'other'); assert.equal(saved.conditions[0].device, '0x0000000000000001');
+  const view = s.editor.view(s.system());
+  assert.equal(view.deviceSystems.find(owner => owner.key === 'other').broker, 'Other broker');
+  assert.equal(view.deviceSystems.find(owner => owner.key === 'other').reason, '');
+  const remote = view.devices.find(device => device.target.system === 'other' && device.target.id === rule.conditions[0].device);
+  assert.notEqual(remote.key, rule.conditions[0].device); assert.equal(remote.properties[0].readable, true);
+  s.remotes.get(id).devices[0].name = 'Foreign synthetic sensor';
+  const invalid = structuredClone(rule); invalid.conditions[0].value = 'true';
+  assert.throws(() => s.send('create', {rule: invalid}), error => {
+    const issue = error.feedback(s.system().configuration).issues[0];
+    assert.equal(issue.path, '/automations/1/conditions/0/value');
+    assert.equal(issue.capability.system, 'Other system'); assert.equal(issue.capability.device, 'Foreign synthetic sensor');
+    assert.equal(issue.capability.actual, '"true"'); assert.equal(issue.capability.actualType, 'string');
+    return true;
+  });
+  s.remotes.get(id).devices[0].properties[0].access = 2;
+  assert.throws(() => s.send('create', {rule}), /draftCapability/, 'A local readable device cannot replace a foreign write-only source');
+  s.remotes.get(id).fresh = false;
+  assert.equal(s.editor.view(s.system()).deviceSystems.find(owner => owner.key === 'other').reason, 'catalog');
+  assert.throws(() => s.send('create', {rule}), /draftCapability/);
+});
+
+test('ambiguous cross-broker topics remain unavailable and partner revocation invalidates an open editor', async () => {
+  const s = await setup(); const broker = {id: randomUUID(), name: 'Other broker', host: 'other.invalid', port: 1883, tls: false};
+  await s.service.command({action: 'broker', broker});
+  const id = randomUUID(); await s.service.command({action: 'system', system: {id, name: 'Other', brokerId: broker.id, baseTopic: 'other'}});
+  s.remotes.set(id, structuredClone(s.remotes.get(s.id)));
+  for (const [ownerId, peer] of [[s.id, 'other'], [id, 'synthetic']]) {
+    const configuration = s.service.data().systems.find(system => system.id === ownerId).configuration;
+    configuration.mesh_peers = [peer]; s.service.replaceDraft(ownerId, configuration);
+  }
+  const rule = s.rule(); rule.conditions = [{type: 'device_value', system: 'other', device: '0x0000000000000001', property: 'occupancy', operator: 'eq', value: true}];
+  const command = s.command('create', {requestId: randomUUID(), context: s.editor.context(s.system()), rule});
+  const receiver = s.service.data().systems.find(system => system.id === id).configuration; receiver.mesh_peers = []; s.service.replaceDraft(id, receiver);
+  assert.throws(() => s.editor.command(command), /draftStale/);
+  await s.service.command({action: 'system', system: {id: randomUUID(), name: 'Ambiguous', brokerId: broker.id, baseTopic: 'synthetic'}});
+  assert.equal(s.editor.view(s.system()).deviceSystems.find(owner => owner.key === 'other').reason, 'ambiguous');
+  assert.throws(() => s.send('create', {rule}), /draftPermission/);
 });
 test('sequence references, expanded steps and accumulated delay are bounded; deletion cannot strand a caller', async () => {
   const s = await setup(); const leaf = s.rule().actions[0];
@@ -88,6 +263,7 @@ test('sequence references, expanded steps and accumulated delay are bounded; del
 test('draft IPC rejects unknown operations, extra routing fields, oversized payloads and stored-view editing', async () => {
   const s = await setup(); const command = s.command('create', {rule: s.rule()});
   assert.equal(validDesignerCommand(command), true);
+  for (const route of ['create-yaml', 'edit-yaml']) assert.equal(validDesignerCommand({...command, route}), false);
   for (const invalid of [{...command, route: 'publish'}, {...command, path: 'private'}, {...command, payload: {value: 'x'.repeat(140000)}}]) assert.equal(validDesignerCommand(invalid), false);
   s.views.set(s.id, 'stored'); assert.throws(() => s.send('create', {rule: s.rule()}), /draftStale/);
   s.views.set(s.id, 'draft'); s.service.editorState(true); await assert.rejects(s.service.command({action: 'save'}), /applyFirst/); s.service.editorState(false);
@@ -118,6 +294,68 @@ test('adopting stored state requires a private backup and never changes stored d
   assert.deepEqual(parseProject(await readFile(backup)).systems[0].configuration, before.configuration);
   assert.deepEqual(s.system().stored, before.stored); assert.equal(s.system().configuration.automations[0].enabled, false);
   assert.equal(s.system().configuration.automations[0].id, 'remote-rule');
+});
+test('adopted rules and their timing survive project save and a new service without restoring the pre-import backup', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'z2ma-adopt-reopen-')); t.after(() => rm(dir, {recursive: true, force: true}));
+  const path = join(dir, 'current.z2ma'); const backup = join(dir, 'before-adopt.z2ma');
+  const s = await setup({chooseSave: async () => path});
+  s.send('create', {rule: {...s.rule(), name: 'Obsolete hallway rule'}});
+  await s.service.command({action: 'save'});
+  const before = s.service.data();
+  const configuration = structuredClone(s.remotes.get(s.id).configuration);
+  const on = configuration.automations[0]; on.id = 'hallway-on'; on.name = 'Hallway on'; on.enabled = true;
+  const off = structuredClone(on); off.id = 'hallway-off'; off.name = 'Hallway off';
+  off.triggers[0].value = false; off.triggers[0].for_seconds = 30;
+  off.actions[0].values = {state: 'OFF'}; off.actions[0].delay_seconds = 0;
+  configuration.automations.push(off); configuration.revision = 74;
+  const yaml = exportDraft(configuration).toString('utf8');
+  const stored = {revision: 74, checksum: createHash('sha256').update(yaml).digest('hex'), configuration, yaml};
+  s.service.observe(s.service.data().id, s.service.generation(), s.id, stored);
+  s.views.set(s.id, 'stored');
+  const exchange = new DraftExchange(s.service, s.editor, {
+    chooseImport: async () => null, chooseExport: async () => null, chooseBackup: async () => backup, confirm: async () => true
+  });
+  await exchange.command(s.command('adopt'));
+  const adopted = s.service.data();
+  assert.equal(s.reader.source(s.id), 'draft'); assert.equal(s.service.isDirty(), true);
+  assert.deepEqual(parseProject(await readFile(backup)).systems[0].configuration, before.systems[0].configuration);
+  assert.deepEqual(s.system().configuration.automations.map(rule => [rule.id, rule.enabled]), [['hallway-on', false], ['hallway-off', false]]);
+  assert.notEqual(s.system().configuration.revision, stored.revision, 'Local and remote revision counters are independent');
+  await s.service.command({action: 'save'});
+  const reopened = await setup({chooseOpen: async () => path}); await reopened.service.command({action: 'open'});
+  assert.deepEqual(reopened.service.data(), adopted); assert.equal(reopened.service.isDirty(), false);
+  assert.deepEqual(reopened.service.data().systems[0].stored, stored, 'Saved Z2M flags remain separate from imported disabled drafts');
+  assert.deepEqual(reopened.service.data().systems[0].configuration.automations[1].triggers[0], off.triggers[0]);
+  assert.deepEqual(importDraft(exportDraft(reopened.service.data().systems[0].configuration)), s.system().configuration);
+});
+
+test('YAML exports the complete local draft without saving or changing the selected source', async t => {
+  const s = await setup();
+  const dir = await mkdtemp(join(tmpdir(), 'z2ma-export-')); t.after(() => rm(dir, {recursive: true, force: true}));
+  const path = join(dir, 'automations.yaml');
+  const existing = s.send('create', {rule: s.rule()});
+  s.send('edit', {ruleId: existing.ruleId, changes: {enabled: true}});
+  s.send('create', {rule: {...s.rule(), name: 'New local rule'}});
+  s.views.set(s.id, 'stored');
+  const before = s.service.data();
+  const draft = before.systems[0].configuration;
+  const command = s.command('export');
+  const dialogs = {chooseImport: async () => null, chooseExport: async () => null, chooseBackup: async () => null, confirm: async () => true};
+  const exchange = new DraftExchange(s.service, s.editor, dialogs);
+  assert.deepEqual(await exchange.command(command), {ok: true, canceled: true});
+  await assert.rejects(readFile(path), {code: 'ENOENT'});
+  dialogs.chooseExport = async () => path;
+  await exchange.command(command);
+  const exported = importDraft(await readFile(path));
+  assert.deepEqual(exported, draft);
+  assert.deepEqual(s.service.data(), before);
+  assert.equal(s.reader.source(s.id), 'stored');
+  dialogs.chooseExport = async () => {
+    await s.service.command({action: 'draft', systemId: s.id, operation: 'rename', ruleId: existing.ruleId, name: 'Changed while choosing a file'});
+    return path;
+  };
+  await assert.rejects(exchange.command(command), /draftStale/);
+  assert.deepEqual(importDraft(await readFile(path)), exported);
 });
 test('the consumed schema artifact matches its recorded provenance', async () => {
   const base = new URL('../apps/desktop/schema/', import.meta.url); const provenance = JSON.parse(await readFile(new URL('provenance.json', base)));

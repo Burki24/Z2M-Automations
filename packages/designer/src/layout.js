@@ -1,4 +1,8 @@
+import {installSymconWorkspace} from './symcon-workspace.js';
 import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse} from './localization.js';
+import {isDesktop} from './transport.js';
+import {selectedSystemName} from './workspace.js';
+
 /* Presentation only: existing controls and their listeners are moved, never cloned. */
 export function layoutStatus(data) {
     const transfer = data?.transfer;
@@ -12,7 +16,25 @@ export function layoutStatus(data) {
     };
 }
 
-export function installLayout({getData}) {
+export function workflowStatus(data, desktop = isDesktop()) {
+    if (!data?.module || (desktop && (!data.desktop?.project || !data.workspaceContext?.systemId))) return null;
+    const status = data.status;
+    const transfer = desktop ? null : data.transfer;
+    const receiverConfirmed = status?.storedConfirmed ?? transfer?.receiverConfirmed ?? status?.confirmed;
+    const revision = status?.storedConfirmed === undefined
+        ? transfer?.storedRevision ?? status?.storedRevision : status.storedRevision;
+    const stored = Number.isSafeInteger(revision) && revision > 0
+        ? t(receiverConfirmed ? 'workflow.stored' : 'workflow.lastRead', {revision})
+        : revision === 0 && receiverConfirmed ? t('workflow.empty') : t('workflow.unknown');
+    const projectFile = desktop ? t(data.desktop.projectDirty ? 'workflow.projectUnsaved' : 'workflow.projectSaved') : '';
+    let next = '';
+    if (desktop && data.desktop.source !== 'stored') next = !status?.mqttConnected ? 'connect' : status.confirmed ? 'review' : 'read';
+    if (transfer) next = transfer.canStore ? 'store' : 'review';
+    return {system: selectedSystemName(data), stored, projectFile, next};
+}
+
+export function installLayout({getData, reload}) {
+    const guided = isDesktop() ? () => {} : installSymconWorkspace({getData, reload});
     const node = (tag, className, text) => {
         const el = document.createElement(tag);
         if (className) el.className = className;
@@ -37,7 +59,29 @@ export function installLayout({getData}) {
     menu.addEventListener('click', event => { if (event.target.closest('button') && !event.target.closest('button').disabled) menu.open = false; });
     menu.addEventListener('keydown', event => { if (event.key === 'Escape') { menu.open = false; summary.focus(); } });
     const feedback = node('div', 'designer-feedback'); bindAttribute(feedback, 'aria-label', () => t("ui.view.feedback.68df1297"));
-    feedback.append(document.querySelector('#feedback')); document.querySelector('.workspace').after(feedback);
+    const statusStrip = document.querySelector('.status-strip');
+    feedback.append(document.querySelector('#feedback')); statusStrip.after(feedback);
+    const systemLabel = node('strong', 'workflow-system'); systemLabel.id = 'workflow-system';
+    const storedLabel = node('span', 'status-chip'); storedLabel.id = 'workflow-stored';
+    const projectLabel = node('span', 'workflow-project'); projectLabel.id = 'workflow-project';
+    const nextStep = node('button', 'workflow-next'); nextStep.id = 'workflow-next'; nextStep.type = 'button';
+    statusStrip.prepend(systemLabel);
+    statusStrip.querySelector('#runtime-status').before(storedLabel);
+    statusStrip.append(projectLabel, nextStep);
+    const nextLabels = {review: 'workflow.review', store: 'workflow.store', connect: 'workflow.connect', read: 'workflow.read'};
+    nextStep.addEventListener('click', () => {
+        const data = getData();
+        const next = workflowStatus(data)?.next;
+        if (!next) return;
+        if (isDesktop()) {
+            document.dispatchEvent(new CustomEvent('z2ma-workflow-next', {detail: {systemId: data.workspaceContext.systemId, next}}));
+            return;
+        }
+        opened = 'transfer'; update();
+        const transfer = panels.transfer.panel;
+        const target = transfer?.querySelector('button[data-transfer-action="' + (next === 'store' ? 'store' : 'validate') + '"]:not(:disabled)');
+        (target ?? panels.transfer.button).focus();
+    });
     const controls = node('section', 'designer-controls'); bindAttribute(controls, 'aria-label', () => t("ui.requests.for.the.selected.z2m.982736e9"));
     const tabs = node('div', 'designer-control-tabs');
     const bodies = node('div', 'designer-control-bodies');
@@ -90,6 +134,14 @@ export function installLayout({getData}) {
         const data = getData(); const nextSystem = data?.workspaceContext?.systemId ?? '';
         if (system !== nextSystem) { opened = ''; menu.open = false; system = nextSystem; }
         controls.hidden = !data?.workspace || data?.capabilities?.operationControls === false;
+        const workflow = workflowStatus(data);
+        systemLabel.hidden = storedLabel.hidden = !workflow;
+        projectLabel.hidden = !workflow?.projectFile;
+        nextStep.hidden = !workflow?.next;
+        bindText(systemLabel, () => workflow?.system ?? '');
+        bindText(storedLabel, () => workflow?.stored ?? '');
+        bindText(projectLabel, () => workflow?.projectFile ?? '');
+        if (workflow?.next) bindText(nextStep, () => t(nextLabels[workflow.next]));
         const states = layoutStatus(data);
         for (const [name, item] of Object.entries(panels)) {
             bindText(item.state, () => states[name]);
@@ -100,6 +152,7 @@ export function installLayout({getData}) {
             item.body.hidden = opened !== name;
         }
         document.body.dataset.designerTheme = 'browser';
+        guided();
     }
     update();
     return update;

@@ -5,8 +5,7 @@ import {mkdtemp, readFile, writeFile, rm, readdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID, createCipheriv, createDecipheriv, randomBytes} from 'node:crypto';
-import {spawn} from 'node:child_process';
-import {once} from 'node:events';
+import {withWindowsFileLock} from './support/windows-lock.mjs';
 const require = createRequire(import.meta.url);
 const {newProject, emptyConfiguration, parseProject, projectBytes, validProject} = require('../apps/desktop/.build/project.js');
 const {ProjectFile, atomicWrite} = require('../apps/desktop/.build/project-files.js');
@@ -89,17 +88,15 @@ test('locked destination failure preserves draft and existing file and removes t
 test('a real Windows exclusive file lock rejects save without losing the draft', {skip: process.platform !== 'win32'}, async t => {
   const dir = await directory(t); const path = join(dir, 'locked.z2ma'); const file = new ProjectFile(); const project = fixture();
   await file.save(project, path); const original = await readFile(path); project.name = 'Unsaved while locked';
-  const script = `$stream = [System.IO.File]::Open('${path.replaceAll("'", "''")}', [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None); try { [Console]::WriteLine('LOCK_READY'); [Console]::ReadLine() | Out-Null } finally { $stream.Dispose() }`;
-  const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {windowsHide: true, stdio: ['pipe', 'pipe', 'pipe']});
-  let output = ''; let errors = ''; child.stdout.on('data', data => { output += data; }); child.stderr.on('data', data => { errors += data; });
-  t.after(() => child.kill());
-  const deadline = Date.now() + 10000;
-  while (!output.includes('LOCK_READY') && child.exitCode === null && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
-  assert.ok(output.includes('LOCK_READY'), errors || 'Lock helper did not start');
-  await assert.rejects(file.save(project)); assert.equal(project.name, 'Unsaved while locked');
-  const exited = once(child, 'exit'); child.stdin.end('\n'); await exited;
+  await withWindowsFileLock(path, async () => {
+    await assert.rejects(file.save(project), error => ['EACCES', 'EPERM', 'EBUSY'].includes(error.code));
+    assert.equal(project.name, 'Unsaved while locked');
+  }, {report: state => t.diagnostic('LOCK_HELPER_DIAGNOSTICS ' + JSON.stringify(state))});
   assert.deepEqual(await readFile(path), original);
   assert.equal((await readdir(dir)).some(name => name.endsWith('.tmp')), false);
+  await file.save(project);
+  assert.equal(parseProject(await readFile(path)).name, 'Unsaved while locked');
+  assert.deepEqual(await readFile(path + '.bak'), original);
 });
 test('export is independent of the open path and cannot bypass its conflict check', async t => {
   const dir = await directory(t); const path = join(dir, 'source.z2ma'); const output = join(dir, 'export.z2ma');

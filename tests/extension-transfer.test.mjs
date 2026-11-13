@@ -16,8 +16,9 @@ const {Diagnostics} = require('../apps/desktop/.build/diagnostics.js');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 
 async function setup(t, options = {}) {
-  const fixture = remoteFixture();
+  const fixture = options.fixture ?? remoteFixture();
   const draft = structuredClone(fixture.editor.configuration);
+  draft.automations[0].name += ' draft';
   fixture.status.executing = fixture.editor.executing = false;
   fixture.status.extension_build = fixture.editor.extension_build = 'a'.repeat(64);
   let installed = !options.absent;
@@ -28,7 +29,7 @@ async function setup(t, options = {}) {
     reply({operation, request, response, publish}) {
       if (operation === 'install') {
         assert.equal(request.name, 'z2m-automations.mjs');
-        assert.equal(hash(request.code), 'aef090e0fab41c50b7f5360d03c9c077ef559a7e192a18d26ad397e3ceda8ecd');
+        assert.equal(hash(request.code), '56878a00be9671c8f470f3f3c8ad3be014d8f9a08a4ad807e4f0ec42f548867f');
         installed = true;
         Object.assign(fixture.status, {session: randomUUID(), extension_build: bundledExtension.build, extension_version: bundledExtension.version});
         if (options.absent) {
@@ -37,7 +38,14 @@ async function setup(t, options = {}) {
         }
         Object.assign(fixture.editor, fixture.status);
         if (!options.loseInstallAck) publish();
+      } else if (operation === 'restart') {
+        publish();
+        publish({state: 'offline'}, 'synthetic/bridge/state');
+        fixture.status.session = randomUUID();
+        Object.assign(fixture.editor, fixture.status);
+        publish({state: 'online'}, 'synthetic/bridge/state');
       } else if (installed && operation === 'validate') {
+        if (options.validationError) { publish({...response, status: 'error', error: options.validationError}); return; }
         const doc = parse(request.yaml);
         publish({...response, data: {valid: true, revision: doc.revision, checksum: hash(request.yaml), automation_count: doc.automations.length, executing: false}});
       } else if (installed && operation === 'store') {
@@ -80,6 +88,40 @@ async function setup(t, options = {}) {
   return {command, count, system, fixture, draft, backup, dialogs, reader, id, projects, peer, debug, loseAck: () => { loseAck = true; }};
 }
 
+test('remote conditions recheck catalogs, receiver grants and extension versions on two independent brokers', async t => {
+  const synchronize = fixture => {
+    const yaml = JSON.stringify(fixture.editor.configuration); const checksum = hash(yaml);
+    fixture.status.checksum = checksum; Object.assign(fixture.editor, {yaml, checksum});
+  };
+  const source = remoteFixture(); source.editor.configuration.mesh_peers = ['other']; synchronize(source);
+  const target = remoteFixture('Other system'); target.editor.configuration.mesh_peers = ['synthetic']; synchronize(target);
+  const otherPeer = await startPeer({systems: new Map([['other', target]])});
+  t.after(() => otherPeer.close());
+  const s = await setup(t, {fixture: source});
+  const broker = {id: randomUUID(), name: 'Other broker', host: '127.0.0.1', port: otherPeer.port, tls: false};
+  const id = randomUUID();
+  await s.projects.command({action: 'broker', broker});
+  await s.projects.command({action: 'system', system: {id, name: 'Other system', brokerId: broker.id, baseTopic: 'other'}});
+  const draft = s.system().configuration;
+  draft.automations[0].conditions = [{type: 'device_value', system: 'other', device: '0x0000000000000001', property: 'occupancy', operator: 'eq', value: true}];
+  s.projects.replaceDraft(s.id, draft);
+  s.reader.reconcile(s.projects.data(), s.projects.generation());
+  await s.reader.connectBroker(broker.id);
+  for (let attempt = 0; !s.reader.connected(broker.id) && attempt < 100; attempt++) await new Promise(resolve => setTimeout(resolve, 20));
+  await s.reader.refresh(id);
+  await assert.rejects(s.command('validate'), /draftRemoteConditionVersion/);
+  source.status.extension_version = source.editor.extension_version = bundledExtension.version;
+  await assert.rejects(s.command('validate'), /draftRemoteConditionVersion/);
+  target.status.extension_version = target.editor.extension_version = bundledExtension.version;
+  target.editor.configuration.mesh_peers = []; synchronize(target);
+  await assert.rejects(s.command('validate'), /draftPermission/);
+  assert.equal(s.count('/request/validate'), 0, 'An old runtime or missing receiver grant cannot reach remote validation');
+  target.editor.configuration.mesh_peers = ['synthetic']; synchronize(target);
+  assert.equal(await s.command('validate'), 'transferValidated');
+  assert.equal(s.count('/request/validate'), 1);
+  assert.ok(otherPeer.publications.every(packet => /\/request\/(status|editor)$/.test(packet.topic)), 'The other broker is read-only during validation');
+});
+
 test('D5 validates the exact disabled bytes, backs up the prior state and confirms storage independently', async t => {
   const s = await setup(t);
   assert.equal(await s.command('validate'), 'transferValidated');
@@ -92,6 +134,70 @@ test('D5 validates the exact disabled bytes, backs up the prior state and confir
   assert.equal(JSON.parse(await readFile(s.backup, 'utf8')).systems[0].stored.revision, 3);
   assert.ok(s.peer.publications.every(packet => !packet.retain && packet.qos === 0));
   assert.ok(s.debug.read().events.some(event => event.operation === 'store' && event.transaction));
+});
+
+test('validation locates missing entries in older drafts and identifies the actual action field', async t => {
+  const s = await setup(t);
+  const draft = structuredClone(s.draft);
+  draft.automations.push({id: 'old-test', name: 'Old test', enabled: false, triggers: [], conditions: [], actions: []});
+  draft.automations[0].actions[0].values = {};
+  s.projects.replaceDraft(s.id, draft);
+  await assert.rejects(s.command('validate'), error => {
+    assert.equal(error.message, 'draftSchema');
+    assert.deepEqual(error.details, {issues: [
+      {path: '/automations/0/actions/0/values', reason: 'minProperties', limit: 1},
+      {path: '/automations/1/triggers', reason: 'minItems', limit: 1},
+      {path: '/automations/1/actions', reason: 'minItems', limit: 1}
+    ], truncated: false});
+    return true;
+  });
+  assert.equal(s.count('/request/validate'), 0);
+  await assert.rejects(s.command('store'), /transferValidateFirst/);
+  assert.equal(s.count('/request/store'), 0);
+});
+
+test('validation forwards only bounded Z2M details and resolves the rule name locally', async t => {
+  const validationError = {code: 'invalid_semantics', message: 'PRIVATE_REMOTE_MESSAGE', details: {
+    issues: [{path: '/automations/0/conditions/0/timezone', reason: 'timezone', name: 'PRIVATE_REMOTE_NAME',
+      capability: {actual: 'PRIVATE_REMOTE_VALUE', device: 'PRIVATE_REMOTE_DEVICE'}}], truncated: false
+  }};
+  const s = await setup(t, {validationError});
+  await assert.rejects(s.command('validate'), error => {
+    assert.equal(error.message, 'remoteError');
+    assert.deepEqual(error.feedback(s.system().configuration), {issues: [
+      {path: '/automations/0/conditions/0/timezone', reason: 'timezone', name: s.draft.automations[0].name}
+    ], truncated: false});
+    return true;
+  });
+  validationError.details.issues[0].path = '/automations/0/actions/0/values/PRIVATE_REMOTE_FIELD';
+  await assert.rejects(s.command('validate'), error => error.message === 'remoteError' && error.details === undefined);
+  assert.equal(s.count('/request/store'), 0);
+});
+
+test('receiver capability validation reports all affected rules and the exact value without sending validate or store', async t => {
+  const s = await setup(t); const draft = structuredClone(s.draft);
+  draft.automations[0].triggers[0].operator = 'gt'; draft.automations[0].triggers[0].value = 1;
+  draft.automations[0].actions[0].values = {state: false};
+  draft.automations.push({...structuredClone(s.draft.automations[0]), id: 'second-rule', name: 'Second synthetic rule', enabled: false,
+    actions: [{type: 'set', target: {type: 'device', id: '0x0000000000000002'}, values: {brightness: 255}}]});
+  s.projects.replaceDraft(s.id, draft);
+  await assert.rejects(s.command('validate'), error => {
+    assert.equal(error.message, 'draftValue');
+    const feedback = error.feedback(s.system().configuration);
+    assert.deepEqual(feedback.issues.map(issue => issue.path), [
+      '/automations/0/triggers/0/operator', '/automations/0/triggers/0/value',
+      '/automations/0/actions/0/values', '/automations/1/actions/0/values'
+    ]);
+    assert.equal(feedback.issues[0].name, draft.automations[0].name);
+    assert.equal(feedback.issues[3].name, 'Second synthetic rule');
+    assert.equal(feedback.issues[3].capability.property, 'brightness');
+    assert.equal(feedback.issues[3].capability.actual, '255');
+    assert.equal(feedback.issues[3].capability.maximum, 254);
+    return true;
+  });
+  assert.equal(s.count('/request/validate'), 0); assert.equal(s.count('/request/store'), 0);
+  assert.equal(JSON.stringify(s.debug.read()).includes('Second synthetic rule'), false);
+  assert.deepEqual(s.system().configuration, draft);
 });
 
 test('D5 cancellation consumes validation and a newer remote revision is backed up without being overwritten', async t => {
@@ -116,8 +222,8 @@ test('D5 lost store acknowledgement is reconciled by reading and never resending
   const s = await setup(t);
   await s.command('validate');
   s.loseAck();
-  await assert.rejects(s.command('store'), /transferUncertain/);
-  assert.equal(await s.command('checkTransfer'), 'transferStored');
+  assert.equal(await s.command('store'), 'transferStored');
+  assert.equal(await s.command('checkTransfer'), 'transferChecked');
   await assert.rejects(s.command('store'), /transferValidateFirst/);
   assert.equal(s.count('/request/store'), 1);
   assert.equal(s.system().baseline.revision, 4);
@@ -144,11 +250,11 @@ test('D5 rechecks the receiver after confirmation and refuses a store after a se
   assert.equal(s.count('/request/store'), 0);
 });
 
-test('D5 reads back an upgrade after a lost reply and preserves the previous stored rules', async t => {
+test('D5 reads back an upgrade after a lost reply and finishes without repeating the upload', async t => {
   const s = await setup(t, {loseInstallAck: true});
   const original = s.system().stored;
-  await assert.rejects(s.command('install'), /transferUncertain/);
-  assert.equal(await s.command('checkTransfer'), 'transferInstalled');
+  assert.equal(await s.command('install'), 'transferInstalled');
+  assert.equal(await s.command('checkTransfer'), 'transferChecked');
   assert.equal(s.count('/bridge/request/extension/save'), 1);
   assert.deepEqual(s.system().stored, original);
   assert.deepEqual(JSON.parse(await readFile(s.backup, 'utf8')).systems[0].stored, original);

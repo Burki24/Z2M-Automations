@@ -37,7 +37,7 @@ jobs:
         run: npm run setup:tools
       - name: Install Linux build and display tools
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --yes fakeroot dpkg xvfb openssl
+        run: node scripts/ubuntu-apt.mjs prepare
       - name: Verify shared sources and desktop contracts
         run: npm run verify
       - name: Package the native application
@@ -45,6 +45,12 @@ jobs:
       - name: Verify Windows renderer and IPC
         if: runner.os == 'Windows'
         run: npm run smoke
+      - name: Verify system-link assistant without image capture on Windows
+        if: runner.os == 'Windows'
+        run: npm run test:system-link-ui
+      - name: Verify extension update UI without image capture on Windows
+        if: runner.os == 'Windows'
+        run: npm run test:extension-update-ui
       - name: Verify packaged Windows application and runtime dependencies
         if: runner.os == 'Windows'
         run: npm run smoke:packaged
@@ -56,6 +62,12 @@ jobs:
       - name: Verify Linux renderer and IPC under Xvfb
         if: runner.os == 'Linux'
         run: xvfb-run --auto-servernum --server-args="-screen 0 3840x2160x24" npm run smoke
+      - name: Verify system-link assistant without image capture on Linux
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x900x24" npm run test:system-link-ui
+      - name: Verify extension update UI without image capture on Linux
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x900x24" npm run test:extension-update-ui
       - name: Verify packaged Linux application and runtime dependencies
         if: runner.os == 'Linux'
         run: xvfb-run --auto-servernum --server-args="-screen 0 3840x2160x24" npm run smoke:packaged
@@ -84,17 +96,29 @@ jobs:
         run: |
           mapfile -t packages < <(find apps/desktop/out/make -type f -name '*.deb')
           [[ ${#packages[@]} -eq 1 ]]
-          sudo apt-get install --yes "$(realpath "${packages[0]}")"
+          node scripts/ubuntu-apt.mjs install-deb "$(realpath "${packages[0]}")"
           trap 'sudo apt-get remove --yes z2m-automations' EXIT
           binary="$(dpkg-query -L z2m-automations | awk '/\/resources\/app\.asar$/ { sub(/resources\/app\.asar$/, "Z2M-Automations"); print }')"
           test -x "$binary"
+          launcher="$(dpkg-query -L z2m-automations | awk '/\/applications\/z2m-automations\.desktop$/')"
+          icon="$(dpkg-query -L z2m-automations | awk '/\/z2m-automations\.png$/')"
+          grep -Fx 'Icon=z2m-automations' "$launcher"
+          cmp apps/desktop/renderer/app-icon.png "$icon"
           Z2MA_SMOKE_BINARY="$binary" xvfb-run --auto-servernum --server-args="-screen 0 3840x2160x24" npm run smoke
           sudo apt-get remove --yes z2m-automations
           trap - EXIT
           test ! -e "$binary"
       - name: Build the shared designer handoff
         run: npm run pack:designer
-      - uses: actions/upload-artifact@v4
+      - name: Upload smoke-test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: desktop-diagnostics-${{ runner.os }}
+          path: apps/desktop/out/smoke-failure.*
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/upload-artifact@v6
         with:
           name: desktop-${{ runner.os }}
           path: |

@@ -5,13 +5,17 @@ As of 2026-11-09. This is the operational desktop agenda for the new repository
 Windows and Linux will be developed in parallel; **Ubuntu LTS x64** is the
 confirmed first Linux platform. The repository and development guidelines are
 prepared. D0 and D1 are complete for the shared offline foundation. Windows and
-Ubuntu 24.04 CI passed; native installed-app acceptance remains open. D2 local
+Ubuntu 24.04 CI passed. D2 local
 projects, drafts and credentials passed Windows/Ubuntu CI. D3 read-only MQTT
 passed Windows/Ubuntu CI. D4 local editing passed both platform jobs. D5
-installation and storage and D6 operation passed both platform jobs. D7 adds
-a beta user guide and installed-package CI checks. Native acceptance remains
-open. See [D6](D6.md) and [D7](D7.md).
+installation and storage and D6 operation passed both platform jobs. D7 is complete
+for Windows and Ubuntu Desktop 24.04 under Hyper-V. See [D6](D6.md) and [D7](D7.md).
 See [D1](D1.md), [D2](D2.md) and [D3](D3.md) for verification limits.
+The owner also confirmed post-D7 acceptance of editing, creating and configuring
+cross-system automations through confirmed transfer and execution with application
+0.99.0 on 2026-11-13. See [workflow acceptance](D7.md#post-d7-workflow-acceptance-0990).
+The new desktop workflow is the accepted basis for a separately scoped Symcon
+browser designer and tile adaptation; that UI transfer remains outstanding.
 Importing this plan did not change any Symcon or Z2M installation.
 
 Imported from the [original plan in the Symcon repository](https://github.com/Burki24/Symcon_Z2MAutomations/blob/01f444d91d5c664177a5d2a60a5d644c72840523/docs/DESKTOP_PLAN.md)
@@ -177,8 +181,9 @@ private device contents or complete YAML documents.
 
 Manage broker connections separately from Z2M systems. One broker may serve
 multiple base topics. Share connections per broker in a controlled way and use
-client IDs distinct from Symcon and other applications. Establish MQTT only
-after an explicit connection request.
+client IDs distinct from Symcon and other applications. Establish MQTT after
+an explicit connection request or a successful project open with a local opt-in
+for that project's broker endpoint.
 
 Plan for TCP and TLS, username/password and CA/client certificates as needed.
 Do not silently disable certificate verification. The renderer may not publish

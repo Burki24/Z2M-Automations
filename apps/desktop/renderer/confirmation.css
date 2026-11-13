@@ -1,8 +1,11 @@
-body { background: var(--surface); color: var(--ink); margin: 0; }
-main { min-height: 100vh; padding: 1.25rem; display: flex; flex-direction: column; gap: .75rem; }
-h1 { font-size: 1.125rem; color: var(--warning); margin: 0; }
+body { background: var(--surface); color: var(--ink); margin: 0; overflow: hidden; }
+main { box-sizing: border-box; height: 100vh; padding: 1.25rem; display: flex; flex-direction: column; gap: .75rem; }
+h1 { flex-shrink: 0; font-size: 1.125rem; color: var(--warning); margin: 0; }
 p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
-footer { display: flex; flex-wrap: wrap; justify-content: end; gap: .5rem; margin-top: auto; }
+#detail { flex: 1; min-height: 0; overflow-y: auto; }
+#detail:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+footer { flex-shrink: 0; display: flex; flex-wrap: wrap; justify-content: end; gap: .5rem; margin-top: auto; }
 button { padding: .5rem .8rem; border-radius: .5rem; border: 1px solid var(--line-strong); background: var(--surface-soft); color: var(--ink); }
 button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-#accept { background: var(--primary); color: var(--on-primary); }
+button[hidden] { display: none; }
+#save, #accept { background: var(--primary); color: var(--on-primary); }

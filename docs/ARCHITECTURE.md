@@ -14,6 +14,14 @@ Windows and Ubuntu use the same designer and business logic. Platform-specific
 concerns are file paths, dialogs, protected secret storage, desktop integration
 and packages. Do not maintain different feature sets per operating system.
 
+The desktop shell fills the window. Setup pages scroll inside their work area;
+the automation workspace gives its existing list, canvas and inspector the
+remaining height below the compact header and tools. In short windows the list's
+controls may scroll separately, preserving space for rules. Narrow layouts stack
+panels inside the work area. The numbered shell and viewport rules are shared
+with Symcon through the versioned designer package; product adapters supply the
+page contents and palettes. See [ADR 0005](adr/0005-shared-guided-workspace.md).
+
 Responsibilities (local project/platform and MQTT services currently live in `apps/desktop/src`;
 core, mqtt and platform packages are not empty placeholders):
 
@@ -26,8 +34,9 @@ core, mqtt and platform packages are not empty placeholders):
 | `packages/platform` | OS paths, dialogs and protected credentials |
 | `tests` | Synthetic contract, integration, UI and platform cases |
 
-The interface uses a defined adapter contract. The Symcon adapter stays in the
-Symcon repository; the desktop adapter runs behind restricted IPC. The renderer
+The interface uses a defined adapter contract. Symcon's presentation adapter is
+part of the shared package; its PHP authority and persistence stay in the Symcon
+repository. The desktop adapter runs behind restricted IPC. The renderer
 has no Node access, broker secrets or MQTT clients.
 
 ## One canonical source per component
@@ -48,6 +57,10 @@ there are no runtime downloads from GitHub.
 
 - Model broker connections and Z2M systems separately. Several base topics may
   share a broker; explicitly assign up to eight systems.
+- Automatic connection is an explicit local opt-in per project and broker
+  endpoint. Main stores the preference separately from portable projects and
+  credentials. Opening a project connects opted-in brokers once and reads
+  their systems. Missing or locked credentials are reported per broker.
 - Identities are stable system/device/rule identifiers. Display names may change.
 - Store portable projects separately from secrets. Private keys and sessions
   belong in neither exports nor diagnostics nor the repository.
@@ -57,6 +70,27 @@ there are no runtime downloads from GitHub.
   A local Symcon owner identifier is not a cross-installation lock.
 - The application does not execute rules itself. Z2M remains the runtime;
   broker bridges are configured separately and are not installed by the app.
+- Device triggers remain local. Device-value conditions may name a partner
+  system using its unique base topic. The owning extension evaluates them through
+  correlated mesh reads at start and before actions. Both peer declarations,
+  fresh catalogs and compatible extension versions are checked before transfer.
+  Unknown values, missing grants and late or absent replies cannot authorize an
+  action; device state never needs to pass through a running desktop app.
+- Partner permissions belong to each system configuration, shared by its rules.
+  The desktop overview projects local declarations and existing stored observations
+  without issuing MQTT requests. Cached grants and mismatched active revisions
+  never establish current permission or operation. Broker ACL and bridge setup
+  remain external and explicitly unverified by this view.
+- The desktop system-link assistant projects a selected pair through
+  `system-link.ts` and fixed `linkPlan`/`linkCheck` network commands. A plan is
+  read-only; an explicit check starts only existing correlated status/catalog
+  reads on connected brokers. Completion is polled without holding the project
+  queue across observation callbacks. Local declarations, fresh stored grants
+  and active revisions remain independent. The renderer receives no account
+  secrets, shell API or arbitrary publish capability. Mosquitto ACL/bridge
+  suggestions contain placeholders and mesh-only topics; they are never applied.
+  Actual account rights and mesh transport remain unknown. See
+  [ADR 0003](adr/0003-system-link-assistant.md).
 
 ## Language, permissions and diagnostics
 

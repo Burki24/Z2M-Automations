@@ -64,6 +64,41 @@
   confirmed by the owner. Retain existing source notices. Third-party packages
   retain their respective licenses; do not replace them.
 
+## Desktop visual identity
+
+Use the desktop palette in `apps/desktop/renderer/desktop-palette.css` for
+Windows and Linux. Apply its semantic tokens to the workspace, forms and app
+dialogs. Keep the shared designer's embedded Symcon palette separate.
+Native credential dialogs use the same colors where the toolkit supports
+them. Respect OS high contrast and system-owned UI.
+
+| Role | Light | Dark |
+| --- | --- | --- |
+| Background | `#F4F1EC` | `#1B1918` |
+| Surface | `#FFFCF7` | `#262321` |
+| Secondary surface | `#EEE8DF` | `#302B28` |
+| Border | `#D8CFC5` | `#554B45` |
+| Strong border | `#87796E` | `#93847A` |
+| Text | `#282321` | `#F7F0E8` |
+| Secondary text | `#665C55` | `#C6B9AD` |
+| Primary, success and action | `#3D7058` | `#A5C7AF` |
+| Primary button text | `#FFFFFF` | `#17291F` |
+| Primary hover | `#315D49` | `#B9D6C1` |
+| Primary tint | `#E4EDE5` | `#293C31` |
+| Trigger and keyboard focus | `#70416C` | `#D6A8CD` |
+| Trigger tint | `#F1E4EF` | `#422F40` |
+| Condition and warning | `#835514` | `#E6B76A` |
+| Warning tint | `#F6EAD4` | `#44331F` |
+| Error and destructive action | `#9F283F` | `#F0A6B1` |
+| Error tint | `#FAE8EB` | `#482930` |
+| Shadow | `#28232112` | `#00000040` |
+| Backdrop | `#28232166` | `#00000099` |
+
+Use text or symbols alongside semantic colors. Check readability and keyboard
+focus in both themes. Keep the logo colors consistent in the header and the
+Windows icon. Use Zigbee red `#E50E46` for the tile, `#F4F5F6` for the
+connected Z, and forest green `#3D7058` for the play symbol.
+
 ## Interaction, localization and debug
 
 - Support German and English from the start. Use stable message keys and

@@ -2,9 +2,9 @@ import {createHash, randomUUID} from 'node:crypto';
 import type {ProjectService} from './project-service.js';
 import type {MqttReader} from './mqtt-reader.js';
 import {exact, validId, type ProjectSystem, type Configuration} from './project.js';
-import {editorDevices, checkCapabilities, checkedDocument, digestPattern, uniqueTopic, type Entry} from './draft-validation.js';
+import {editorDevices, editorSystems, checkCapabilities, checkedDocument, digestPattern, uniqueTopic, type Entry} from './draft-validation.js';
 
-const routes = ['create', 'edit', 'sequence', 'manage', 'permissions-status', 'permissions', 'import', 'export', 'adopt', 'editor-state'] as const;
+const routes = ['create', 'edit', 'sequence', 'manage', 'permissions-status', 'permissions', 'import', 'export', 'adopt', 'editor-state', 'check-draft'] as const;
 export interface DesignerCommand {route: typeof routes[number]; systemId: string; generation: number; fingerprint: string; payload: Entry}
 export const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export function validDesignerCommand(value: unknown): value is DesignerCommand {
@@ -18,13 +18,18 @@ export class DraftEditor {
   context(system: ProjectSystem): string {
     const project = this.projects.data();
     return digest([project.id, this.projects.generation(), system.id, system.brokerId, system.baseTopic, system.configuration,
-      project.systems.map(owner => [owner.id, owner.baseTopic, owner.brokerId, owner.configuration.mesh_peers, this.reader.current(owner.id)])]);
+      project.systems.map(owner => {
+        const remote = this.reader.current(owner.id);
+        // Runtime status and execution results do not change the draft's available targets.
+        return [owner.id, owner.baseTopic, owner.brokerId, owner.configuration.mesh_peers,
+          remote && {fresh: remote.fresh, devices: remote.devices, scenes: remote.scenes}];
+      })]);
   }
   view(system: ProjectSystem): Entry {
     const configuration = system.configuration; const context = this.context(system);
     const editable = this.reader.source(system.id) === 'draft';
     const sections = Object.fromEntries(configuration.automations.map(rule => [rule['id'], {triggers: true, conditions: true, actions: true}]));
-    return {devices: editorDevices(this.projects.data(), system, this.reader), createContext: context,
+    return {devices: editorDevices(this.projects.data(), system, this.reader), deviceSystems: editorSystems(this.projects.data(), system, this.reader), createContext: context,
       createAllowed: editable && configuration.automations.length < 100, editAllowed: editable,
       sequenceAllowed: editable, sequenceCreateAllowed: editable && configuration.sequences.length < 32,
       manageAllowed: editable, permissionsAllowed: editable && Boolean(uniqueTopic(this.projects.data(), system.baseTopic))
@@ -35,7 +40,8 @@ export class DraftEditor {
   system(command: DesignerCommand): ProjectSystem {
     if (!this.projects.active) throw new Error('noProject');
     const system = this.projects.data().systems.find(system => system.id === command.systemId);
-    if (!system || command.generation !== this.projects.generation() + 1 || command.route !== 'adopt' && this.reader.source(system.id) !== 'draft'
+    const requiresDraftView = command.route !== 'adopt' && command.route !== 'export';
+    if (!system || command.generation !== this.projects.generation() + 1 || requiresDraftView && this.reader.source(system.id) !== 'draft'
       || command.fingerprint !== this.context(system)) throw new Error('draftStale');
     return system;
   }
@@ -55,8 +61,37 @@ export class DraftEditor {
       baseTopic: system.baseTopic, name: system.name, canEdit: /^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/.test(system.baseTopic) && system.baseTopic.length <= 128,
       message: '', notice: '', blocked: '', peers, choices};
   }
+  private applyEntry(route: 'create' | 'edit' | 'sequence', payload: Entry, system: ProjectSystem, configuration: Configuration): Entry {
+    const sequence = route === 'sequence';
+    const list = sequence ? configuration.sequences : configuration.automations;
+    const idField = sequence ? 'sequenceId' : 'ruleId';
+    const creating = route === 'create' || sequence && payload[idField] === '';
+    if (!exact(payload, route === 'create' ? ['requestId', 'context', 'rule'] : ['requestId', 'context', idField, 'changes'])) throw new Error('invalidRequest');
+    const original = creating ? null : list.find(entry => entry['id'] === payload[idField]);
+    if (!creating && !original) throw new Error('draftStale');
+    const changes = route === 'create' ? payload['rule'] : payload['changes'];
+    const fields = sequence ? ['name', 'actions'] : ['name', 'enabled', 'retrigger', 'restart_policy', 'triggers', 'conditions', 'actions'];
+    if (!changes || typeof changes !== 'object' || Array.isArray(changes) || Object.keys(changes).some(field => !fields.includes(field)) || creating && Object.hasOwn(changes, 'enabled')) throw new Error('draftSchema');
+    const entry: Entry = {...original, ...changes, id: creating ? (sequence ? 'sequence-' : 'rule-') + randomUUID() : String(payload[idField]), ...(!sequence && creating ? {enabled: false} : {})};
+    if (creating && list.length >= (sequence ? 32 : 100)) throw new Error('draftLimit');
+    const project = this.projects.data();
+    checkCapabilities(entry, sequence, configuration, project, system, this.reader,
+      creating || (changes as Entry)['enabled'] === true ? undefined : Object.keys(changes));
+    if (original) list[list.indexOf(original)] = entry; else list.push(entry);
+    if (sequence && Object.hasOwn(changes, 'actions')) for (const rule of configuration.automations) if ((rule['actions'] as Entry[]).some(action => action['sequence_id'] === entry.id)) {
+      checkCapabilities(rule, false, configuration, project, system, this.reader);
+    }
+    return {[idField]: entry.id};
+  }
   command(command: DesignerCommand): Entry {
     const payload = command.payload;
+    if (command.route === 'check-draft') {
+      if (!exact(payload, [])) throw new Error('invalidRequest');
+      const system = this.system(command);
+      if (this.projects.hasPendingInput()) throw new Error('applyFirst');
+      checkedDocument(system.configuration);
+      return {ok: true};
+    }
     if (command.route === 'editor-state') {
       if (!exact(payload, ['pending']) || typeof payload['pending'] !== 'boolean' || !this.projects.active
         || command.generation !== this.projects.generation() + 1 || !this.projects.data().systems.some(system => system.id === command.systemId)) throw new Error('draftStale');
@@ -74,27 +109,8 @@ export class DraftEditor {
     if (!validId(request) || String(request).startsWith('example') || payload['context'] !== this.context(system)) throw new Error('draftStale');
     let reply: Entry = {ok: true};
     switch (command.route) {
-      case 'create': case 'edit': case 'sequence': {
-        const sequence = command.route === 'sequence';
-        const list = sequence ? configuration.sequences : configuration.automations;
-        const idField = sequence ? 'sequenceId' : 'ruleId';
-        const creating = command.route === 'create' || sequence && payload[idField] === '';
-        if (!exact(payload, creating && !sequence ? ['requestId', 'context', 'rule'] : ['requestId', 'context', idField, 'changes'])) throw new Error('invalidRequest');
-        const original = creating ? null : list.find(entry => entry['id'] === payload[idField]);
-        if (!creating && !original) throw new Error('draftStale');
-        const changes = creating && !sequence ? payload['rule'] : payload['changes'];
-        const fields = sequence ? ['name', 'actions'] : ['name', 'enabled', 'retrigger', 'restart_policy', 'triggers', 'conditions', 'actions'];
-        if (!changes || typeof changes !== 'object' || Array.isArray(changes) || Object.keys(changes).some(field => !fields.includes(field)) || creating && Object.hasOwn(changes, 'enabled')) throw new Error('draftSchema');
-        const entry: Entry = {...original, ...changes, id: creating ? (sequence ? 'sequence-' : 'rule-') + randomUUID() : String(payload[idField]), ...(!sequence && creating ? {enabled: false} : {})};
-        if (creating && list.length >= (sequence ? 32 : 100)) throw new Error('draftLimit');
-        checkCapabilities(entry, sequence, configuration, this.projects.data(), system, this.reader,
-          creating || (changes as Entry)['enabled'] === true ? undefined : Object.keys(changes));
-        if (original) list[list.indexOf(original)] = entry; else list.push(entry);
-        if (sequence && Object.hasOwn(changes, 'actions')) for (const rule of configuration.automations) if ((rule['actions'] as Entry[]).some(action => action['sequence_id'] === entry.id)) {
-          checkCapabilities(rule, false, configuration, this.projects.data(), system, this.reader);
-        }
-        reply[idField] = entry.id; break;
-      }
+      case 'create': case 'edit': case 'sequence':
+        Object.assign(reply, this.applyEntry(command.route, payload, system, configuration)); break;
       case 'manage': {
         if (!exact(payload, ['requestId', 'context', 'operation', 'id'])) throw new Error('invalidRequest');
         const operation = String(payload['operation']);
@@ -124,11 +140,11 @@ export class DraftEditor {
     return reply;
   }
   save(system: ProjectSystem, configuration: Configuration): void {
-    configuration.revision = system.configuration.revision + 1;
-    if (!Number.isSafeInteger(configuration.revision)) throw new Error('draftLimit');
+    const revision = system.configuration.revision + 1;
+    if (!Number.isSafeInteger(revision)) throw new Error('draftLimit');
+    configuration.revision = revision;
     this.projects.replaceDraft(system.id, configuration);
     this.reader.reconcile(this.projects.data(), this.projects.generation());
     this.reader.view(system.id, 'draft');
   }
-  export(command: DesignerCommand): Configuration { return checkedDocument(this.system(command).configuration); }
 }

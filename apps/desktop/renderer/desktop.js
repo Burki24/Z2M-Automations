@@ -1,15 +1,23 @@
 import {installTransport} from './transport.js';
 import {t, bindText, onLanguageChange, formatDate} from './localization.js';
 import {installProjects} from './projects.js';
+import {installPartnerOverview} from './partner-overview.js';
+import {installSystemLink} from './system-link.js';
 import {installNetwork} from './network.js';
+import {validationSummary} from './draft-review.js';
 import {installDraftExchange} from './drafts.js';
+import {installDesktopWorkspace} from './desktop-workspace.js';
 
 const bridge = window.z2maDesktop;
-document.addEventListener('z2ma-editor-pending', async event => {
-    const view = await bridge.snapshot(); const context = view.workspaceContext;
-    if (!view.desktop.project || !context?.systemId) return;
-    await bridge.designer({route: 'editor-state', systemId: context.systemId, generation: context.generation,
-        fingerprint: context.fingerprint, payload: {pending: event.detail === true}});
+let editorState = Promise.resolve();
+document.addEventListener('z2ma-editor-pending', event => {
+    const pending = event.detail === true;
+    editorState = editorState.then(async () => {
+        const view = await bridge.snapshot(); const context = view.workspaceContext;
+        if (!view.desktop.project || !context?.systemId) return;
+        await bridge.designer({route: 'editor-state', systemId: context.systemId, generation: context.generation,
+            fingerprint: context.fingerprint, payload: {pending}});
+    }).catch(() => {});
 });
 installTransport({kind: 'desktop', request: async (input, init = {}) => {
     const url = new URL(input, location.href);
@@ -19,14 +27,24 @@ installTransport({kind: 'desktop', request: async (input, init = {}) => {
     let value;
     if (route === '/data' && method === 'GET') value = await bridge.snapshot();
     else if (route === '/select-system' && method === 'POST') value = await bridge.selectSystem(JSON.parse(init.body).systemId);
+    else if (route === '/draft-view' && method === 'POST') {
+        const {systemId} = JSON.parse(init.body);
+        const current = await bridge.snapshot();
+        if (current.workspaceContext?.systemId !== systemId) return new Response(null, {status: 409});
+        const result = await bridge.network({action: 'view', id: systemId, source: 'draft'});
+        if (!result.ok) return new Response(null, {status: 409});
+        value = {ok: true};
+    }
     else if (route === '/language' && method === 'POST') value = await bridge.language(JSON.parse(init.body));
     else if (['/create', '/edit', '/sequence', '/manage', '/permissions', '/permissions-status'].includes(route) && method === (route === '/permissions-status' ? 'GET' : 'POST')) {
         const headers = new Headers(init.headers);
         const result = await bridge.designer({route: route.slice(1), systemId: headers.get('X-Z2MA-System-ID'),
             generation: Number(headers.get('X-Z2MA-Generation')), fingerprint: headers.get('X-Z2MA-Fingerprint'), payload: method === 'POST' ? JSON.parse(init.body) : {}});
-        if (!result.ok) return new Response(JSON.stringify({ok: false, message: t('project.' + result.error)}), {status: 409});
+        if (!result.ok) {
+            const message = [t('project.' + result.error), validationSummary(result.validation)].filter(Boolean).join('\n');
+            return new Response(JSON.stringify({ok: false, error: result.error, message}), {status: 409});
+        }
         value = result.state;
-        document.dispatchEvent(new Event('z2ma-project-changed'));
     }
     else throw new Error('Unsupported desktop operation.');
     return new Response(JSON.stringify(value), {status: 200, headers: {'Content-Type': 'application/json'}});
@@ -94,10 +112,19 @@ async function installTheme() {
     else document.querySelector('.app-header .toolbar').append(label);
 }
 try {
-    const openBrokerSetup = await installProjects(bridge);
-    await installNetwork(bridge, openBrokerSetup);
-    installDraftExchange(bridge);
+    const workspace = installDesktopWorkspace();
+    await installProjects(bridge, workspace);
+    installPartnerOverview();
+    installSystemLink(bridge, workspace);
+    installDraftExchange(bridge, workspace);
+    const updateNetwork = installNetwork(bridge, workspace, () => editorState);
+    workspace.pages.project.append(panel);
+    document.addEventListener('z2ma-designer-view', event => {
+        workspace.update(event.detail);
+        updateNetwork(event.detail);
+    });
     await import('./reader.js');
+    workspace.mountDesigner();
     await installTheme();
     const view = await bridge.snapshot();
     const caption = document.querySelector('.brand-copy strong') ?? document.querySelector('.brand strong');

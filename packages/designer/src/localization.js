@@ -1,5 +1,6 @@
 /* Local catalogs are compiled from JSON; this module has no translation dependency. */
 import {catalogs} from './locales.js';
+import {isDesktop} from './transport.js';
 
 const supported = new Set(['de', 'en']);
 const storageKey = 'z2ma.designer.language';
@@ -18,6 +19,10 @@ const collected = new FinalizationRegistry(reference => references.delete(refere
 const listeners = new Set();
 let audit = null;
 const valueOf = value => typeof value === 'function' ? valueOf(value()) : value;
+export function sortByName(items) {
+    const {compare} = new Intl.Collator(locale(), {numeric: true, sensitivity: 'base'});
+    return items.toSorted((a, b) => compare(a.name, b.name));
+}
 export const language = () => currentLanguage;
 export const locale = () => currentLanguage === 'de' ? 'de-DE' : 'en-GB';
 export const formatNumber = value => new Intl.NumberFormat(locale(), {maximumFractionDigits: 20}).format(value);
@@ -59,7 +64,7 @@ function updateMarkup(existing, replacement) {
 }
 export function bindHTML(element, provider) {
     element.innerHTML = valueOf(provider);
-    if (element.tagName === 'DIALOG') element.append(languagePicker());
+    if (element.tagName === 'DIALOG' && !isDesktop()) element.append(languagePicker());
     return bind(element, 'content', provider, text => {
         const template = element.ownerDocument?.createElement('template');
         if (!template) return;
@@ -135,7 +140,9 @@ export function installLanguagePicker({report} = {}) {
     document.documentElement.lang = currentLanguage;
     if (document.getElementById('designer-language')) return;
     document.querySelector('.toolbar')?.append(languagePicker(true));
-    for (const dialog of document.querySelectorAll('dialog')) if (!dialog.querySelector('[data-language-picker]')) dialog.append(languagePicker());
+    if (!isDesktop()) {
+        for (const dialog of document.querySelectorAll('dialog')) if (!dialog.querySelector('[data-language-picker]')) dialog.append(languagePicker());
+    }
     for (const element of document.querySelectorAll('[data-i18n]')) bindText(element, () => t(element.dataset.i18n));
     for (const name of ['title', 'placeholder', 'aria-label']) for (const element of document.querySelectorAll('[data-i18n-' + name + ']')) {
         bindAttribute(element, name, () => t(element.getAttribute('data-i18n-' + name)));

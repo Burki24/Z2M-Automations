@@ -1,27 +1,67 @@
-import {t, bindText} from './localization.js';
+import {t, bindText, formatNumber} from './localization.js';
 
-export function installDraftExchange(bridge) {
-  const panel = document.createElement('details'); panel.className = 'desktop-project'; panel.id = 'draft-exchange';
-  const title = document.createElement('summary'); bindText(title, () => t('project.exchangeTitle')); panel.append(title);
-  const help = document.createElement('p'); bindText(help, () => t('project.exchangeHelp')); panel.append(help);
-  const feedback = document.createElement('p'); feedback.setAttribute('role', 'status');
-  const controls = document.createElement('div'); controls.className = 'project-actions'; panel.append(controls, feedback);
+export function installDraftExchange(bridge, workspace) {
+  function card(key) {
+    const panel = document.createElement('section'); panel.className = 'desktop-card';
+    const title = document.createElement('h2'); bindText(title, () => t('desktop.steps.' + key));
+    const summary = document.createElement('p');
+    const counts = document.createElement('p'); counts.id = 'draft-' + key + '-counts';
+    const help = document.createElement('p'); bindText(help, () => t('desktop.steps.' + key + 'Help'));
+    const controls = document.createElement('div'); controls.id = 'draft-' + key + '-actions'; controls.className = 'project-actions';
+    const feedback = document.createElement('p'); feedback.className = 'desktop-feedback'; feedback.setAttribute('role', 'status');
+    panel.append(title, summary, counts, help, controls, feedback); workspace.pages.draft.append(panel);
+    return {summary, counts, controls, feedback};
+  }
+  const local = card('local');
+  const stored = card('stored');
+  const read = workspace.link(stored.controls, 'connection', 'desktop.steps.readStored');
   let busy = false;
+  let view;
+  const buttons = new Map();
+  function update() {
+    const revision = view?.status.storedRevision;
+    const showingStored = view?.desktop.source === 'stored';
+    read.hidden = Boolean(view?.status.confirmed);
+    bindText(local.summary, () => t('mqtt.localRevision', {revision: formatNumber(view?.desktop.draftRevision ?? 0)}));
+    bindText(stored.summary, () => revision == null ? t('desktop.steps.noStored') : revision === 0 && view?.status.confirmed
+      ? t('desktop.steps.noStoredRules')
+      : t(view.status.confirmed ? 'desktop.steps.storedSource' : 'desktop.steps.lastReadSource', {revision: formatNumber(revision)}));
+    for (const [card, counts] of [[local, view?.desktop.draftSummary], [stored, view?.desktop.storedSummary]]) {
+      card.counts.hidden = !counts;
+      bindText(card.counts, () => counts ? t('desktop.steps.configurationCounts', {
+        count: counts.rules, rules: formatNumber(counts.rules), enabled: formatNumber(counts.enabled), sequences: formatNumber(counts.sequences)
+      }) : '');
+    }
+    for (const [route, button] of buttons) {
+      button.hidden = route === 'import' && showingStored;
+      button.disabled = busy || !view?.workspaceContext?.systemId || (route === 'adopt' && !(revision > 0));
+    }
+  }
   for (const [route, key] of [['import', 'importDraft'], ['export', 'exportDraft'], ['adopt', 'adoptStored']]) {
     const button = document.createElement('button'); button.type = 'button'; button.id = 'draft-' + route;
-    bindText(button, () => t('project.' + key)); controls.append(button);
+    buttons.set(route, button);
+    bindText(button, () => t('project.' + key));
+    const {controls, feedback} = route === 'adopt' ? stored : local;
+    controls.append(button);
     button.addEventListener('click', async () => {
-      if (busy || document.querySelector('dialog[open]')) return;
-      busy = true; controls.querySelectorAll('button').forEach(button => { button.disabled = true; });
+      if (busy || document.querySelector('dialog[open]') || workspace.review.hasAttribute('aria-busy')) return;
+      busy = true; update();
       try {
-        const view = await bridge.snapshot(); const context = view.workspaceContext;
-        if (!view.desktop.project || !context?.systemId) { bindText(feedback, () => t('project.noSystems')); return; }
+        const snapshot = await bridge.snapshot(); const context = snapshot.workspaceContext;
+        if (!snapshot.desktop.project || !context?.systemId) { bindText(feedback, () => t('project.noSystems')); return; }
         const result = await bridge.designer({route, systemId: context.systemId, generation: context.generation, fingerprint: context.fingerprint, payload: {}});
-        bindText(feedback, () => t(!result.ok ? 'project.' + result.error : result.state.canceled ? 'project.exchangeCanceled' : 'project.exchangeComplete'));
-        if (result.ok && !result.state.canceled) document.dispatchEvent(new Event('z2ma-project-changed'));
+        bindText(feedback, () => t(!result.ok ? 'project.' + result.error : result.state.canceled ? 'project.exchangeCanceled' : 'desktop.review.' + route));
+        if (result.ok && !result.state.canceled && route !== 'export') document.dispatchEvent(new Event('z2ma-project-changed'));
       } catch { bindText(feedback, () => t('project.failed')); }
-      finally { busy = false; controls.querySelectorAll('button').forEach(button => { button.disabled = false; }); }
+      finally { busy = false; update(); }
     });
   }
-  document.querySelector('#mqtt-panel').after(panel);
+  document.addEventListener('z2ma-designer-view', event => {
+    if (view?.workspaceContext?.systemId !== event.detail.workspaceContext?.systemId || view?.desktop.epoch !== event.detail.desktop.epoch) {
+      bindText(local.feedback, '');
+      bindText(stored.feedback, '');
+    }
+    view = event.detail;
+    update();
+  });
 }

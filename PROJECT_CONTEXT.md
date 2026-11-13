@@ -1,9 +1,17 @@
 # Project context: Z2M-Automations
 
-As of 2026-11-08. Repository Burki24/Z2M-Automations; working branch dev,
+As of 2026-11-13. Repository Burki24/Z2M-Automations; working branch dev,
 primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 ## Current state
+
+The owner completed the three workflow acceptance cases with app 0.99.0.
+The accepted numbered workspace is now shared with the Symcon browser designer
+and native tile through a pinned package. Native connections, persistence,
+permissions and transport stay under Symcon authority; the standalone app keeps
+its own project, credential and transfer services. See
+[ADR 0005](docs/adr/0005-shared-guided-workspace.md). Native acceptance of this
+new Symcon UI after a module update remains separate from desktop acceptance.
 
 D0 localization is implemented. D1 now provides a shared TypeScript/Electron/
 Forge foundation: offline renderer, two synthetic systems, strict preload IPC,
@@ -60,7 +68,7 @@ The operational agenda is docs/DESKTOP_PLAN.md. D1 platform CI evidence is
 recorded in docs/D1.md. D2 implementation and CI are complete; D3 read-only
 MQTT passed its Windows/Ubuntu CI run. D4 local editing passed both platform jobs. D5 transfer
 passed both platform jobs. D6 operation passed both jobs in run 42561493087.
-D7 adds the beta user guide and installed-package checks. See docs/D7.md for
-the outstanding native desktop acceptance. Preserve input and
+D7 installed-package CI and desktop acceptance are complete for Windows and
+Ubuntu Desktop 24.04 under Hyper-V. See docs/D7.md. Preserve input and
 separate systems throughout. Existing Symcon practice tests do not establish
 desktop acceptance. The user commits/pushes through GitHub Desktop only.

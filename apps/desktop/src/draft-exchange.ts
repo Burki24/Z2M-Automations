@@ -31,7 +31,7 @@ export class DraftExchange {
     const system = this.editor.system(command);
     if (Object.keys(command.payload).length) throw new Error('invalidRequest');
     if (command.route === 'export') {
-      const bytes = exportDraft(this.editor.export(command)); const path = await this.dialogs.chooseExport();
+      const bytes = exportDraft(system.configuration); const path = await this.dialogs.chooseExport();
       if (!path) return {ok: true, canceled: true};
       this.editor.system(command); await this.projects.exportBytes(path, bytes); return {ok: true};
     }

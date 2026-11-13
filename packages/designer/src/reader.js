@@ -1,5 +1,5 @@
 import {designerRequest as fetch, isDesktop} from './transport.js';
-import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse} from './localization.js';
+import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse, sortByName} from './localization.js';
 /* Own scoped module view. Creation is a separate, local-draft-only POST. */
 import {installEditing} from './editor.js';
 import {installEventImport} from './imports.js';
@@ -29,6 +29,7 @@ import {installNativeEmbedding} from './embedding.js';
     let selected = null;
     let selectedPart = null;
     let busy = false;
+    let loadQueue = Promise.resolve();
     let projectReloadPending = false;
     let editing = null;
     let systemId = '';
@@ -70,18 +71,21 @@ import {installNativeEmbedding} from './embedding.js';
     bindText($('#inspector-fields'), () => t("ui.details.of.the.selected.block.e9029868"));
 
     function entries() {
-        const rules = (data?.configuration?.automations ?? []).map(rule => ({...rule, kind: rule.triggers?.some(trigger => trigger.type === 'device') ? 'device' : 'time'}));
+        const rules = (data?.configuration?.automations ?? []).map(rule => ({...rule, kind: Array.isArray(rule.triggers) && rule.triggers.some(trigger => trigger?.type === 'device') ? 'device' : 'time'}));
         const sequences = (data?.configuration?.sequences ?? []).map(sequence => ({...sequence, kind: 'sequence'}));
         return [...rules, ...sequences];
     }
 
     const entryKey = entry => `${entry.kind === 'sequence' ? 'sequence' : 'rule'}:${entry.id}`;
+    function sortedDevices() {
+        return sortByName(data?.devices ?? []);
+    }
     const current = () => category === 'catalog' ? data?.devices.find(device => device.key === selected) : entries().find(entry => entryKey(entry) === selected);
     const targetDevice = target => data?.devices.find(device => device.target.type === target?.type && device.target.id === target?.id
         && (device.target.system ?? '') === (target?.system ?? ''));
-    const sourceDevice = id => data?.devices.find(device => device.target.type === 'device' && device.target.id === id && !device.target.system);
+    const sourceDevice = (id, system = '') => targetDevice({type: 'device', id, ...(system ? {system} : {})});
     const targetName = target => targetDevice(target)?.name ?? t("ui.device.data.missing.25af8c67", {p1: target?.system ? target.system + ' · ' : '', p2: target?.type === 'group' ? t("ui.group.375adc53") : t("ui.device.d97ee209"), p3: target?.id ?? t("ui.unknown.a418e69e")});
-    const sourceName = id => sourceDevice(id)?.name ?? t("ui.device.data.missing.6c193ebe", {p1: id});
+    const sourceName = (id, system = '') => (sourceDevice(id, system)?.name ?? t("ui.device.data.missing.6c193ebe", {p1: id})) + (system ? ' · ' + system : '');
     const propertyName = (device, property) => device?.properties.find(meta => meta.id === property)?.label ?? property;
     const displayValue = (device, property, value) => {
         const meta = device?.properties.find(meta => meta.id === property);
@@ -95,7 +99,8 @@ import {installNativeEmbedding} from './embedding.js';
     }});
     const updateDiagnostics = installDiagnostics({getData: () => data, isLoading: () => busy, chooseSystem: id => updateSystems.choose(id), message, reload: () => load()});
     const updatePermissions = installPermissions({getData: () => data, isLoading: () => busy, message, reload: () => load()});
-    const updateTransfers = installTransfers({getData: () => data, reload: () => load(), isLoading: () => busy, message});
+    const updateTransfers = installTransfers({getData: () => data, reload: () => load(), isLoading: () => busy, message,
+        onStatus: () => { paintStatus(); updateRuntime(); updateLayout(); }});
     const updateCatalog = installCatalogRefresh({getData: () => data, reload: () => load(), isLoading: () => busy, message});
     const updateRuntime = installRuntime({getData: () => data, reload: () => load(), isLoading: () => busy, message, onStatus: () => renderRuntimeStatus()});
     function renderRuntimeStatus() {
@@ -112,7 +117,7 @@ import {installNativeEmbedding} from './embedding.js';
     }
 
     function conditionSummary(condition) {
-        if (condition.type === 'device_value') return `${sourceName(condition.device)} · ${propertyName(sourceDevice(condition.device), condition.property)} ${compare[condition.operator] ?? condition.operator} ${displayValue(sourceDevice(condition.device), condition.property, condition.value)}`;
+        if (condition.type === 'device_value') return `${sourceName(condition.device, condition.system)} · ${propertyName(sourceDevice(condition.device, condition.system), condition.property)} ${compare[condition.operator] ?? condition.operator} ${displayValue(sourceDevice(condition.device, condition.system), condition.property, condition.value)}`;
         if (condition.type === 'time_window') return `${condition.after} bis ${condition.before} · ${condition.timezone}${condition.weekdays ? ' · ' + days(condition.weekdays) : ''}`;
         if (condition.type === 'weekday') return t("ui.text.db1b0c15", {p1: days(condition.weekdays), p2: condition.timezone});
         return t("ui.additional.condition.e6b03139", {p1: condition.type});
@@ -136,13 +141,13 @@ import {installNativeEmbedding} from './embedding.js';
         bindHTML($('#categories'), () => Object.entries(areas).map(([kind, [label, symbol]]) => `<button class="category ${category === kind ? 'active' : ''}" data-area="${kind}" aria-pressed="${category === kind}">${icon(symbol)}${label}<span class="category-count">${kind === 'catalog' ? data?.devices.length ?? 0 : all.filter(entry => entry.kind === kind).length}</span></button>`).join(''));
         bindText($('#list-label'), () => areas[category][0]);
         const search = $('#search').value.trim().toLocaleLowerCase(locale());
-        const options = category === 'catalog' ? (data?.devices ?? []).map(device => ({key: device.key, title: device.name, subtitle: t("ui.text.db1b0c15", {p1: device.target.system ?? data.module.baseTopic, p2: device.target.id})}))
+        const options = category === 'catalog' ? sortedDevices().map(device => ({key: device.key, title: device.name, subtitle: t("ui.text.db1b0c15", {p1: device.target.system ?? data.module.baseTopic, p2: device.target.id})}))
             : all.filter(entry => entry.kind === category).map(entry => ({key: entryKey(entry), title: entry.name,
                 subtitle: entry.kind === 'sequence' ? t("ui.steps.af057682", {p1: entry.actions.length}) : (entry.triggers ?? []).map(triggerSummary).join(t("ui.or.5f15b341")), enabled: entry.enabled}));
         const visible = options.filter(entry => `${entry.title} ${entry.subtitle}`.toLocaleLowerCase(locale()).includes(search) && matchesRuleState(entry, stateFilter));
         bindText($('#list-count'), () => `${visible.length} / ${options.length}`);
         bindHTML($('#entry-list'), () => visible.map(entry => `<button class="entry ${selected === entry.key ? 'active' : ''}" data-entry="${esc(entry.key)}" aria-pressed="${selected === entry.key}"><span class="entry-title-row"><strong>${esc(entry.title)}</strong>${entry.enabled !== undefined ? `<span class="enabled-dot ${entry.enabled ? 'on' : ''}" title="${t("draft.in")} ${entry.enabled ? t("ui.enabled.aae668f6") : t("ui.disabled.1fa013fd")}"></span>` : ''}</span><small>${esc(entry.subtitle)}</small></button>`).join('')
-            || `<p class="empty-list">${t("ui.no.matching.entries.this.view.ca6ab1c2")}</p>`);
+            || `<p class="empty-list">${t(isDesktop() ? 'desktop.emptyCategory' : "ui.no.matching.entries.this.view.ca6ab1c2")}</p>`);
     }
 
     function card(kind, index, title, summary, tag = '') {
@@ -158,12 +163,19 @@ import {installNativeEmbedding} from './embedding.js';
 
     function renderFlow() {
         const entry = current();
+        const desktopEmpty = isDesktop() && !entry;
+        const emptyDraft = desktopEmpty && data?.desktop?.source === 'draft' && !entries().length && category !== 'catalog';
+        if (isDesktop()) document.body.classList.toggle('desktop-no-entry', !entry);
         bindText($('#entry-type'), () => areas[category][0].toUpperCase());
-        bindText($('#entry-title'), () => entry?.name ?? t("ui.no.selection.146bfc6e"));
+        bindText($('#entry-title'), () => entry?.name ?? t(emptyDraft ? 'desktop.emptyDraft' : desktopEmpty ? 'desktop.emptyCategory' : "ui.no.selection.146bfc6e"));
         detailsButton.disabled = !entry;
         bindText($('#entry-subtitle'), () => entry ? category === 'catalog' ? t("ui.loaded.properties.channels.and.scenes.0c23a181") : entry.kind === 'sequence' ? t("ui.reusable.action.sequence.in.local.d55beb51")
-            : t("rule.summary", {state: entry.enabled ? t("ui.enabled.aae668f6") : t("ui.disabled.1fa013fd"), count: entry.actions.length}) : t("ui.select.an.existing.entry.on.e1b9ca5a"));
-        if (!entry) { bindHTML($('#flow'), () => `<p class="sequence-note">${t("ui.existing.rules.and.device.data.91262889")}</p>`); return; }
+            : t("rule.summary", {state: entry.enabled ? t("ui.enabled.aae668f6") : t("ui.disabled.1fa013fd"), count: entry.actions?.length ?? 0}) : desktopEmpty ? '' : t("ui.select.an.existing.entry.on.e1b9ca5a"));
+        if (!entry) {
+            bindHTML($('#flow'), () => `<p class="sequence-note">${t(emptyDraft ? 'desktop.emptyDraftHelp'
+                : desktopEmpty ? 'desktop.emptyCategoryHelp' : "ui.existing.rules.and.device.data.91262889")}</p>`);
+            return;
+        }
         if (category === 'catalog') {
             bindHTML($('#flow'), () => section(t("ui.properties.and.channels.51118126"), 'when', entry.properties.map((meta, index) => card('properties', index, meta.label, meta.id,
                 meta.writable ? t("ui.controllable.in.symcon.87a0a2ce") : meta.readable ? t("ui.read.only.e7c58c99") : t("ui.unavailable.as.an.action.a3d93cf1"))).join('')));
@@ -201,10 +213,11 @@ import {installNativeEmbedding} from './embedding.js';
             if (!item && entry.kind !== 'sequence') html += field(t("ui.in.local.draft.706365af"), entry.enabled ? t("ui.enabled.58279f72") : t("ui.disabled.a21a5188")) + field(t("ui.on.retrigger.7588befa"), {ignore: t("ui.ignore.new.trigger.0724102c"), restart: t("ui.restart.from.the.beginning.f723ba35"), extend: t("ui.reset.current.delay.2561f6e5")}[entry.retrigger ?? 'ignore']);
             if (item) {
                 html += field(t("ui.description.e9262f00"), kind === 'triggers' ? triggerSummary(item) : kind === 'conditions' ? conditionSummary(item) : actionSummary(item));
-                if (item.device) html += field(t("ui.device.b32db786"), sourceName(item.device));
+                if (item.device) html += field(t("ui.device.b32db786"), sourceName(item.device, item.system));
+                if (item.system) html += field(t("ui.z2m.system.7a27be0b"), item.system);
                 if (item.target) html += field(t("ui.target.f487ce39"), targetName(item.target)) + field(t("ui.z2m.system.7a27be0b"), item.target.system ?? data.module.baseTopic);
-                if (item.property) html += field(t("ui.property.channel.b524f965"), propertyName(item.target ? targetDevice(item.target) : sourceDevice(item.device), item.property));
-                if (Object.hasOwn(item, 'value')) html += field(t("ui.comparison.value.b6e7150f"), displayValue(sourceDevice(item.device), item.property, item.value));
+                if (item.property) html += field(t("ui.property.channel.b524f965"), propertyName(item.target ? targetDevice(item.target) : sourceDevice(item.device, item.system), item.property));
+                if (Object.hasOwn(item, 'value')) html += field(t("ui.comparison.value.b6e7150f"), displayValue(sourceDevice(item.device, item.system), item.property, item.value));
                 if (item.values) for (const [key, value] of Object.entries(item.values)) html += field(propertyName(targetDevice(item.target), key), displayValue(targetDevice(item.target), key, value));
                 if (item.for_seconds !== undefined) html += field(t("ui.minimum.duration.cfb985d9"), t("duration.seconds", {count: item.for_seconds}));
                 if (kind === 'triggers' && item.type === 'device') html += field(t("ui.only.on.value.change.141310cb"), item.on_change ? t("ui.yes.cde9e58a") : t("ui.no.90ebc1bd"));
@@ -228,7 +241,7 @@ import {installNativeEmbedding} from './embedding.js';
     function selectEntry(key) { selected = key; selectedPart = null; render(); }
     function chooseArea(area) {
         category = area; selectedPart = null;
-        selected = category === 'catalog' ? data?.devices[0]?.key : entryKeyOrNull(entries().find(entry => entry.kind === category));
+        selected = category === 'catalog' ? sortedDevices()[0]?.key : entryKeyOrNull(entries().find(entry => entry.kind === category));
         render();
     }
     const entryKeyOrNull = entry => entry ? entryKey(entry) : null;
@@ -254,11 +267,12 @@ import {installNativeEmbedding} from './embedding.js';
             if (data.desktop?.project) {
                 bindText($('.preview-notice strong'), () => t('mqtt.title'));
                 bindText($('.preview-notice > span:last-child'), () => t('mqtt.draftsSeparate'));
-                bindText($('#draft-status'), () => t(data.desktop.source === 'stored' ? 'mqtt.storedRevision' : 'mqtt.localRevision', {revision: data.configuration.revision}));
+                bindText($('#draft-status'), () => Number.isInteger(data.desktop.draftRevision)
+                    ? t('mqtt.localRevision', {revision: data.desktop.draftRevision}) : t('workflow.noSystem'));
                 bindText($('#runtime-status'), () => t(!data.status.confirmed ? 'mqtt.operationUnknown' : data.status.executing ? 'mqtt.operationActive' : 'mqtt.operationStopped'));
                 bindText($('.canvas-footer > span:last-child'), () => t('mqtt.draftsSeparate'));
                 bindText($('#entry-subtitle'), () => data.module.name + ' · ' + data.desktop.systemName);
-                $('#issues').hidden = true; message(() => t('mqtt.draftsSeparate')); return;
+                $('#issues').hidden = true; return;
             }
             bindText($('.preview-notice strong'), () => t('desktop.offline'));
             bindText($('.preview-notice > span:last-child'), () => t('desktop.notice'));
@@ -295,10 +309,14 @@ import {installNativeEmbedding} from './embedding.js';
         $('#feedback').dataset.tone = '';
         message(() => (notices[0]));
     }
-    async function load(preferredRule = '', preferredSequence = '') {
-        if (busy) return false;
+    function load(preferredRule = '', preferredSequence = '') {
+        const task = loadQueue.then(() => readView(preferredRule, preferredSequence));
+        loadQueue = task.catch(() => false);
+        return task;
+    }
+    async function readView(preferredRule, preferredSequence) {
         busy = true; $('#validate-button').disabled = true;
-        message(() => (t("ui.reading.existing.module.data.no.53b451b0")));
+        if (!isDesktop()) message(() => (t("ui.reading.existing.module.data.no.53b451b0")));
         try {
             if (!isDesktop() && !/^[a-f0-9]{64}$/.test(token)) throw new Error('access');
             const controller = new AbortController();
@@ -324,7 +342,10 @@ import {installNativeEmbedding} from './embedding.js';
                 $('#search').value = view?.search ?? '';
             }
             data = next; systemId = nextSystem; updateSystems(data);
-            if (isDesktop()) document.body.classList.toggle('desktop-editable', !!data.desktop?.project && data.desktop.source === 'draft');
+            if (isDesktop()) {
+                document.body.classList.toggle('desktop-editable', !!data.desktop?.project && data.desktop.source === 'draft');
+                document.body.classList.toggle('desktop-stored-view', data.desktop?.source === 'stored');
+            }
             paintStatus();
             if (typeof preferredRule === 'string' && data.configuration?.automations.some(rule => rule.id === preferredRule)) {
                 category = entries().find(entry => entry.id === preferredRule && entry.kind !== 'sequence').kind; selected = 'rule:' + preferredRule; selectedPart = null; $('#search').value = '';
@@ -333,10 +354,11 @@ import {installNativeEmbedding} from './embedding.js';
             } else if (!current()) {
                 const first = entries().find(entry => entry.kind === category) ?? entries()[0];
                 if (category !== 'catalog' && first) category = first.kind;
-                selected = category === 'catalog' ? data.devices[0]?.key : entryKeyOrNull(first);
+                selected = category === 'catalog' ? sortedDevices()[0]?.key : entryKeyOrNull(first);
                 selectedPart = null;
             }
             render();
+            if (isDesktop()) document.dispatchEvent(new CustomEvent('z2ma-designer-view', {detail: data}));
             return true;
         } catch (error) {
             const text = error.message === 'access' ? t("ui.read.access.is.missing.or.e380a485") : t("ui.module.data.could.not.be.80c47bf5");
@@ -348,26 +370,52 @@ import {installNativeEmbedding} from './embedding.js';
             if (projectReloadPending) { projectReloadPending = false; queueMicrotask(() => { void load(); }); }
         }
     }
-    editing = installEditing({getData: () => data, getRule: current, reload: () => load(), summaries: {triggers: triggerSummary, conditions: conditionSummary, actions: actionSummary}, onCreated: async ruleId => {
+    editing = installEditing({getData: () => data, getRule: current, reload: () => load(), switchToDraft: async () => {
+        try {
+            const response = await fetch('/draft-view', {method: 'POST', body: JSON.stringify({systemId: data.workspaceContext.systemId})});
+            if (response.ok && await load() && data.desktop?.source === 'draft') {
+                if (data.createAllowed) return true;
+                message(() => data.createNotice || t('wizard.unavailable'));
+                return false;
+            }
+        } catch { /* The current draft remains available after a failed switch. */ }
+        message(() => t('wizard.unavailable'));
+        return false;
+    }, summaries: {triggers: triggerSummary, conditions: conditionSummary, actions: actionSummary}, onCreated: async ruleId => {
         const refreshed = await load(ruleId);
-        message(() => (refreshed ? t("ui.new.automation.added.disabled.to.6f562419")
+        message(() => (refreshed ? t(isDesktop() ? "wizard.created" : "wizard.createdSymcon")
             : t("ui.the.automation.was.added.to.9cc3bca1")));
     }, onEdited: async ruleId => {
         const refreshed = await load(ruleId);
-        message(() => (refreshed ? t("ui.change.applied.to.the.local.9b87dbaf")
+        message(() => (refreshed ? t(isDesktop() ? "desktop.review.editApplied" : "ui.change.applied.to.the.local.9b87dbaf")
             : t("ui.the.change.was.applied.to.0df2d1eb")));
     }, onSequenceSaved: async sequenceId => {
         const refreshed = await load('', sequenceId);
-        message(() => (refreshed ? t("ui.action.sequence.applied.to.the.37c830cc")
+        message(() => (refreshed ? t(isDesktop() ? "desktop.review.editApplied" : "ui.action.sequence.applied.to.the.37c830cc")
             : t("ui.the.action.sequence.was.applied.226c343e")));
     }});
     management = installManagement({getData: () => data, getEntry: current, isLoading: () => busy, reload: () => load(), copied: ruleId => load(ruleId), message,
         filterChanged: value => { stateFilter = value; renderNavigation(); }});
     eventImport = installEventImport({getData: () => data, isLoading: () => busy, reload: () => load(), message,
         onImported: async ruleId => { if (!await load(ruleId)) message(() => (t("ui.event.imported.disabled.refresh.the.338172e3"))); }});
-    updateLayout = installLayout({getData: () => data});
+    updateLayout = installLayout({getData: () => data, reload: () => load()});
     onLanguageChange(() => { paintStatus(); render(); updateTransfers(); updateRuntime(); updateCatalog(); updateLayout(); });
     render();
-    if (isDesktop()) document.addEventListener('z2ma-project-changed', () => { if (busy) projectReloadPending = true; else void load(); });
+    if (isDesktop()) {
+        document.addEventListener('z2ma-project-changed', () => { if (busy) projectReloadPending = true; else void load(); });
+    }
+    {
+        document.addEventListener('z2ma-open-draft-issue', event => {
+            const {systemId: owner, revision, kind, id, path, message: reason, property} = event.detail;
+            if ((isDesktop() && data?.desktop?.source !== 'draft') || systemId !== owner
+                || (isDesktop() ? data.desktop.draftRevision : data?.configuration?.revision) !== revision || document.querySelector('dialog[open]')) return;
+            const entry = entries().find(item => item.id === id && (item.kind === 'sequence') === (kind === 'sequences'));
+            if (!entry) return;
+            category = entry.kind; selected = entryKey(entry); selectedPart = null;
+            stateFilter = 'all'; $('#search').value = '';
+            render();
+            if (editing.openFinding(entry, path, reason, property)) event.preventDefault();
+        });
+    }
     embedding.ready.then(load);
 })();

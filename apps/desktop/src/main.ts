@@ -1,4 +1,4 @@
-import {showConfirmation} from './confirmation.js';
+import {showConfirmation, showConfirmationChoice} from './confirmation.js';
 import {RuntimeControl} from './runtime-control.js';
 import {app, BrowserWindow, ipcMain, protocol, session, Menu, nativeTheme, dialog, safeStorage} from 'electron';
 import {readFileSync, mkdtempSync, readdirSync, rmSync, mkdirSync, writeFileSync} from 'node:fs';
@@ -8,22 +8,31 @@ import {channels, type Channel} from './contracts.js';
 import {assetPath, csp, entryURL, languageChange, rendererPreferences, trustedSender, validPayload} from './security.js';
 import {Diagnostics} from './diagnostics.js';
 import {OfflineWorkspace} from './offline-workspace.js';
-import {configureSmokeRendering} from './smoke-rendering.js';
+import {configureSmokeRendering, smokeCaptureEnabled} from './smoke-rendering.js';
 import {ProjectService, type ProjectCommand} from './project-service.js';
+import type {Configuration} from './project.js';
 import {promptCredentials} from './credential-prompt.js';
 import {Credentials, readCredentialFile, type CredentialCommand} from './credentials.js';
 import {smokeProjects} from './smoke-projects.js';
 import {osProtection} from './os-protection.js';
-import {MqttReader, parseTLS, type NetworkCommand} from './mqtt-reader.js';
+import {MqttReader, parseTLS, validNetworkCommand, type NetworkCommand} from './mqtt-reader.js';
+import {AutomaticConnections} from './auto-connect.js';
 import {boundedRead} from './project-files.js';
 import {connect} from 'mqtt';
 import {smokeNetwork} from './smoke-network.js';
 import {DraftEditor, type DesignerCommand} from './draft-editor.js';
+import {partnerOverview} from './partner-overview.js';
+import {systemLinkPlan, readSystemLink} from './system-link.js';
 import {DraftExchange} from './draft-exchange.js';
+import {DraftValidationError} from './draft-feedback.js';
 import {ExtensionTransfer, bundledExtension} from './extension-transfer.js';
 import {smokeDrafts} from './smoke-drafts.js';
 
+if (process.platform === 'linux') app.setDesktopName('z2m-automations.desktop');
+
 const smoke = process.argv.includes('--smoke-test');
+const smokeCaptures = smokeCaptureEnabled(process.argv);
+if (smoke && !smokeCaptures) console.log('DESKTOP_CAPTURE_DISABLED');
 if (configureSmokeRendering(app, {smoke, platform: process.platform, ci: process.env['CI'] === 'true'})) console.log('DESKTOP_CI_SOFTWARE_RENDERING');
 const profile = smoke ? process.env['Z2MA_SMOKE_PROFILE'] || mkdtempSync(join(tmpdir(), 'z2ma-smoke-')) : null;
 if (profile) app.setPath('userData', profile);
@@ -36,9 +45,14 @@ let window: BrowserWindow | null = null;
 let language: 'de' | 'en' = 'en';
 let projects: ProjectService;
 let reader: MqttReader;
+let automaticConnections: AutomaticConnections;
 let drafts: DraftEditor;
 let exchange: DraftExchange;
 let transfers: ExtensionTransfer;
+const configurationSummary = (configuration?: Configuration) => configuration ? {
+  rules: configuration.automations.length, enabled: configuration.automations.filter(rule => rule['enabled'] === true).length,
+  sequences: configuration.sequences.length
+} : null;
 function message(key: string): string {
   const catalog = JSON.parse(readFileSync(join(assetsRoot, 'locales', language + '.json'), 'utf8')) as Record<string, string>;
   return catalog['project.' + key] ?? key;
@@ -51,11 +65,16 @@ function snapshot(): unknown {
   const remote = system ? reader.current(system.id) : null;
   const source = system ? reader.source(system.id) : 'draft';
   const configuration = source === 'stored' ? remote?.configuration ?? system?.stored?.configuration : system?.configuration;
-  return {...base, desktop: {...base.desktop, project: true, projectId: project.id, epoch: projects.generation(), source, systemName: system?.name ?? ''}, module: {...base.module, name: project.name, baseTopic: system?.baseTopic ?? ''}, devices: remote?.devices ?? [], scenes: remote?.scenes ?? [],
-    status: {...base.status, mqttConnected: system ? reader.connected(system.brokerId) : false, confirmed: remote?.fresh ?? false,
+  return {...base, desktop: {...base.desktop, project: true, projectId: project.id, epoch: projects.generation(), source, systemName: system?.name ?? '',
+    draftRevision: system?.configuration.revision ?? null, projectDirty: projects.isDirty(),
+    draftSummary: configurationSummary(system?.configuration), storedSummary: configurationSummary(remote?.configuration ?? system?.stored?.configuration)},
+    module: {...base.module, name: project.name, baseTopic: system?.baseTopic ?? ''}, devices: remote?.devices ?? [], scenes: remote?.scenes ?? [],
+    status: {...base.status, mqttConnected: system ? reader.connected(system.brokerId) : false, autoConnectIssue: system ? automaticConnections.setting(system.brokerId).issue : '', confirmed: remote?.fresh ?? false,
+      storedRevision: remote?.status.revision ?? system?.stored?.revision ?? null,
       executing: remote?.fresh ? remote.status.executing : false, activeRevision: remote?.fresh && remote.status.executing ? remote.status.revision : null},
     catalogAvailable: Boolean(remote), configuration: configuration ?? {schema_version: 1, revision: 1, automations: [], sequences: [], mesh_peers: []},
     workspace: {fingerprint: project.id, systems: project.systems.map(system => ({name: system.name, binding: {systemId: system.id, generation: 1, baseTopic: system.baseTopic}}))},
+    partnerPermissions: partnerOverview(project, reader),
     workspaceContext: {systemId: system?.id ?? '', generation: projects.generation() + 1, fingerprint: project.id},
     ...(system ? drafts.view(system) : {})};
 }
@@ -72,8 +91,26 @@ function handle(channel: Channel, payload: unknown): unknown {
     case 'theme': if (payload === 'system' || payload === 'light' || payload === 'dark') { nativeTheme.themeSource = payload; return {ok: true}; } break;
     case 'diagnostics': return debug.read();
     case 'recording': if (payload === 'start' || payload === 'stop') return debug.control(payload); break;
-    case 'project': return projects.command(payload as ProjectCommand).then(state => { reader.reconcile(projects.active ? projects.data() : null, projects.generation()); return state; });
-    case 'credential': return projects.credential(payload as CredentialCommand).then(state => { reader.disconnect((payload as CredentialCommand).brokerId); return state; });
+    case 'project': {
+      const command = payload as ProjectCommand;
+      const before = projects.generation();
+      return projects.command(command).then(async state => {
+        const project = projects.active ? projects.data() : null;
+        reader.reconcile(project, projects.generation());
+        await automaticConnections.reconcile(project, projects.generation());
+        if (command.action === 'open' && before !== projects.generation()) {
+          const epoch = projects.generation();
+          void projects.serialize(() => automaticConnections.opened(epoch)).catch(() => debug.record('mqttFailure'));
+        }
+        return {...(state as object), autoConnect: automaticConnections.settings()};
+      });
+    }
+    case 'credential': return projects.credential(payload as CredentialCommand).then(state => {
+      const id = (payload as CredentialCommand).brokerId;
+      reader.disconnect(id);
+      if (!(state as {canceled?: boolean}).canceled) automaticConnections.clearIssue(id);
+      return {...(state as object), autoConnect: automaticConnections.settings()};
+    });
     case 'network': return network(payload as NetworkCommand);
     case 'designer': return designer(payload as DesignerCommand);
   }
@@ -88,28 +125,58 @@ async function designer(command: DesignerCommand): Promise<unknown> {
   } catch (error) { debug.record('draftRejected', command.systemId, undefined, context); throw error; }
 }
 let runtime: RuntimeControl;
+function networkState() {
+  const state = reader.state();
+  const update = transfers.updateState();
+  const review = transfers.reviewState();
+  return {...state, sequence: state.sequence + automaticConnections.sequence + update.sequence + review.sequence,
+    extensionUpdates: update.updates, draftChecks: review.checks, transferProgress: review.progress,
+    systems: state.systems.map(system => ({...system, flagsContext: transfers.flagsContext(system.id),
+      transferPending: transfers.transferPending(system.id), updatePending: transfers.updatePending(system.id)})),
+    brokers: state.brokers.map(broker => ({...broker, autoConnect: automaticConnections.setting(broker.id)})), bundledExtension};
+}
 async function network(command: NetworkCommand): Promise<unknown> {
   switch (command.action) {
-    case 'activate': case 'deactivate': case 'run_once': case 'stop_rule': {
+    case 'setRuleFlags': {
       if (smoke) throw new Error('invalidRequest');
       try {
+        const outcome = await transfers.applyFlags(command.id, command.context!, command.enabled!);
+        return {...networkState(), outcome};
+      }
+      finally { void reader.refresh(command.id).catch(() => {}); }
+    }
+    case 'linkPlan': case 'linkCheck': {
+      if (!projects.active) throw new Error('noProject');
+      const project = projects.data();
+      if (command.action === 'linkCheck') {
+        readSystemLink(project, reader, command.id, command.peerId!);
+        for (const id of [command.id, command.peerId!]) debug.record('projectRequest', id, undefined, {operation: 'read'});
+      }
+      return {...networkState(), epoch: projects.generation(), linkPlan: systemLinkPlan(project, reader, command.id, command.peerId!)};
+    }
+    case 'activate': case 'deactivate': case 'run_once': case 'stop_rule': {
+      if (smoke) throw new Error('invalidRequest');
+      if ((command.action === 'activate' || command.action === 'run_once') && transfers.updatePending(command.id)) throw new Error('extensionUpdatePending');
+      if ((command.action === 'activate' || command.action === 'run_once') && transfers.transferPending(command.id)) throw new Error('transferUncertain');
+      try {
         const outcome = await runtime.command(command.action, command);
-        return {...(reader.state() as object), bundledExtension, outcome};
+        return {...networkState(), outcome};
       } finally { void reader.refresh(command.id).catch(() => {}); }
     }
     case 'runtimeStatus': void reader.refresh(command.id).catch(() => {}); break;
     case 'validateEnabled': case 'validate': case 'store': case 'install': case 'checkTransfer': {
-      if (smoke) throw new Error('invalidRequest');
+      if (smoke && command.action !== 'validate') throw new Error('invalidRequest');
       try {
         const outcome = await transfers.command(command.action, command.id);
-        return {...(reader.state() as object), bundledExtension, outcome};
+        return {...networkState(), outcome};
       } finally {
         if (command.action !== 'validate' && command.action !== 'validateEnabled') void reader.refresh(command.id).catch(() => {});
       }
     }
     case 'status': break;
-    case 'connect': await reader.connectBroker(command.id); break;
-    case 'disconnect': reader.disconnect(command.id); break;
+    case 'connect': await automaticConnections.connect(command.id); break;
+    case 'disconnect': reader.disconnect(command.id); automaticConnections.clearIssue(command.id); break;
+    case 'autoConnect': await automaticConnections.set(command.id, command.mode!); break;
     case 'refresh': void reader.refresh(command.id).catch(() => {}); break;
     case 'clearCertificates': reader.setTLS(command.id, null); break;
     case 'view': reader.view(command.id, command.source!); break;
@@ -120,7 +187,7 @@ async function network(command: NetworkCommand): Promise<unknown> {
       break;
     }
   }
-  return {...(reader.state() as object), bundledExtension};
+  return networkState();
 }
 
 async function open(): Promise<void> {
@@ -139,6 +206,7 @@ async function open(): Promise<void> {
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({cancel: !details.url.startsWith('z2ma://app/')}));
   // Give Linux smoke a mapped rendering surface for capturePage; CI supplies Xvfb.
   window = new BrowserWindow({width: 1360, height: 900, minWidth: 360, minHeight: 500, show: !smoke || process.platform === 'linux',
+    ...(process.platform === 'linux' ? {icon: join(assetsRoot, 'app-icon.png')} : {}),
     title: 'Z2M-Automations ' + (process.platform === 'win32' ? 'for Windows' : 'for Linux'),
     webPreferences: {...rendererPreferences, preload: join(__dirname, 'preload.js')}});
   const view = window.webContents;
@@ -186,6 +254,7 @@ async function open(): Promise<void> {
     if (options.host !== '127.0.0.1' || options.port !== Number(process.env['Z2MA_SMOKE_MQTT_PORT'])) throw new Error('smokeNetworkDisabled');
     return connect(options);
   } : undefined);
+  automaticConnections = new AutomaticConnections(join(app.getPath('userData'), 'connection-preferences'), reader, debug);
   drafts = new DraftEditor(projects, reader);
   const chooseDraft = async (key: string, extension: string, open: boolean): Promise<string | null> => {
     if (!window || smoke) return null;
@@ -201,9 +270,11 @@ async function open(): Promise<void> {
     },
     confirm: async (action, review) => {
       if (!window || smoke) return false;
-      const detail = message(action === 'store' ? 'transferStoreDetail' : 'transferInstallDetail')
+      const detail = (action === 'store' ? message(review.kind === 'flags' ? 'transferStoreFlagsDetail' : 'transferStoreDetail') + '\n'
+        + message(review.kind === 'flags' ? 'transferStoreFlags' : 'transferStoreConfiguration') + '\n'
+        + message(review.running ? 'transferStoreStop' : 'transferStoreStopped') : message('transferInstallDetail'))
         .replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? ''));
-      return reviewDialog(action === 'store' ? 'transferStoreConfirm' : 'transferInstallConfirm', detail);
+      return reviewDialog(action === 'store' ? review.kind === 'flags' ? 'transferStoreFlagsConfirm' : 'transferStoreConfirm' : 'transferInstallConfirm', detail);
     }
   });
   runtime = new RuntimeControl(projects, reader, async (action, review) => {
@@ -213,7 +284,8 @@ async function open(): Promise<void> {
     return reviewDialog('runtime_' + action, detail);
   });
   exchange = new DraftExchange(projects, drafts, {
-    chooseImport: () => chooseDraft('importDraft', 'yaml', true), chooseExport: () => chooseDraft('exportDraft', 'yaml', false),
+    chooseImport: () => chooseDraft('importDraft', 'yaml', true),
+    chooseExport: () => smoke ? Promise.resolve(join(app.getPath('userData'), 'synthetic-automations.yaml')) : chooseDraft('exportDraft', 'yaml', false),
     chooseBackup: () => chooseDraft('backupDraft', 'z2ma', false),
     confirm: async summary => {
       if (!window || smoke) return false;
@@ -230,7 +302,24 @@ async function open(): Promise<void> {
     closeReview = true;
     void projects.serialize(async () => {
       try {
-        if (!projects.isDirty() || await confirm('discard')) { closing = true; window?.close(); }
+        if (projects.isDirty() && window) {
+          const pending = projects.hasPendingInput();
+          const choice = await showConfirmationChoice(window, {language, question: message('closeUnsaved'),
+            cancel: message('cancel'), accept: message('discardAndClose'), save: message('save'),
+            ...(pending ? {saveDisabled: true, detail: message('applyFirst')} : {})});
+          if (choice === false) return;
+          if (choice === 'save') {
+            try { await projects.command({action: 'save'}); }
+            catch (error) {
+              const key = error instanceof Error && ['applyFirst', 'fileConflict'].includes(error.message) ? error.message : 'failed';
+              await reviewDialog(key, undefined, true);
+              return;
+            }
+            if (projects.isDirty()) return;
+          }
+        }
+        closing = true;
+        window?.close();
       } finally { closeReview = false; }
     });
   });
@@ -243,22 +332,30 @@ async function open(): Promise<void> {
       debug.record('rejected'); throw new Error('Unauthorized desktop request.');
     }
     if (channel !== 'project' && channel !== 'credential' && channel !== 'network' && channel !== 'designer') return handle(channel, args[0]);
-    // No paths, file contents, secrets or raw exception messages leave these operations.
+    // A read-only projection must remain available while an update owns the mutation queue.
+    if (channel === 'network' && validNetworkCommand(args[0]) && args[0].action === 'status') return {ok: true, state: networkState()};
+    // Error responses expose only known codes and bounded, structured validation feedback.
     return projects.serialize(async () => {
       try { return {ok: true, state: await handle(channel, args[0])}; }
       catch (error) {
+        if ((channel === 'network' || channel === 'designer') && error instanceof DraftValidationError) {
+          const id = channel === 'network' ? (args[0] as NetworkCommand).id : (args[0] as DesignerCommand).systemId;
+          const configuration = projects.data().systems.find(system => system.id === id)?.configuration;
+          debug.record('projectFailed', id, undefined, {operation: channel === 'network' ? 'validate' : 'draft'});
+          return {ok: false, error: error.message, validation: error.feedback(configuration)};
+        }
         debug.record('projectFailed');
         const key = error instanceof Error ? error.message : '';
-        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'credentialPromptUnavailable', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferUncertain', 'transferBridge', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly'].includes(key) ? key : 'failed'};
+        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'credentialPromptUnavailable', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'credentialsMissing', 'credentialsLocked', 'autoConnectSettings', 'connectionError', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferStopUncertain', 'transferUnchanged', 'transferUncertain', 'transferBridge', 'extensionUpdatePending', 'extensionStopUncertain', 'extensionSaveUncertain', 'extensionRestartUncertain', 'extensionRestoreUncertain', 'extensionVerifyUncertain', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly', 'runtimeFlagsChanged'].includes(key) ? key : 'failed'};
       }
     });
   });
   await window.loadURL(entryURL);
   debug.record('ready');
   if (smoke) {
-    for (const action of ['escape', 'close', 'accept']) {
-      const response = showConfirmation(window, {language: 'en', question: 'Synthetic confirmation', detail: '<b>Synthetic detail</b>',
-        cancel: 'Cancel', accept: 'Continue'});
+    for (const action of ['escape', 'close', 'accept', 'save']) {
+      const response = showConfirmationChoice(window, {language: 'en', question: 'Synthetic confirmation', detail: '<b>Synthetic detail</b>',
+        cancel: 'Cancel', accept: 'Continue', ...(action === 'save' ? {save: 'Save'} : {})});
       const child = window.getChildWindows()[0];
       if (!child) throw new Error('Confirmation is not attached to the application');
       if (child.webContents.isLoadingMainFrame()) await new Promise<void>(resolve => child.webContents.once('did-finish-load', () => resolve()));
@@ -266,12 +363,19 @@ async function open(): Promise<void> {
         for (let i = 0; i < 100 && !document.querySelector('#question').textContent; i++) await new Promise(resolve => setTimeout(resolve, 20));
         if (window.z2maDesktop || document.activeElement.id !== 'cancel' || document.querySelector('#detail b')
           || document.querySelector('#detail').textContent !== '<b>Synthetic detail</b>') return false;
-        if ('${action}' === 'escape') document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));
-        if ('${action}' === 'accept') document.querySelector('#accept').click();
         return true;
       })()`);
+      if (!verified) throw new Error('Confirmation view did not initialize: ' + action);
       if (action === 'close') child.close();
-      if (!verified || await response !== (action === 'accept')) throw new Error('Confirmation interaction failed: ' + action);
+      else {
+        const interaction = action === 'escape'
+          ? "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))"
+          : action === 'save' ? "document.querySelector('#save').click()" : "document.querySelector('#accept').click()";
+        // The interaction resolves the dialog and may destroy the frame before
+        // Electron acknowledges the evaluation. The dialog result is authoritative.
+        void child.webContents.executeJavaScript(interaction).catch(() => {});
+      }
+      if (await response !== (action === 'save' ? 'save' : action === 'accept')) throw new Error('Confirmation interaction failed: ' + action);
     }
     console.log('DESKTOP_CONFIRMATION_OK cancel-focus/escape/close/confirm');
     // Fixed, offline assertions only; no evaluation or control endpoint is exposed.
@@ -281,6 +385,21 @@ async function open(): Promise<void> {
       const bridge = window.z2maDesktop;
       const header = document.querySelector('.app-header');
       await wait(() => header.querySelector('.brand-mark img')?.naturalWidth > 0);
+      if (!document.querySelector('#desktop-view-draft #draft-export') || document.querySelector('#edit-export')) {
+        throw new Error('Desktop YAML export belongs only in the starting point step.');
+      }
+      if (!header.querySelector('#designer-language') || document.querySelectorAll('[data-language-picker]').length !== 1) {
+        throw new Error('The desktop header must be the sole language picker.');
+      }
+      const navigation = document.querySelector('.desktop-steps');
+      const stepTargets = [...(navigation?.querySelectorAll('ol button') ?? [])].map(button => button.getAttribute('aria-controls'));
+      if (stepTargets.join(',') !== ['project', 'broker', 'system', 'connection', 'draft', 'automations', 'review', 'transfer'].map(key => 'desktop-view-' + key).join(',')) {
+        throw new Error('The desktop workspace must present eight ordered steps');
+      }
+      const visibleViews = [...document.querySelectorAll('.desktop-view:not([hidden])')].map(view => view.id);
+      if (visibleViews.join(',') !== 'desktop-view-project' || !document.querySelector('#desktop-view-transfer #mqtt-store')) {
+        throw new Error('A fresh workspace must start at the project and keep transfer in its own step');
+      }
       if (!(header.compareDocumentPosition(document.querySelector('#local-project')) & Node.DOCUMENT_POSITION_FOLLOWING)) throw new Error('Desktop header is below project controls');
       const theme = document.querySelector('#desktop-theme');
       for (const value of ['dark', 'light', 'system']) {
@@ -333,18 +452,36 @@ async function open(): Promise<void> {
     console.log('DESKTOP_SMOKE_OK ' + JSON.stringify(result));
     await smokeProjects(view);
     await smokeNetwork(view, Number(process.env['Z2MA_SMOKE_MQTT_PORT']));
-    await smokeDrafts(view);
-    for (const width of [360, 1920, 3840]) {
+    await smokeDrafts(view, join(app.getPath('userData'), 'synthetic-automations.yaml'), smokeCaptures);
+    for (const width of [360, 1024, 1920, 3840]) {
       window.setContentSize(width, 900);
       for (const theme of ['light', 'dark'] as const) {
         nativeTheme.themeSource = theme;
         await new Promise(resolve => setTimeout(resolve, 150));
-        const fits: boolean = await view.executeJavaScript('document.documentElement.scrollWidth <= innerWidth + 1');
-        if (!fits) throw new Error('Desktop layout overflow: ' + width + '/' + theme);
+        const issue: string = await view.executeJavaScript(`(() => {
+          const nav = document.querySelector('.desktop-steps');
+          const picker = document.querySelector('#desktop-step');
+          const compact = innerWidth <= 900;
+          if (compact !== Boolean(picker.getClientRects().length)) return 'compact picker visibility';
+          function select(key) {
+            if (compact) { picker.value = key; picker.dispatchEvent(new Event('change')); }
+            else nav.querySelector('#desktop-nav-' + key).click();
+          }
+          for (const {value: key} of picker.options) {
+            select(key);
+            const pane = document.querySelector('#desktop-view-' + key);
+            if (pane.hidden || picker.value !== key) return key + ' did not open';
+            if (document.documentElement.scrollWidth > innerWidth + 1) return key + ' overflow';
+            if (!compact && nav.getBoundingClientRect().right > pane.getBoundingClientRect().left + 1) return key + ' overlaps the sidebar';
+          }
+          select('automations');
+          return '';
+        })()`);
+        if (issue) throw new Error('Desktop layout at ' + width + '/' + theme + ': ' + issue);
         console.log('DESKTOP_VIEWPORT_OK ' + width + '/' + theme);
       }
     }
-    if (!app.isPackaged) {
+    if (!app.isPackaged && smokeCaptures) {
       window.setContentSize(1360, 900);
       await view.executeJavaScript("document.querySelector('#search').value = ''; document.querySelector('#search').dispatchEvent(new Event('input', {bubbles: true}));");
       await new Promise(resolve => setTimeout(resolve, 150));
@@ -355,8 +492,27 @@ async function open(): Promise<void> {
       writeFileSync(join(__dirname, '../out/smoke.png'), image.toPNG());
       console.log('DESKTOP_CAPTURE_OK');
     }
-    console.log('DESKTOP_LAYOUT_OK 360/1920/3840 light/dark');
-    app.exit(0);
+    console.log('DESKTOP_LAYOUT_OK 360/1024/1920/3840 light/dark');
+    await projects.serialize(async () => {
+      if (projects.hasPendingInput() || !projects.isDirty()) throw new Error('Close smoke requires an applied unsaved draft');
+      await projects.command({action: 'rename', name: 'Saved from the close dialog'});
+    });
+    if (!profile || readFileSync(join(profile, 'synthetic.z2ma'), 'utf8').includes('Saved from the close dialog')) {
+      throw new Error('Close smoke project was already saved');
+    }
+    window.close();
+    for (let i = 0; i < 100 && !window.getChildWindows().length; i++) await new Promise(resolve => setTimeout(resolve, 20));
+    const dialog = window.getChildWindows()[0];
+    if (!dialog) throw new Error('Closing the dirty project did not open a dialog');
+    if (dialog.webContents.isLoadingMainFrame()) await new Promise<void>(resolve => dialog.webContents.once('did-finish-load', () => resolve()));
+    const ready = await dialog.webContents.executeJavaScript(`(async () => {
+      const save = document.querySelector('#save');
+      for (let i = 0; i < 100 && !save.textContent; i++) await new Promise(resolve => setTimeout(resolve, 20));
+      return Boolean(save.textContent) && !save.hidden && !save.disabled;
+    })()`);
+    if (!ready) throw new Error('Save was unavailable in the close dialog');
+    // The external smoke runner verifies the resulting file after the process exits.
+    void dialog.webContents.executeJavaScript("document.querySelector('#save').click()").catch(() => {});
   }
 }
 
@@ -369,5 +525,5 @@ else {
   });
   app.on('window-all-closed', () => app.quit());
   app.on('before-quit', () => reader?.close());
-  app.on('will-quit', () => { if (profile) { try { rmSync(profile, {recursive: true, force: true}); } catch { /* OS locks may outlive shutdown. */ } } });
+  app.on('will-quit', () => { if (profile && !process.env['Z2MA_SMOKE_PROFILE']) { try { rmSync(profile, {recursive: true, force: true}); } catch { /* OS locks may outlive shutdown. */ } } });
 }

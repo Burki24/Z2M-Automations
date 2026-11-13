@@ -1,137 +1,323 @@
-import {t, bindText, onLanguageChange} from './localization.js';
+import {t, bindText, onLanguageChange, sortByName, formatNumber, language} from './localization.js';
+import {installDraftReview} from './draft-review.js';
+import {installOperationFlags} from './operation-flags.js';
 
-export async function installNetwork(bridge, openBrokerSetup) {
-  const panel = document.createElement('details'); panel.className = 'desktop-project'; panel.id = 'mqtt-panel';
-  const title = document.createElement('summary'); bindText(title, () => t('mqtt.title')); panel.append(title);
-  const help = document.createElement('p'); bindText(help, () => t('mqtt.help')); panel.append(help);
-  const brokerLabel = document.createElement('label'); const brokerTitle = document.createElement('span'); bindText(brokerTitle, () => t('mqtt.broker'));
-  const brokers = document.createElement('select'); brokers.id = 'mqtt-broker'; brokerLabel.append(brokerTitle, brokers);
-  const systemLabel = document.createElement('label'); const systemTitle = document.createElement('span'); bindText(systemTitle, () => t('mqtt.system'));
-  const systems = document.createElement('select'); systems.id = 'mqtt-system'; systemLabel.append(systemTitle, systems);
-  const controls = document.createElement('div'); controls.className = 'project-form'; controls.append(brokerLabel, systemLabel); panel.append(controls);
-  const feedback = document.createElement('p'); feedback.setAttribute('role', 'status'); panel.append(feedback);
-  const overview = document.createElement('ul'); overview.className = 'mqtt-overview'; panel.append(overview);
-  const catalog = document.createElement('details'); catalog.id = 'mqtt-catalog-view';
-  const catalogTitle = document.createElement('summary'); bindText(catalogTitle, () => t('mqtt.catalog')); catalog.append(catalogTitle);
-  const catalogList = document.createElement('ul'); catalogList.className = 'mqtt-overview'; catalog.append(catalogList); panel.append(catalog);
-  const runtime = document.createElement('fieldset'); panel.append(runtime);
-  const legend = document.createElement('legend'); bindText(legend, () => t('mqtt.runtime')); runtime.append(legend);
-  const runtimeHelp = document.createElement('p'); bindText(runtimeHelp, () => t('mqtt.runtimeHelp')); runtime.append(runtimeHelp);
-  const runtimeState = document.createElement('p'); runtime.append(runtimeState);
-  const runtimeForm = document.createElement('div'); runtimeForm.className = 'project-form'; runtime.append(runtimeForm);
-  const ruleLabel = document.createElement('label'); const ruleTitle = document.createElement('span');
-  bindText(ruleTitle, () => t('mqtt.runtimeRule')); const rules = document.createElement('select'); rules.id = 'mqtt-rule';
-  ruleLabel.append(ruleTitle, rules); runtimeForm.append(ruleLabel);
-  const resumeLabel = document.createElement('label'); const resume = document.createElement('input'); resume.type = 'checkbox';
-  const resumeTitle = document.createElement('span'); bindText(resumeTitle, () => t('mqtt.resume')); resumeLabel.append(resume, resumeTitle); runtimeForm.append(resumeLabel);
-  const runs = document.createElement('ul'); runs.className = 'mqtt-overview'; runtime.append(runs);
-  const runtimeButtons = new Map();
-  let state = {sequence: -1, brokers: [], systems: []}; let busy = false; let poll = false; let emitting = false;
-  const changed = () => { emitting = true; document.dispatchEvent(new Event('z2ma-project-changed')); emitting = false; };
-  function options(element, items, label) {
-    const identity = JSON.stringify([t(label), items]);
-    if (element.dataset.options === identity) return;
-    element.dataset.options = identity;
-    const previous = element.value;
-    element.replaceChildren(...[['', t(label)], ...items].map(([id, caption]) => { const option = document.createElement('option'); option.value = id; option.textContent = caption; return option; }));
-    if (items.some(([id]) => id === previous)) element.value = previous;
-  }
-  function paintRuntime() {
-    const system = state.systems.find(item => item.id === systems.value);
-    const view = system?.runtime;
-    options(rules, (view?.rules ?? []).map(rule => [rule.id, rule.id + ' · ' + t(rule.enabled ? 'mqtt.ruleEnabled' : 'mqtt.ruleDisabled')]), 'mqtt.chooseRule');
-    const running = view?.runs.find(run => run.rule === rules.value && run.state === 'running');
-    for (const [action, button] of runtimeButtons) {
-      button.disabled = busy || !system || (action === 'activate' && (!view?.rules.some(rule => rule.enabled) || system.executing))
-        || (action === 'run_once' && (!view || !rules.value || Boolean(running)))
-        || (action === 'stop_rule' && !running);
+function button(parent, id, key, action) {
+  const element = document.createElement('button'); element.type = 'button';
+  if (id) element.id = id;
+  bindText(element, () => t(key));
+  element.addEventListener('click', action);
+  parent.append(element);
+  return element;
+}
+
+function actions(parent) {
+  const row = document.createElement('div'); row.className = 'project-actions'; parent.append(row); return row;
+}
+
+function status(parent) {
+  const label = document.createElement('p'); label.setAttribute('role', 'status'); parent.append(label); return label;
+}
+
+function setOptions(element, items, empty) {
+  const entries = [['', empty], ...items];
+  const signature = JSON.stringify(entries);
+  if (element.dataset.options === signature) return;
+  element.dataset.options = signature;
+  const previous = element.value;
+  element.replaceChildren(...entries.map(([id, title]) => new Option(title, id)));
+  if (items.some(([id]) => id === previous)) element.value = previous;
+}
+
+function installConnectionCatalog(parent) {
+  const panel = document.createElement('section');
+  panel.id = 'mqtt-catalog'; panel.className = 'desktop-card desktop-read-catalog'; panel.hidden = true;
+  parent.append(panel);
+  const columns = ['device', 'group'].map(type => {
+    const column = document.createElement('div');
+    const title = document.createElement('h2'); title.id = 'mqtt-catalog-' + type + '-title';
+    const list = document.createElement('ul');
+    list.id = 'mqtt-catalog-' + type; list.className = 'mqtt-overview'; list.tabIndex = 0;
+    list.setAttribute('aria-labelledby', title.id);
+    const empty = document.createElement('p'); bindText(empty, () => t('desktop.catalog.empty.' + type));
+    column.append(title, list, empty);
+    panel.append(column);
+    return {type, title, list, empty};
+  });
+  let shown;
+  return function paintCatalog(view, fresh, scope) {
+    panel.hidden = !(fresh && view?.desktop.project && view.status.confirmed);
+    if (panel.hidden) return;
+    const entries = view.devices;
+    const signature = JSON.stringify([scope, language(), entries.map(entry => [entry.target.type, entry.name])]);
+    if (shown === signature) return;
+    shown = signature;
+    for (const {type, title, list, empty} of columns) {
+      const items = sortByName(entries.filter(entry => entry.target.type === type));
+      bindText(title, () => t('desktop.catalog.' + type, {count: items.length}));
+      list.hidden = !items.length;
+      empty.hidden = Boolean(items.length);
+      list.replaceChildren(...items.map(({name}) => {
+        const row = document.createElement('li'); row.textContent = name;
+        return row;
+      }));
+      list.scrollTop = 0;
     }
-    bindText(runtimeState, () => t(view ? 'mqtt.recovery.' + view.recovery : 'mqtt.operationUnknown'));
-    const identity = JSON.stringify([systems.value, view?.runs, (view?.runs ?? []).map(run => t('mqtt.run.' + run.state)), t('mqtt.runStep')]);
+  };
+}
+
+export function installNetwork(bridge, workspace, settleEditor) {
+  let view;
+  let state = {sequence: -1, brokers: [], systems: []};
+  let pending = false;
+  let deferredStateChange = false;
+  let polling = false;
+  let selected = '';
+  let operationFeedback;
+  let setupFeedback;
+  let connectionFeedback;
+  let sourceFeedback;
+
+  function current() {
+    const system = state.systems.find(system => system.id === view?.workspaceContext?.systemId);
+    return {view, system, broker: state.brokers.find(broker => broker.id === system?.brokerId),
+      transferProgress: state.transferProgress?.find(item => item.id === system?.id)};
+  }
+  function updateState(next) {
+    if (next.sequence < state.sequence) return;
+    const changed = next.sequence !== state.sequence;
+    state = next;
+    if (changed && pending) deferredStateChange = true;
+    else if (changed) document.dispatchEvent(new Event('z2ma-project-changed'));
+  }
+  async function refresh() {
+    if (polling) return;
+    polling = true;
+    try {
+      const response = await bridge.network({action: 'status', id: ''});
+      if (response.ok) { updateState(response.state); paint(); }
+    } finally { polling = false; }
+  }
+  async function command(action, id, fields = {}) {
+    const response = await bridge.network({action, id, ...fields});
+    if (response.ok) updateState(response.state);
+    return response;
+  }
+  async function perform(task, failed) {
+    const picker = document.querySelector('#designer-system');
+    if (pending || !view?.desktop.project || picker?.disabled || document.querySelector('dialog[open]')) return;
+    pending = true;
+    if (picker) picker.disabled = true;
+    workspace.review.setAttribute('aria-busy', 'true');
+    paint();
+    try { await settleEditor(); await task(); }
+    catch { failed(); }
+    finally {
+      pending = false;
+      if (deferredStateChange) { deferredStateChange = false; document.dispatchEvent(new Event('z2ma-project-changed')); }
+      if (picker) picker.disabled = false;
+      workspace.review.removeAttribute('aria-busy');
+      paint();
+    }
+  }
+  function systemCommand(action, target, fields) {
+    return perform(async () => {
+      const {system, broker} = current();
+      if (!system) return;
+      const response = await command(action, ['connect', 'disconnect'].includes(action) ? broker.id : system.id, fields);
+      const outcome = response.ok ? response.state.outcome : response.error;
+      const key = response.ok && outcome === 'runtimeConfirmed' ? 'desktop.operation.' + action
+        : outcome ? 'project.' + outcome : '';
+      target(key, system.name);
+    }, () => target('project.failed', current().system?.name));
+  }
+
+  const operation = document.createElement('section'); operation.className = 'desktop-card';
+  workspace.pages.operation.append(operation);
+  const operationState = status(operation);
+  const operationConnection = actions(operation);
+  const connectOperation = workspace.link(operationConnection, 'connection');
+  const runtimeStatus = button(operationConnection, 'mqtt-runtimeStatus', 'desktop.operation.readStatus', () => systemCommand('runtimeStatus', () => { operationFeedback = undefined; }));
+  const automatic = document.createElement('fieldset'); operation.append(automatic);
+  const automaticTitle = document.createElement('legend'); bindText(automaticTitle, () => t('desktop.operation.automatic')); automatic.append(automaticTitle);
+  const resumeLabel = document.createElement('label'); resumeLabel.className = 'desktop-checkbox';
+  const resume = document.createElement('input'); resume.type = 'checkbox'; resume.id = 'mqtt-resume';
+  const resumeTitle = document.createElement('span'); bindText(resumeTitle, () => t('mqtt.resume'));
+  resumeLabel.append(resume, resumeTitle); automatic.append(resumeLabel);
+  const automaticActions = actions(automatic);
+  const runtimeResult = status(operation);
+  const runtimeAction = (action, fields) => systemCommand(action, (key, name) => { operationFeedback = {key, name}; }, fields);
+  const activate = button(automaticActions, 'mqtt-activate', 'mqtt.activate', () => runtimeAction('activate', {resume: resume.checked}));
+  const deactivate = button(automaticActions, 'mqtt-deactivate', 'mqtt.deactivate', () => runtimeAction('deactivate'));
+  const single = document.createElement('fieldset'); operation.insertBefore(single, runtimeResult);
+  const singleTitle = document.createElement('legend'); bindText(singleTitle, () => t('desktop.operation.single')); single.append(singleTitle);
+  const ruleLabel = document.createElement('label'); ruleLabel.className = 'field';
+  const ruleTitle = document.createElement('span'); bindText(ruleTitle, () => t('mqtt.runtimeRule'));
+  const rules = document.createElement('select'); rules.id = 'mqtt-rule'; ruleLabel.append(ruleTitle, rules); single.append(ruleLabel);
+  const singleActions = actions(single);
+  const runOnce = button(singleActions, 'mqtt-run_once', 'desktop.operation.runOnce', () => runtimeAction('run_once', {rule: rules.value}));
+  const stopRule = button(singleActions, 'mqtt-stop_rule', 'mqtt.stop_rule', () => {
+    const run = current().system?.runtime?.runs.find(run => run.rule === rules.value && run.state === 'running');
+    if (run) runtimeAction('stop_rule', {rule: run.rule, run: run.run});
+  });
+  const runs = document.createElement('ul'); runs.className = 'mqtt-overview'; operation.append(runs);
+  const flags = installOperationFlags(workspace, {operation, automatic, activate, current, perform, command, busy: () => pending, button});
+  const review = installDraftReview(bridge, workspace, {current, perform, command, busy: () => pending, button});
+
+  const connection = document.createElement('section'); connection.className = 'desktop-card';
+  workspace.pages.connection.append(connection);
+  const connectionState = status(connection);
+  const catalogState = document.createElement('p'); connection.append(catalogState);
+  const connectionActions = actions(connection);
+  const connect = button(connectionActions, 'mqtt-connect', 'desktop.steps.connection', () => systemCommand('connect', (key, name) => { connectionFeedback = {key, name}; }));
+  connect.className = 'primary';
+  const read = button(connectionActions, 'mqtt-refresh', 'desktop.steps.readState', () => systemCommand('refresh', () => { connectionFeedback = undefined; }));
+  const disconnect = button(connectionActions, 'mqtt-disconnect', 'mqtt.disconnect', () => systemCommand('disconnect', () => { connectionFeedback = undefined; }));
+  const editBroker = workspace.link(connectionActions, 'broker');
+  editBroker.addEventListener('click', () => {
+    const choice = document.querySelector('#project-brokerChoice');
+    if (!choice || !current().broker) return;
+    choice.value = current().broker.id; choice.dispatchEvent(new Event('change'));
+  });
+  const editSystem = workspace.link(connectionActions, 'system');
+  const nextDraft = workspace.link(connectionActions, 'draft');
+  const paintCatalog = installConnectionCatalog(workspace.pages.connection);
+
+  const localActions = document.querySelector('#draft-local-actions');
+  const storedActions = document.querySelector('#draft-stored-actions');
+  const local = button(localActions, 'mqtt-draft', 'desktop.steps.editDraft', () => openSource('draft'));
+  const stored = button(storedActions, 'mqtt-stored', 'desktop.review.viewStored', () => openSource('stored'));
+  local.className = 'primary';
+  localActions.prepend(local);
+  storedActions.prepend(stored);
+  const sourceResult = status(workspace.pages.draft); sourceResult.className = 'desktop-feedback';
+  function openSource(source) {
+    return perform(async () => {
+      const {system} = current();
+      if (!system) return;
+      sourceFeedback = '';
+      if (view.desktop.source !== source) {
+        const response = await command('view', system.id, {source});
+        if (!response.ok) { sourceFeedback = 'project.' + response.error; return; }
+      }
+      workspace.show('automations');
+    }, () => { sourceFeedback = 'project.failed'; });
+  }
+
+  const setup = document.createElement('details'); setup.className = 'desktop-card'; workspace.pages.connection.append(setup);
+  const setupTitle = document.createElement('summary'); bindText(setupTitle, () => t('desktop.setup.connection')); setup.append(setupTitle);
+  const versions = document.createElement('p'); setup.append(versions);
+  const updateHelp = document.createElement('p'); bindText(updateHelp, () => t('project.extensionUpdateHelp')); setup.append(updateHelp);
+  const connectionSettings = actions(setup);
+  const setupResult = status(setup);
+  const install = button(connectionSettings, 'mqtt-install', 'mqtt.install', () => systemCommand('install', (key, name) => { setupFeedback = {key, name}; }));
+  const resolveInstall = button(connectionSettings, 'mqtt-install-check', 'project.extensionCheck', () => systemCommand('checkTransfer', (key, name) => { setupFeedback = {key, name}; }));
+
+  const brokerChoice = document.querySelector('#project-brokerChoice');
+  const tls = document.createElement('details'); tls.className = 'desktop-tls'; brokerChoice.closest('.desktop-card').append(tls);
+  const tlsTitle = document.createElement('summary'); bindText(tlsTitle, () => t('desktop.setup.tls')); tls.append(tlsTitle);
+  const tlsHelp = document.createElement('p'); bindText(tlsHelp, () => t('mqtt.tlsHelp')); tls.append(tlsHelp);
+  const tlsStatus = status(tls);
+  const tlsActions = actions(tls);
+  const changeTLS = action => perform(async () => {
+    const id = brokerChoice.value;
+    if (!id) return;
+    const response = await command(action, id);
+    if (!response.ok) bindText(tlsStatus, () => t('project.' + response.error));
+    else {
+      const imported = response.state.brokers.find(broker => broker.id === id)?.certificates;
+      bindText(tlsStatus, () => t(imported ? 'desktop.setup.tlsLoaded' : 'desktop.setup.tlsEmpty'));
+    }
+  }, () => bindText(tlsStatus, () => t('project.failed')));
+  const certificates = button(tlsActions, 'mqtt-certificates', 'mqtt.certificates', () => changeTLS('certificates'));
+  const clearCertificates = button(tlsActions, 'mqtt-clearCertificates', 'mqtt.clearCertificates', () => changeTLS('clearCertificates'));
+
+  function connectionKey(system, broker) {
+    if (!system) return 'desktop.steps.need.system';
+    if (broker?.error) return 'desktop.connection.' + broker.error;
+    if (broker?.autoConnect?.issue) return 'desktop.connection.' + broker.autoConnect.issue;
+    if (['connecting', 'reconnecting'].includes(broker?.state)) return 'desktop.connection.connecting';
+    if (broker?.state !== 'connected') return 'desktop.connection.offline';
+    if (system.reading) return 'desktop.connection.reading';
+    if (system.error) return 'desktop.connection.noReply';
+    return system.fresh ? 'desktop.connection.ready' : 'desktop.connection.readFirst';
+  }
+  const feedbackText = data => data?.key ? t(data.key, {name: data.name ?? ''}) : '';
+  function paint() {
+    const {system, broker} = current();
+    const connected = broker?.state === 'connected';
+    const connecting = ['connecting', 'reconnecting'].includes(broker?.state);
+    const viewRuntime = system?.runtime;
+    const runtimeReady = Boolean(connected && system?.fresh && !system.reading && viewRuntime);
+    const name = system?.name ?? '';
+    const connectionMessage = () => t(connectionKey(system, broker), {name, broker: broker?.name ?? ''});
+    bindText(connectionState, () => feedbackText(connectionFeedback) || connectionMessage());
+    bindText(catalogState, () => system?.fresh ? t('desktop.steps.catalog', {devices: formatNumber(system.devices), scenes: formatNumber(system.scenes)}) : '');
+    paintCatalog(view, connected && system?.fresh, selected);
+    connect.hidden = connected;
+    connect.disabled = pending || !system || connecting;
+    read.hidden = !connected;
+    read.disabled = pending || Boolean(system?.reading);
+    read.classList.toggle('primary', !system?.fresh);
+    nextDraft.classList.toggle('primary', Boolean(system?.fresh));
+    editBroker.hidden = !broker?.error && !broker?.autoConnect?.issue;
+    editSystem.hidden = !system?.error;
+    const update = state.extensionUpdates?.find(update => update.id === system?.id);
+    const updating = Boolean(update && !update.failed && update.stage !== 'complete');
+    bindText(setupResult, () => updating ? t('project.extensionUpdate.' + update.stage) : feedbackText(setupFeedback));
+    setup.setAttribute('aria-busy', String(updating));
+    resolveInstall.hidden = !update?.failed && setupFeedback?.key !== 'project.transferUncertain';
+    resolveInstall.disabled = pending || !connected;
+    disconnect.disabled = pending || (!connected && !connecting);
+    install.disabled = pending || !connected;
+    versions.hidden = !system;
+    bindText(versions, () => t('project.extensionBuilds', {installed: system?.extensionVersion || '—', bundled: state.bundledExtension?.version ?? '—'}));
+    local.disabled = pending || !system;
+    stored.disabled = pending || !system?.stored;
+    bindText(sourceResult, () => sourceFeedback ? t(sourceFeedback) : '');
+
+    connectOperation.hidden = connected || !system;
+    runtimeStatus.hidden = !connected;
+    runtimeStatus.disabled = pending || Boolean(system?.reading);
+    automatic.hidden = single.hidden = !system;
+    bindText(operationState, () => !runtimeReady ? connectionMessage() : t(system.executing ? 'desktop.operation.active' : 'desktop.operation.stopped', {name}));
+    setOptions(rules, sortByName(viewRuntime?.rules ?? []).map(rule => [rule.id, rule.name + ' · ' + t(rule.enabled ? 'mqtt.ruleEnabled' : 'mqtt.ruleDisabled')]), t('mqtt.chooseRule'));
+    const running = viewRuntime?.runs.find(run => run.rule === rules.value && run.state === 'running');
+    resume.disabled = pending || !runtimeReady || system.executing;
+    activate.disabled = pending || !runtimeReady || system.executing || !viewRuntime.rules.some(rule => rule.enabled)
+      || system.transferPending || system.updatePending;
+    deactivate.disabled = pending || !connected;
+    rules.disabled = pending || !runtimeReady;
+    runOnce.disabled = pending || !runtimeReady || !rules.value || Boolean(running) || system.transferPending || system.updatePending;
+    stopRule.disabled = pending || !running;
+    bindText(runtimeResult, () => feedbackText(operationFeedback) || (runtimeReady && !viewRuntime.rules.length ? t('desktop.operation.noRules') : ''));
+    const identity = JSON.stringify([viewRuntime?.runs, viewRuntime?.rules, document.documentElement.lang]);
     if (runs.dataset.items !== identity) {
       runs.dataset.items = identity;
-      runs.replaceChildren(...(view?.runs ?? []).map(run => {
+      runs.replaceChildren(...(viewRuntime?.runs ?? []).map(run => {
         const row = document.createElement('li');
-        bindText(row, () => run.rule + ' · ' + run.run + ' · ' + t('mqtt.runStep', {state: t('mqtt.run.' + run.state), step: run.step}));
+        const label = viewRuntime.rules.find(rule => rule.id === run.rule)?.name ?? run.rule;
+        bindText(row, () => label + ' · ' + t('mqtt.runStep', {state: t('mqtt.run.' + run.state), step: run.step}));
         return row;
       }));
     }
+    certificates.disabled = clearCertificates.disabled = pending || !brokerChoice.value;
+    flags.paint();
+    review.paint();
   }
-  function paint() {
-    options(brokers, state.brokers.map(broker => [broker.id, broker.name + ' · ' + broker.host + ':' + broker.port + (broker.tls ? ' · TLS' : '') + (broker.certificates ? ' · ' + t('mqtt.tlsLoaded') : '')]), 'mqtt.chooseBroker');
-    options(systems, state.systems.map(system => [system.id, system.name + ' · ' + system.baseTopic]), 'mqtt.chooseSystem');
-    paintRuntime();
-    overview.replaceChildren(...state.systems.map(system => {
-      const row = document.createElement('li'); const broker = state.brokers.find(broker => broker.id === system.brokerId);
-      bindText(row, () => system.name + ' · ' + t('mqtt.state.' + (broker?.state ?? 'disconnected')) + ' · '
-        + t(system.reading ? 'mqtt.reading' : system.fresh ? 'mqtt.fresh' : system.stored ? 'mqtt.stale' : 'mqtt.unknown')
-        + ' · ' + t('mqtt.counts', {devices: system.devices, scenes: system.scenes, revision: system.revision ?? '—'})
-        + ' · ' + t(system.executing === null ? 'mqtt.operationUnknown' : system.executing ? 'mqtt.operationActive' : 'mqtt.operationStopped')
-        + ' · ' + t('project.extensionBuilds', {installed: system.extensionVersion + ' ' + (system.build?.slice(0, 12) ?? '—'), bundled: (state.bundledExtension?.version ?? '') + ' ' + (state.bundledExtension?.build?.slice(0, 12) ?? '—')})
-        + (system.fresh && system.build && state.bundledExtension ? ' · ' + t(system.build === state.bundledExtension.build ? 'project.extensionMatch' : 'project.extensionDifferent') : '')
-        + (system.error || broker?.error ? ' · ' + t('mqtt.error.' + (system.error || broker.error)) : ''));
-      return row;
-    }));
+  function update(data) {
+    const id = data.desktop.projectId + ':' + data.desktop.epoch + ':' + data.workspaceContext?.systemId;
+    if (id !== selected) {
+      selected = id; resume.checked = false; rules.value = '';
+      connectionFeedback = operationFeedback = setupFeedback = sourceFeedback = undefined;
+    }
+    view = data;
+    paint();
+    void refresh().catch(() => {});
   }
-  async function refresh() {
-    if (poll || busy) return;
-    poll = true;
-    try {
-      const result = await bridge.network({action: 'status', id: ''});
-      if (!result.ok) return;
-      const previous = state.sequence; state = result.state; paint();
-      if (previous !== state.sequence) catalogList.replaceChildren();
-      if (previous !== state.sequence) changed();
-    } catch { bindText(feedback, () => t('project.failed')); }
-    finally { poll = false; }
-  }
-  async function command(action, source) {
-    const id = ['refresh', 'view', 'catalog', 'validate', 'store', 'install', 'checkTransfer', 'validateEnabled', ...runtimeButtons.keys()].includes(action) ? systems.value : brokers.value;
-    if (!id || busy) return;
-    const rule = rules.value;
-    const run = state.systems.find(item => item.id === id)?.runtime?.runs.find(item => item.rule === rule && item.state === 'running')?.run;
-    const runtimeFields = action === 'activate' ? {resume: resume.checked} : action === 'run_once' ? {rule} : action === 'stop_rule' ? {rule, run} : {};
-    busy = true; paintRuntime(); panel.setAttribute('aria-busy', 'true');
-    try {
-      if (action === 'view' || action === 'catalog') await bridge.selectSystem(id);
-      if (action === 'catalog') {
-        const data = await bridge.snapshot();
-        const devices = data.devices.map(device => {
-          const row = document.createElement('li'); row.textContent = device.name + ' · ' + device.properties.map(property => property.label).join(', '); return row;
-        });
-        const scenes = (data.scenes ?? []).map(scene => {
-          const row = document.createElement('li'); const target = data.devices.find(device => device.target.type === scene.target.type && device.target.id === scene.target.id);
-          bindText(row, () => scene.name + ' · ' + (target?.name ?? '') + ' · #' + scene.id + (scene.endpoint ? ' · ' + t('mqtt.channel', {channel: scene.endpoint}) : '')); return row;
-        });
-        catalogList.replaceChildren(...devices, ...scenes); catalog.open = true; changed(); return;
-      }
-      const result = await bridge.network({action, id, ...runtimeFields, ...(source ? {source} : {})});
-      if (!result.ok) { bindText(feedback, () => t('project.' + result.error)); return; }
-      state = result.state; paint(); changed();
-      const outcome = result.state.outcome;
-      bindText(feedback, () => t(outcome ? 'project.' + outcome : 'mqtt.requestAccepted'));
-    } catch { bindText(feedback, () => t('project.failed')); }
-    finally { busy = false; paintRuntime(); panel.removeAttribute('aria-busy'); }
-  }
-  for (const [key, action, source] of [['connect', 'connect'], ['disconnect', 'disconnect'], ['refresh', 'refresh'], ['catalog', 'catalog'], ['certificates', 'certificates'], ['clearCertificates', 'clearCertificates'], ['draft', 'view', 'draft'], ['stored', 'view', 'stored'], ['validate', 'validate'], ['validateEnabled', 'validateEnabled'], ['store', 'store'], ['install', 'install'], ['checkTransfer', 'checkTransfer']]) {
-    const button = document.createElement('button'); button.type = 'button'; button.id = 'mqtt-' + key;
-    bindText(button, () => t('mqtt.' + key)); button.addEventListener('click', () => command(action, source)); controls.append(button);
-  }
-  for (const action of ['runtimeStatus', 'activate', 'deactivate', 'run_once', 'stop_rule']) {
-    const button = document.createElement('button'); button.type = 'button'; button.id = 'mqtt-' + action;
-    bindText(button, () => t('mqtt.' + action)); button.addEventListener('click', () => command(action));
-    runtimeButtons.set(action, button); runtimeForm.append(button);
-  }
-  rules.addEventListener('change', paintRuntime);
-  systems.addEventListener('change', () => { resume.checked = false; rules.value = ''; paintRuntime(); });
-  const setupBroker = document.createElement('button'); setupBroker.type = 'button'; setupBroker.id = 'mqtt-setupBroker';
-  bindText(setupBroker, () => t('mqtt.setupBroker'));
-  setupBroker.addEventListener('click', openBrokerSetup);
-  brokers.closest('label').after(setupBroker);
-  const caution = document.createElement('p'); bindText(caution, () => t('mqtt.tlsHelp')); panel.append(caution);
-  document.querySelector('#local-project').after(panel);
-  document.addEventListener('z2ma-project-changed', () => { if (!emitting) void refresh(); });
+  rules.addEventListener('change', paint);
+  brokerChoice.addEventListener('change', () => { bindText(tlsStatus, ''); paint(); });
   onLanguageChange(paint);
-  setInterval(() => { void refresh(); }, 1000);
-  await refresh();
+  setInterval(() => { void refresh().catch(() => {}); }, 1000);
+  return update;
 }

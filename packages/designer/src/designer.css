@@ -53,6 +53,13 @@ svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width:
 .preview-notice { display: flex; align-items: center; gap: 9px; padding: 10px 24px; background: var(--warning-soft); color: var(--warning); border-bottom: 1px solid var(--line-strong); font-size: .9375rem; }
 .preview-notice strong { white-space: nowrap; }
 .notice-dot { width: 7px; height: 7px; background: var(--warning); border-radius: 50%; flex-shrink: 0; }
+/* Shared draft entry and workflow summary in the full designer. */
+.draft-wizard-entry { padding: 0 1rem .75rem; }
+.draft-wizard-entry button { width: 100%; white-space: normal; }
+.draft-wizard-entry p { margin: .5rem 0 0; }
+.workflow-system { overflow-wrap: anywhere; }
+.workflow-project { color: var(--muted); }
+.workflow-next { min-height: 2rem; padding-block: .25rem; }
 .status-strip { display: flex; flex-wrap: wrap; gap: 9px 14px; align-items: center; min-height: 51px; padding: 9px 24px; font-size: .875rem; }
 .status-chip { border: 1px solid var(--line); background: var(--surface); padding: 5px 8px; border-radius: 6px; font-weight: 600; }
 .status-chip.dirty { border-color: var(--line-strong); color: var(--warning); background: var(--warning-soft); }
@@ -207,6 +214,11 @@ dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(2px); }
 @media (max-width: 700px) { .creation-columns { grid-template-columns: minmax(0, 1fr); } .creation-dialog { padding: 18px; } .creation-dialog .dialog-actions button { width: 100%; } }
 .rule-edit-dialog .edit-section { border: 1px solid var(--line); border-radius: 9px; margin: 18px 0; padding: 15px; min-width: 0; }
 .rule-edit-dialog summary { cursor: pointer; font-weight: 600; }
+.rule-edit-dialog [data-section="triggers"] > summary { color: var(--when); }
+.rule-edit-dialog [data-section="conditions"] > summary { color: var(--condition); }
+.rule-edit-dialog [data-section="actions"] > summary { color: var(--action); }
+.rule-edit-dialog [aria-invalid="true"] { border-color: var(--danger); }
+.rule-edit-dialog .edit-field-error { color: var(--danger); font-size: .875rem; }
 .rule-edit-dialog .edit-row { margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
 .rule-edit-dialog .action-order-handle { cursor: grab; margin-left: 12px; padding: 5px 10px; font-size: .9375rem; }
 .rule-edit-dialog .action-order-handle:active { cursor: grabbing; }
@@ -217,15 +229,32 @@ dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(2px); }
 .rule-edit-dialog .edit-row-fields .field { margin: 0; min-width: 0; }
 .rule-edit-dialog .edit-device-picker, .rule-edit-dialog .edit-command, .rule-edit-dialog .field-help { grid-column: 1 / -1; min-width: 0; }
 .rule-edit-dialog .edit-device-picker { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(0, 2fr); gap: 18px; }
+.rule-edit-dialog .edit-device-system, .rule-edit-dialog .edit-device-system-help { grid-column: 1 / -1; }
 .rule-edit-dialog .edit-row-tools { display: flex; flex-wrap: wrap; align-items: end; gap: 9px; margin-top: 12px; }
 .rule-edit-dialog .edit-weekdays { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .rule-edit-dialog .edit-weekdays .field { display: flex; align-items: center; gap: 5px; }
 .rule-edit-dialog .field.edit-check { display: flex; flex-direction: row-reverse; justify-content: flex-end; align-items: center; gap: 9px; }
 .rule-edit-dialog input[type="checkbox"] { width: 20px; height: 20px; flex: 0 0 auto; }
 .rule-edit-dialog .edit-preserved, .rule-edit-dialog #edit-message { padding: 12px; border-radius: 8px; background: var(--surface-soft); overflow-wrap: anywhere; }
+.rule-edit-dialog #edit-message { white-space: pre-line; }
+.rule-edit-dialog { scroll-padding-block-end: 6rem; }
+.rule-edit-dialog .dialog-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    padding-block: .75rem .25rem;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+}
 .module-designer .canvas-heading { flex-wrap: wrap; gap: 10px; }
 .module-designer .entry-tools { flex-wrap: wrap; }
-@media (max-width: 700px) { .rule-edit-dialog .edit-row-fields, .rule-edit-dialog .edit-device-picker { grid-template-columns: minmax(0, 1fr); } .rule-edit-dialog .edit-section { padding: 9px; } }
+@media (max-width: 700px) {
+    .rule-edit-dialog { scroll-padding-block-end: 9rem; }
+    .rule-edit-dialog .edit-row-fields, .rule-edit-dialog .edit-device-picker { grid-template-columns: minmax(0, 1fr); }
+    .rule-edit-dialog .edit-section { padding: 9px; }
+    .rule-edit-dialog .dialog-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rule-edit-dialog .dialog-actions :is(#edit-reload, #edit-submit:not(.primary)) { grid-column: 1 / -1; }
+}
 dialog h2 { font-size: 1.3125rem; margin: 9px 0 23px; }
 dialog p { font-size: .9375rem; line-height: 1.7; color: var(--muted); }
 .dialog-actions { display: flex; gap: 9px; justify-content: flex-end; margin-top: 22px; }

@@ -40,12 +40,13 @@ export async function startPeer({systems = new Map([['synthetic', remoteFixture(
       if (value.cmd === 'publish') {
         publications.push(value);
         const match = /^(.*)\/symcon\/automations\/request\/(status|editor|validate|store|activate|deactivate|run_once|stop_rule)$/.exec(value.topic)
-          ?? /^(.*)\/bridge\/request\/extension\/save$/.exec(value.topic);
+          ?? /^(.*)\/bridge\/request\/(extension\/save|restart)$/.exec(value.topic);
         if (!match || !systems.has(match[1])) return;
         let request; try { request = JSON.parse(value.payload.toString()); } catch { return; }
-        const operation = match[2] ?? 'install'; const fixture = systems.get(match[1]);
-        const responseTopic = match[1] + (operation === 'install' ? '/bridge/response/extension/save' : '/symcon/automations/response/' + operation);
-        const response = {...(operation === 'install' ? {} : {protocol_version: 1}), transaction: request.transaction, status: 'ok', data: structuredClone(fixture[operation] ?? {})};
+        const operation = match[2] === 'extension/save' ? 'install' : match[2]; const fixture = systems.get(match[1]);
+        const responseTopic = match[1] + (operation === 'install' ? '/bridge/response/extension/save'
+          : operation === 'restart' ? '/bridge/response/restart' : '/symcon/automations/response/' + operation);
+        const response = {...(['install', 'restart'].includes(operation) ? {} : {protocol_version: 1}), transaction: request.transaction, status: 'ok', data: structuredClone(fixture[operation] ?? {})};
         const publish = (body = response, topic = responseTopic, retain = false) => {
           if (topics.has(topic)) send(socket, {cmd: 'publish', topic, payload: Buffer.from(JSON.stringify(body)), qos: 0, retain, dup: false});
         };

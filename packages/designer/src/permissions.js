@@ -1,4 +1,4 @@
-import {designerRequest as fetch} from './transport.js';
+import {designerRequest as fetch, isDesktop} from './transport.js';
 import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, MessageError, ResponseError, locale, formatDate, formatNumber, onLanguageChange, installLanguagePicker, localizeResponse} from './localization.js';
 import {createUUID} from './identity.js';
 import {systemHeaders} from './workspace.js';
@@ -52,7 +52,7 @@ export function installPermissions({getData, reload, message, isLoading = () => 
     const dialog = document.createElement('dialog'); dialog.id = 'permissions-dialog'; dialog.className = 'creation-dialog permissions-dialog';
     dialog.setAttribute('aria-labelledby', 'permissions-title');
     bindHTML(dialog, () => `<h2 id="permissions-title">${t("ui.partner.permissions.38f831bd")}</h2><p class="permissions-target"></p><p class="permissions-notice"></p>`
-        + `<div class="permissions-edit"><p>${t("ui.which.systems.may.send.commands.d112b167")}</p><div class="permissions-choices"></div></div>`
+        + `<div class="permissions-edit"><p>${isDesktop() ? t('editor.deviceSystem.permissionsQuestion') : t("ui.which.systems.may.send.commands.d112b167")}</p><div class="permissions-choices"></div></div>`
         + `<section class="permissions-review" hidden><h3>${t("ui.apply.these.changes.b6d9f5cc")}</h3><div class="permissions-changes"></div></section>`
         + `<p class="permissions-feedback" role="status" aria-live="polite"></p><div class="dialog-actions"><button type="button" class="permissions-cancel">${t("ui.cancel.f7ff1178")}</button>`
         + `<button type="button" class="permissions-back" hidden>${t("ui.change.selection.14435c47")}</button><button type="button" class="permissions-check">${t("ui.review.changes.f539371f")}</button>`

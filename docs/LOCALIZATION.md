@@ -8,8 +8,10 @@ loads the same catalogs locally; installed-app acceptance remains separate.
 
 - Local JSON catalogs in locales/de.json and locales/en.json, stable message
   keys and named placeholders. No translation package, download or online API.
-- Browser language supplies the default; saved manual selection takes precedence.
-  English is the fallback. Pickers remain reachable inside open HTML dialogs.
+- Browser language supplies the default. A saved manual selection takes
+  precedence. English is the fallback. The desktop picker is in the app
+  header. Symcon browser and tile pickers remain reachable inside open HTML
+  dialogs.
 - Text and presentation attributes update in place. Inputs, typed values,
   device search, channels, weekdays, step order, edited delays and scroll survive.
 - Native Intl handles numbers, dates and plural forms. Names, scene names,
