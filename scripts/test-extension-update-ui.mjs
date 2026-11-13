@@ -100,10 +100,10 @@ async function rendererTest() {
   const workspace = {pages: Object.fromEntries(['operation', 'connection', 'draft', 'review', 'transfer'].map(key => [key, node('section')])), actions: node('div'), review: node('div'), show: () => true,
     link: parent => { const value = document.createElement('button'); parent.append(value); return value; }};
   const id = '11111111-1111-4111-8111-111111111111';
-  const state = {sequence: 0, brokers: [{id: 'broker', state: 'connected'}], systems: [{id, brokerId: 'broker', name: 'Synthetic', baseTopic: 'synthetic', fresh: true, stored: true,
+  const state = {sequence: 0, brokers: [{id: 'broker', state: 'connected'}], systems: [{id, brokerId: 'broker', name: 'Synthetic', baseTopic: 'synthetic', fresh: true, stored: true, revision: 1, build: 'a'.repeat(64),
     flagsContext: 'a'.repeat(64), devices: 0, scenes: 0, executing: false, runtime: {resume: true, recovery: 'stopped', runs: [], rules: [
       {id: 'rule_a', name: 'Zulu', enabled: false}, {id: 'rule_b', name: 'Alpha', enabled: false}]}}], extensionUpdates: []};
-  let finish, installing = false, polls = 0, view, finishTransfer, transferring = false, kind = 'flags', validationFailure, flagsCanceled = false;
+  let finish, installing = false, polls = 0, view, finishTransfer, transferring = false, kind = 'flags', validationFailure, flagsCanceled = false, flagsRejected = false;
   const commands = [];
   const bridge = {snapshot: async () => structuredClone(view), designer: async () => ({ok: true}), network: async ({action, enabled, context}) => {
     if (action === 'status') { polls++; return {ok: true, state: structuredClone(state)}; }
@@ -111,6 +111,7 @@ async function rendererTest() {
     if (action === 'setRuleFlags') {
       assert(context === state.systems[0].flagsContext, 'Submit the displayed stored-state context');
       if (flagsCanceled) return {ok: true, state: {...structuredClone(state), outcome: 'transferCanceled'}};
+      if (flagsRejected) return {ok: false, error: 'draftValue'};
       for (const rule of state.systems[0].runtime.rules) rule.enabled = enabled.includes(rule.id);
       state.systems[0].executing = false;
       state.systems[0].flagsContext = 'b'.repeat(64); state.sequence++;
@@ -124,6 +125,9 @@ async function rendererTest() {
     if (action === 'store') {
       transferring = true; state.sequence++; state.transferProgress = [{id, phase: 'stopping', kind, failed: false}];
       await new Promise(resolve => { finishTransfer = resolve; });
+      state.systems[0].revision++; state.systems[0].executing = false;
+      for (const rule of state.systems[0].runtime.rules) rule.enabled = kind === 'flags' && rule.id === 'rule_b';
+      state.systems[0].flagsContext = state.systems[0].revision.toString(16).padStart(64, '0');
       state.sequence++; state.transferProgress = [{id, phase: 'complete', kind, failed: false}]; state.draftChecks = [];
       return {ok: true, state: {...structuredClone(state), outcome: 'transferStored'}};
     }
@@ -154,15 +158,44 @@ async function rendererTest() {
   setLanguage('en', {persist: false, report: false});
   finishTransfer(); await wait(() => !document.querySelector('#mqtt-validate').disabled);
   assert(!document.querySelector('#desktop-transfer-test').parentElement.hidden, 'Offer operation choices only after verified transfer');
+  const transferMessage = document.querySelector('#desktop-transfer-message');
+  assert(transferMessage.textContent.includes('1 of 2') && transferMessage.dataset.tone === 'success', 'A switch-only receipt must report the enabled count confirmed by Z2M');
+  assert(document.querySelector('#desktop-transfer-mode').hidden && document.querySelector('#desktop-transfer-changes').hidden,
+    'Completed transfers must hide the instructions and changes for a planned upload');
+  state.systems[0].fresh = false; state.sequence++; update(view);
+  await wait(() => document.querySelector('#mqtt-rule-count').dataset.enabled === '');
+  assert(transferMessage.dataset.tone === 'warning' && !transferMessage.textContent.includes('Enabled in Z2M'), 'A lost connection must not keep a green transfer receipt or current enabled count');
+  setLanguage('de', {persist: false, report: false});
+  assert(transferMessage.textContent.includes('nicht frisch bestätigt'), 'Unconfirmed storage follows the central language');
+  state.systems[0].fresh = true; state.sequence++; update(view);
+  await wait(() => transferMessage.dataset.tone === 'success');
+  assert(transferMessage.textContent.includes('1 von 2') && !transferMessage.textContent.includes('ausgeschaltet'), 'Confirmed enabled rules must not be described as disabled in German');
+  setLanguage('en', {persist: false, report: false});
+  state.systems[0].executing = true; state.sequence++; update(view);
+  await wait(() => workspace.pages.operation.querySelector('.desktop-card > p').textContent.includes('running'));
+  assert(transferMessage.textContent.includes('1 of 2') && !transferMessage.textContent.includes('Start automatic operation'), 'A later start must not leave a request to start operation in the storage receipt');
   kind = 'configuration'; state.systems[0].executing = true;
   document.querySelector('#mqtt-validate').click(); await wait(() => !document.querySelector('#mqtt-validate').disabled);
   assert(document.querySelector('#desktop-transfer-mode').textContent.startsWith('Content changed'), 'Same check chooses content mode');
   assert(!document.querySelector('#mqtt-store').disabled, 'Guided transfer is available while operation runs');
+  transferring = false; document.querySelector('#mqtt-store').click();
+  await wait(() => transferring); finishTransfer();
+  await wait(() => !document.querySelector('#mqtt-validate').disabled);
+  assert(transferMessage.textContent.includes('0 of 2') && transferMessage.dataset.tone === 'success', 'A content transfer reports the actual disabled-rule count from readback');
+  assert(document.querySelector('#desktop-transfer-mode').hidden, 'The disabled-storage policy is a pre-transfer instruction');
+  state.systems[0].runtime.rules[0].enabled = true;
+  state.systems[0].revision++; state.systems[0].flagsContext = 'd'.repeat(64); state.sequence++; update(view);
+  await wait(() => document.querySelector('#mqtt-rule-count').textContent.includes('1 of 2'));
+  assert(!transferMessage.textContent.includes('rules are disabled') && transferMessage.dataset.tone !== 'success',
+    'A receipt for an older disabled revision must not stay green after rules are enabled in a newer stored revision');
+  assert(document.querySelector('#desktop-transfer-mode').hidden && document.querySelector('#mqtt-store').disabled,
+    'A later revision invalidates the old upload assessment without authorizing another upload');
+  state.systems[0].runtime.rules[0].enabled = false; state.systems[0].revision++; state.systems[0].flagsContext = 'e'.repeat(64); state.sequence++; update(view);
   kind = 'unchanged';
   document.querySelector('#mqtt-validate').click(); await wait(() => !document.querySelector('#mqtt-validate').disabled);
   assert(document.querySelector('#mqtt-store').disabled, 'Matching stored state needs no transfer');
   assert(commands.every(action => ['validate', 'store'].includes(action)), 'Checks and next actions do not start or stop operation');
-  assert(commands.filter(action => action === 'store').length === 1, 'Exactly one explicit transfer');
+  assert(commands.filter(action => action === 'store').length === 2, 'Exactly two explicit transfers');
   view.configuration.automations = [{id: 'correct-rule', name: 'Synthetic <b>rule</b>'}];
   view.desktop.draftRevision++; update(view);
   validationFailure = {issues: [
@@ -205,43 +238,106 @@ async function rendererTest() {
   const ruleList = document.querySelector('#mqtt-rule-flags-list');
   const permission = id => ruleList.querySelector('[data-rule-id="' + id + '"]');
   const choose = (id, checked) => { const input = permission(id); input.checked = checked; input.dispatchEvent(new Event('change', {bubbles: true})); };
+  const grantsMessage = document.querySelector('#mqtt-rule-flags-feedback');
+  const grantStatus = async (label, tone) => {
+    assert(grantsMessage.textContent.startsWith(label) && grantsMessage.dataset.tone === tone, 'Permission status must explicitly report ' + label);
+    const colors = {success: ['rgb(61, 112, 88)', 'rgb(165, 199, 175)'], warning: ['rgb(131, 85, 20)', 'rgb(230, 183, 106)'], error: ['rgb(159, 40, 63)', 'rgb(240, 166, 177)']};
+    const original = document.documentElement.style.colorScheme;
+    for (const [index, theme] of ['light', 'dark'].entries()) {
+      document.documentElement.style.colorScheme = theme;
+      assert(getComputedStyle(grantsMessage).color === colors[tone][index], 'Permission status must use its desktop palette color in ' + theme);
+    }
+    document.documentElement.style.colorScheme = original;
+  };
   assert(document.querySelector('#mqtt-rule-count').textContent.includes('0 of 2')
     && document.querySelector('#mqtt-operation-reason').textContent.includes('No automation is enabled')
     && document.querySelector('#mqtt-activate').disabled, 'Explain the zero-enabled start block beside the operation controls');
+  await grantStatus('Rule permissions: Confirmed', 'success');
   assert([...ruleList.querySelectorAll('strong')].map(node => node.textContent).join('|') === 'Alpha|Zulu', 'Operation rules must be alphabetical');
   choose('rule_b', true);
+  await grantStatus('Rule permissions: Not confirmed', 'error');
   setLanguage('de', {persist: false, report: false});
+  await grantStatus('Freigaben: Nicht bestätigt', 'error');
   assert(permission('rule_b').checked && document.querySelector('#mqtt-rule-count').textContent.includes('0 von 2'), 'Selection is pending and survives the central language switch');
   document.querySelector('#mqtt-apply-flags').click();
   await wait(() => document.querySelector('#mqtt-rule-count').textContent.includes('1 von 2') && document.querySelector('#mqtt-apply-flags').disabled);
   assert(document.querySelector('#mqtt-rule-flags-feedback').textContent.includes('Freigaben sind in Z2M bestätigt')
     && !document.querySelector('#mqtt-activate').disabled, 'Confirmed permissions unlock a separate start without starting automatically');
+  await grantStatus('Freigaben: Bestätigt', 'success');
   assert(!permission('rule_a').checked && permission('rule_b').checked, 'Apply only the selected rules');
+  const operationMessage = workspace.pages.operation.querySelector('.desktop-card > p');
+  const beforeStatusChanges = commands.length;
+  state.systems[0].executing = true; state.sequence++; update(view);
+  await wait(() => operationMessage.textContent.includes('läuft'));
+  assert(grantsMessage.textContent.includes('Freigaben sind in Z2M bestätigt') && !grantsMessage.textContent.includes('gestoppt'),
+    'Stored-grant confirmation must not claim operation is stopped after a later start');
+  setLanguage('en', {persist: false, report: false});
+  assert(operationMessage.textContent.includes('running') && !grantsMessage.textContent.includes('stopped'),
+    'Grant feedback and live operation must remain consistent in English');
+  await grantStatus('Rule permissions: Confirmed', 'success');
+  state.systems[0].fresh = false; state.sequence++; update(view);
+  await wait(() => document.querySelector('#mqtt-rule-count').dataset.enabled === '');
+  await grantStatus('Rule permissions: Unknown', 'warning');
+  assert(!grantsMessage.textContent.includes('confirmed in Z2M'), 'An unconfirmed connection must not keep a green current-grant confirmation');
+  setLanguage('de', {persist: false, report: false});
+  await grantStatus('Freigaben: Unbekannt', 'warning');
+  setLanguage('en', {persist: false, report: false});
+  state.systems[0].fresh = true; state.systems[0].executing = false; state.sequence++; update(view);
+  await wait(() => operationMessage.textContent.includes('stopped') && grantsMessage.textContent.includes('confirmed in Z2M'));
+  assert(permission('rule_b').checked && commands.length === beforeStatusChanges, 'Status updates must preserve selection without issuing control requests');
+  setLanguage('de', {persist: false, report: false});
   choose('rule_b', false); flagsCanceled = true;
   document.querySelector('#mqtt-apply-flags').click();
   await wait(() => document.querySelector('#mqtt-rule-flags-feedback').textContent.includes('Abgebrochen'));
+  await grantStatus('Freigaben: Nicht bestätigt', 'error');
   assert(!permission('rule_b').checked && document.querySelector('#mqtt-rule-count').textContent.includes('1 von 2'), 'Cancellation preserves the pending choice and actual stored count');
   flagsCanceled = false; state.systems[0].flagsContext = 'c'.repeat(64); state.sequence++; update(view);
   await wait(() => document.querySelector('#mqtt-apply-flags').disabled);
   assert(document.querySelector('#mqtt-rule-flags').textContent.includes('Stand wurde inzwischen geändert') && !permission('rule_b').checked,
     'An external revision must not silently overwrite or rebase a pending selection');
+  await grantStatus('Freigaben: Nicht bestätigt', 'error');
   document.querySelector('#mqtt-reset-flags').click();
+  await grantStatus('Freigaben: Bestätigt', 'success');
   assert(permission('rule_b').checked, 'Refresh selection explicitly adopts confirmed flags');
   choose('rule_a', true);
   state.systems[0].fresh = false; state.sequence++; update(view);
   await wait(() => permission('rule_a').disabled);
+  await grantStatus('Freigaben: Unbekannt', 'warning');
   assert(document.querySelector('#mqtt-rule-count').textContent.includes('noch nicht frisch bestätigt'), 'A stale read cannot claim a confirmed enabled count');
   state.systems[0].fresh = true; state.sequence++; update(view);
   await wait(() => !permission('rule_a').disabled);
+  await grantStatus('Freigaben: Nicht bestätigt', 'error');
   assert(permission('rule_a').checked, 'Refreshing unchanged state preserves the selected permissions');
   state.systems[0].transferPending = true; state.sequence++; update(view);
   await wait(() => !document.querySelector('#mqtt-check-flags').hidden);
+  await grantStatus('Freigaben: Unbekannt', 'warning');
   assert(document.querySelector('#mqtt-activate').disabled && document.querySelector('#mqtt-operation-reason').textContent.includes('ungeklärt'),
     'Unresolved transfer status blocks starting and offers read-only reconciliation');
   state.systems[0].transferPending = false; state.sequence++; update(view);
   await wait(() => !permission('rule_a').disabled);
   document.querySelector('#mqtt-reset-flags').click();
-  assert(commands.filter(action => action === 'setRuleFlags').length === 2
+  await grantStatus('Freigaben: Bestätigt', 'success');
+  state.systems[0].updatePending = true; state.sequence++; update(view);
+  await wait(() => permission('rule_a').disabled);
+  await grantStatus('Freigaben: Unbekannt', 'warning');
+  state.systems[0].updatePending = false; state.sequence++; update(view);
+  await wait(() => !permission('rule_a').disabled);
+  await grantStatus('Freigaben: Bestätigt', 'success');
+  choose('rule_a', true); flagsRejected = true;
+  assert(!document.querySelector('#mqtt-apply-flags').disabled, 'After refreshing the selection, further checkbox edits must remain applicable');
+  document.querySelector('#mqtt-apply-flags').click();
+  await wait(() => grantsMessage.textContent.includes('Ein Wert oder Vergleich'));
+  await grantStatus('Freigaben: Nicht bestätigt', 'error');
+  assert(permission('rule_a').checked && document.querySelector('#mqtt-rule-count').textContent.includes('1 von 2'), 'A rejected check preserves selection and the confirmed stored count');
+  state.brokers[0].state = 'disconnected'; state.sequence++; update(view);
+  await wait(() => permission('rule_a').disabled);
+  await grantStatus('Freigaben: Unbekannt', 'warning');
+  state.brokers[0].state = 'connected'; state.sequence++; update(view);
+  await wait(() => !permission('rule_a').disabled);
+  await grantStatus('Freigaben: Nicht bestätigt', 'error');
+  flagsRejected = false; document.querySelector('#mqtt-reset-flags').click();
+  await grantStatus('Freigaben: Bestätigt', 'success');
+  assert(commands.filter(action => action === 'setRuleFlags').length === 3
     && commands.every(action => ['validate', 'store', 'setRuleFlags'].includes(action)), 'Rule selection never issues activation or device commands');
   setLanguage('en', {persist: false, report: false});
   state.systems[0].executing = false;

@@ -142,19 +142,20 @@ export function installDraftReview(bridge, workspace, {current, perform, command
     const {view, system, broker, transferProgress} = current();
     const stored = view?.desktop.source === 'stored';
     const connected = broker?.state === 'connected';
-    const fresh = connected && system?.fresh;
+    const fresh = connected && system?.fresh && !system.reading;
     const scope = draftScope(view);
     if (result?.scope !== scope && result) {
       result = result.view.workspaceContext.systemId === view?.workspaceContext?.systemId
         && result.view.desktop.epoch === view?.desktop.epoch ? {scope, view, key: 'changed'} : undefined;
     }
     if (!fresh && result?.key === 'ready') result = {...result, key: 'local'};
-    if (fresh && result?.key === 'ready' && result.remote
-      && (system.revision !== result.remote.revision || system.build !== result.remote.build)) result = {...result, key: 'changed'};
+    if (fresh && ['ready', 'stored', 'flagsStored'].includes(result?.key) && result.remote
+      && (system.revision !== result.remote.revision || system.build !== result.remote.build)) result = {...result, key: 'changed', check: undefined};
     const checked = result?.key === 'ready';
     const ready = checked && fresh && !stored;
     const blocked = busy() || !system || stored;
     const sent = result?.key === 'stored' || result?.key === 'flagsStored';
+    const confirmedReceipt = sent && fresh && system.runtime && !system.transferPending && !system.updatePending;
     check.disabled = checkFromEditor.disabled = blocked;
     store.disabled = blocked || !ready;
     check.hidden = checkFromEditor.hidden = store.hidden = stored;
@@ -163,26 +164,33 @@ export function installDraftReview(bridge, workspace, {current, perform, command
     bindText(store, () => t('desktop.review.store'));
     let key = result?.key ?? (fresh ? 'start' : 'startDisconnected');
     if (stored) key = 'storedView';
+    else if (sent && !confirmedReceipt) key = 'storedUnconfirmed';
     else if (ready && result.flags) key = 'readyFlags';
     else if (key === 'local' && fresh) key = 'connectedAfterCheck';
     else if (key === 'local' && connected) key = 'readAfterLocal';
     const name = system?.name ?? view?.desktop.systemName ?? '';
-    const message = !stored && result?.error ? t(result.validation?.issues.length ? 'desktop.review.invalid'
+    let message = !stored && result?.error ? t(result.validation?.issues.length ? 'desktop.review.invalid'
       : errorKeys[result.error] ?? 'project.' + result.error, {name}) : t('desktop.review.' + key, {name});
+    if (!stored && confirmedReceipt) {
+      const total = system.runtime.rules.length;
+      const enabled = system.runtime.rules.filter(rule => rule.enabled).length;
+      message += ' ' + t('desktop.flags.count', {enabled: formatNumber(enabled), total: formatNumber(total), count: total});
+    }
     const progressing = busy() && transferProgress && !transferProgress.failed && transferProgress.phase !== 'complete';
     const transferMessage = progressing ? t('desktop.transfer.' + transferProgress.phase)
       : stored || result ? message : t('desktop.steps.transferNeedsReview');
     transferCard.setAttribute('aria-busy', String(Boolean(progressing)));
     if (explanation.textContent !== message) explanation.textContent = message;
     if (transferStatus.textContent !== transferMessage) transferStatus.textContent = transferMessage;
-    explanation.dataset.tone = transferStatus.dataset.tone = !stored && result?.error ? 'error' : ready || sent ? 'success' : '';
+    explanation.dataset.tone = transferStatus.dataset.tone = stored ? '' : result?.error ? 'error'
+      : sent && !confirmedReceipt || key === 'changed' ? 'warning' : ready || confirmedReceipt ? 'success' : '';
     const draftContents = () => stored ? '' : t('desktop.steps.contents', {rules: formatNumber(view?.configuration.automations.length ?? 0),
       sequences: formatNumber(view?.configuration.sequences.length ?? 0)});
     bindText(contents, draftContents);
     bindText(transferContents, draftContents);
     const assessment = result?.check;
-    transferMode.hidden = !assessment || stored;
-    transferChanges.hidden = !assessment || stored || assessment.kind === 'unchanged';
+    transferMode.hidden = !assessment || stored || sent;
+    transferChanges.hidden = !assessment || stored || sent || assessment.kind === 'unchanged';
     bindText(transferMode, () => assessment ? t('desktop.review.mode.' + assessment.kind) : '');
     bindText(transferChanges, () => assessment ? t('desktop.review.changeCounts', {
       added: formatNumber(assessment.added), changed: formatNumber(assessment.changed), removed: formatNumber(assessment.removed)

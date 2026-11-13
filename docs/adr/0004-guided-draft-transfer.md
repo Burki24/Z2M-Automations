@@ -31,6 +31,12 @@ stored YAML, checksum, revision, build and stopped state. Operation stays stoppe
 The result offers navigation to one-time testing or automatic operation, each
 requiring its own explicit action. Configuration transfer never restarts Z2M.
 
+Storage receipts describe confirmed storage and the fresh enabled/total rule
+count, without claiming a lasting disabled or stopped state. A later revision or
+extension build invalidates the receipt and its upload assessment; lost freshness,
+an ongoing read or unresolved transfer/update replaces green success with an
+unconfirmed-state warning. Planned-upload instructions are hidden after success.
+
 Progress is a bounded projection readable while the mutation queue is occupied.
 An unconfirmed stop blocks storage; an unconfirmed store blocks another upload
 and manual starts until reconciled. Status checks send no control requests.

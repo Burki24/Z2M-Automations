@@ -15,17 +15,16 @@ export function installOperationFlags(workspace, {operation, automatic, activate
   const help = document.createElement('p'); bindText(help, () => t('desktop.flags.help'));
   const list = document.createElement('ul'); list.className = 'desktop-rule-flags'; list.id = 'mqtt-rule-flags-list';
   list.tabIndex = 0; list.setAttribute('aria-labelledby', title.id);
-  const selection = document.createElement('p'); selection.setAttribute('role', 'status');
   const feedback = document.createElement('p'); feedback.id = 'mqtt-rule-flags-feedback'; feedback.setAttribute('role', 'status');
   const actions = document.createElement('div'); actions.className = 'project-actions';
   const apply = button(actions, 'mqtt-apply-flags', 'desktop.flags.apply', () => submit()); apply.classList.add('primary');
   const reset = button(actions, 'mqtt-reset-flags', 'desktop.flags.reset', () => {
     const {system} = current(); const key = scope();
     if (!system?.flagsContext || !system.runtime) return;
-    entries.delete(key); saved.delete(key); persist(); paint();
+    entries.delete(key); saved.delete(key); shown = undefined; persist(); paint();
   });
   const reconcile = button(actions, 'mqtt-check-flags', 'desktop.flags.reconcile', () => submit(true));
-  panel.append(title, help, list, selection, feedback, actions); workspace.pages.operation.append(panel);
+  panel.append(title, help, list, feedback, actions); workspace.pages.operation.append(panel);
   const entries = new Map(); const saved = new Map();
   try {
     const raw = sessionStorage.getItem(storageKey);
@@ -93,12 +92,20 @@ export function installOperationFlags(workspace, {operation, automatic, activate
       checkbox.disabled = busy() || !known || !system.flagsContext || stale || Boolean(blocked);
     }
     const dirty = Boolean(entry && changed(entry) && !entry.applied);
-    bindText(selection, () => stale ? t('desktop.flags.changed') : dirty ? t('desktop.flags.selected', {count: entry.enabled.size})
-      : known && !total ? t('desktop.operation.noRules') : '');
     const progressing = applying && transferProgress && !transferProgress.failed && transferProgress.phase !== 'complete';
-    bindText(feedback, () => progressing ? t('desktop.transfer.' + transferProgress.phase)
-      : entry?.feedback ? [t(entry.feedback.key), validationSummary(entry.feedback.validation)].filter(Boolean).join('\n') : '');
-    feedback.dataset.tone = entry?.feedback?.error ? 'error' : entry?.feedback?.key === 'desktop.flags.applied' ? 'success' : '';
+    const receipt = ['desktop.flags.applied', 'desktop.flags.unchanged'].includes(entry?.feedback?.key);
+    const currentFeedback = !receipt || known && !blocked && entry.context === system.flagsContext ? entry?.feedback : undefined;
+    const confirmation = !known || !system?.flagsContext || blocked || applying ? 'unknown'
+      : dirty || stale || currentFeedback?.error ? 'unconfirmed' : 'confirmed';
+    bindText(feedback, () => [t('desktop.flags.status.' + confirmation),
+      progressing ? t('desktop.transfer.' + transferProgress.phase) : applying ? t('desktop.flags.checking')
+        : blocked ? t('desktop.flags.confirmFirst') : !known || !system?.flagsContext ? t('desktop.flags.unknown')
+        : stale ? t('desktop.flags.changed') : dirty ? t('desktop.flags.selected', {count: entry.enabled.size})
+        : currentFeedback?.error ? '' : !total ? t('desktop.operation.noRules')
+        : t(receipt && currentFeedback ? currentFeedback.key : 'desktop.flags.applied'),
+      !applying && !receipt && currentFeedback ? [t(currentFeedback.key), validationSummary(currentFeedback.validation)].filter(Boolean).join('\n') : ''
+    ].filter(Boolean).join('\n'));
+    feedback.dataset.tone = confirmation === 'unknown' ? 'warning' : confirmation === 'unconfirmed' ? 'error' : 'success';
     apply.disabled = busy() || !known || !system?.flagsContext || stale || !dirty || Boolean(blocked);
     reset.disabled = busy() || !known || !system?.flagsContext;
     reset.hidden = !dirty && !stale;

@@ -175,6 +175,16 @@ selection preservation and prohibits permission writes from the smoke profile.
 Tests with the real pinned extension verify switch-only storage, explicit consent,
 backup cancellation, preservation of divergent drafts, revoking the last rule,
 unknown/duplicate IDs and refusal to replay an unconfirmed stop.
+The DOM regression also transitions between red **Not confirmed**, yellow
+**Unknown** and green **Confirmed** permission states in DE/EN and checks the
+actual palette colors in both themes. Selection edits, cancellation, stale
+contexts, lost freshness and unresolved transfers/updates must not show a false
+green confirmation. Starting or stopping operation does not change confirmed
+permissions or issue additional control requests.
+Step-8 receipt regressions cover enabled switch-only storage versus disabled
+content storage, fresh readback counts in DE/EN, a later start, lost freshness
+and a newer stored revision. Completed or invalidated transfers must not keep
+planned-upload instructions or authorize another upload.
 
 Use `npm run smoke -- --no-capture` for the complete source smoke without images,
 or `npm run smoke:packaged -- --no-capture` after packaging. The flag disables
