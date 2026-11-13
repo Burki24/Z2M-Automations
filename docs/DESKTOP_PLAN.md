@@ -11,6 +11,11 @@ passed Windows/Ubuntu CI. D4 local editing passed both platform jobs. D5
 installation and storage and D6 operation passed both platform jobs. D7 is complete
 for Windows and Ubuntu Desktop 24.04 under Hyper-V. See [D6](D6.md) and [D7](D7.md).
 See [D1](D1.md), [D2](D2.md) and [D3](D3.md) for verification limits.
+The owner also confirmed post-D7 acceptance of editing, creating and configuring
+cross-system automations through confirmed transfer and execution with application
+0.99.0 on 2026-11-13. See [workflow acceptance](D7.md#post-d7-workflow-acceptance-0990).
+The new desktop workflow is the accepted basis for a separately scoped Symcon
+browser designer and tile adaptation; that UI transfer remains outstanding.
 Importing this plan did not change any Symcon or Z2M installation.
 
 Imported from the [original plan in the Symcon repository](https://github.com/Burki24/Symcon_Z2MAutomations/blob/01f444d91d5c664177a5d2a60a5d644c72840523/docs/DESKTOP_PLAN.md)

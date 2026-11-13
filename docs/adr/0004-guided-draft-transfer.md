@@ -1,7 +1,8 @@
 # ADR 0004: Common draft check and guided desktop transfer
 
 - Date: 2026-11-12
-- Status: Implemented for the standalone app; native acceptance pending.
+- Status: Implemented for the standalone app; owner-reported workflow acceptance
+  completed with application 0.99.0 on 2026-11-13.
 
 ## Decision
 
@@ -59,5 +60,7 @@ Tests use the real bundled extension and synthetic MQTT peers to cover automatic
 classification, consent and backup ordering, cancellation, stale drafts/sessions,
 missing replies, uncertain results and routing among eight systems. The existing
 DOM fixture additionally checks the single action, mode feedback and pending
-transfer progress in DE/EN without image capture. Windows evidence does not
-establish Ubuntu or live-system acceptance for this new transfer workflow.
+transfer progress in DE/EN without image capture. Automated fixture results and
+the owner's practical workflow acceptance with 0.99.0 are separate evidence.
+See [D7 acceptance](../D7.md#post-d7-workflow-acceptance-0990) for the confirmed
+existing, new and cross-system automation cases and their scope.
