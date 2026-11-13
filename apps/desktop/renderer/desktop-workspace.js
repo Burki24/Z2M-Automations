@@ -135,10 +135,12 @@ export function installDesktopWorkspace() {
     if (permissions) document.querySelector('#desktop-partner-actions').append(permissions);
     const navigation = document.querySelector('.workspace .navigation');
     const entries = navigation.querySelector('#entry-list');
+    // Shared layout may place these siblings inside a responsive fold.
+    const listContainer = entries.parentElement;
     const tools = document.createElement('div'); tools.className = 'desktop-navigation-tools';
     const heading = navigation.querySelector('.list-label');
-    for (const child of [...navigation.children]) if (child !== entries && child !== heading) tools.append(child);
-    navigation.prepend(tools);
+    for (const child of [...listContainer.children]) if (child !== entries && child !== heading) tools.append(child);
+    listContainer.prepend(tools);
     entries.tabIndex = 0;
     entries.setAttribute('role', 'region'); entries.setAttribute('aria-labelledby', 'list-label');
     entries.addEventListener('focusin', event => {

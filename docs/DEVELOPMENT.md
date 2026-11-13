@@ -185,12 +185,16 @@ Step-8 receipt regressions cover enabled switch-only storage versus disabled
 content storage, fresh readback counts in DE/EN, a later start, lost freshness
 and a newer stored revision. Completed or invalidated transfers must not keep
 planned-upload instructions or authorize another upload.
-The desktop workspace layout regression uses the actual markup and desktop shell
-with 30 long synthetic rules. Both themes cover 1440-pixel windows down to 500
-pixels high, a two-column workspace, 150% text and a narrow stacked layout.
+The desktop workspace layout regression uses the actual markup, shared layout
+containers and desktop shell with 30 long synthetic rules. Both themes cover
+1440-pixel windows down to 500 pixels high, a two-column workspace, 150% text
+and a narrow stacked layout.
 It verifies that the outer window does not scroll, the list remains bounded,
-the last rule is reachable and keyboard focus reveals its name. Synthetic wheel
-delivery checks uncancelled event propagation; native pointer scrolling remains
+the last rule is reachable and keyboard focus reveals its name. Chromium wheel
+input in light/dark and normal/short windows must actually scroll the list in
+both directions while leaving its controls and outer containers stationary.
+The fixture checks trusted, uncancelled events and the observed scroll position;
+dispatching a synthetic DOM event alone is insufficient. Native OS input remains
 part of installed-app acceptance. No image capture is used.
 Layout checks wait for the renderer's requested viewport size and read actual
 DOM geometry, without waiting for animation frames in the hidden test window.

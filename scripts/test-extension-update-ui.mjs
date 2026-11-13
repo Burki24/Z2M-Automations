@@ -45,7 +45,7 @@ if (!process.versions.electron) {
     };
     await step('app-ready', () => app.whenReady());
     const assets = join(root, 'apps/desktop/.build/renderer');
-    const names = new Set(['network.js', 'operation-flags.js', 'draft-review.js', 'drafts.js', 'desktop-workspace.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
+    const names = new Set(['network.js', 'operation-flags.js', 'draft-review.js', 'drafts.js', 'desktop-workspace.js', 'layout.js', 'workspace.js', 'identity.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
     protocol.handle('z2ma', async request => {
       if (request.url === 'z2ma://app/index.html') return new Response('<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="designer.css"><link rel="stylesheet" href="desktop-palette.css"><link rel="stylesheet" href="desktop.css"><body class="desktop-foundation"></body>', {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
       if (request.url === 'z2ma://app/workspace.html') return new Response((await readFile(join(assets, 'index.html'), 'utf8')).replace('<script type="module" src="desktop.js"></script>', ''), {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
@@ -72,9 +72,17 @@ if (!process.versions.electron) {
     });
     await load('workspace', 'z2ma://app/workspace.html');
     await evaluate('prepare-workspace', '(' + prepareWorkspaceLayout + ')()');
-    await step('keyboard-focus-mode', async () => {
+    await step('input-setup', async () => {
       window.webContents.debugger.attach('1.3');
       await window.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', {enabled: true});
+    });
+    for (const [height, theme] of [[900, 'light'], [500, 'dark']]) {
+      await step(`workspace-wheel-1440x${height}-${theme}`, async () => {
+        await resize(1440, height);
+        await workspaceWheelTest(window, theme);
+      });
+    }
+    await step('keyboard-focus-mode', async () => {
       await window.webContents.debugger.sendCommand('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
       await window.webContents.debugger.sendCommand('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
     });
@@ -82,6 +90,7 @@ if (!process.versions.electron) {
     for (const [width, height, fontSize] of [[1440, 900, 16], [1440, 600, 16], [1440, 500, 16], [1024, 768, 16], [1024, 768, 24], [360, 740, 16]]) for (const theme of ['light', 'dark']) {
       await layout(`workspace-${width}x${height}-${fontSize}-${theme}`, width, height, `(async () => {
         document.documentElement.style.colorScheme = '${theme}'; document.documentElement.style.fontSize = '${fontSize}px';
+        for (const fold of document.querySelectorAll('.workspace .designer-fold')) if (!fold.open) fold.querySelector('summary').click();
         const list = document.querySelector('#entry-list'); const workspace = document.querySelector('.workspace');
         const rect = list.getBoundingClientRect();
         if (getComputedStyle(workspace).display === 'grid' && (rect.bottom > innerHeight + 1 || rect.top < 0)) throw new Error('Automation list extends below the visible window: ' + JSON.stringify({viewport: [innerWidth, innerHeight], list: [rect.top, rect.bottom], workspace: [workspace.getBoundingClientRect().top, workspace.clientHeight], navigation: list.parentElement.clientHeight}));
@@ -106,9 +115,6 @@ if (!process.versions.electron) {
         const title = list.lastElementChild.querySelector('strong').getBoundingClientRect();
         const focusedList = list.getBoundingClientRect();
         if (title.top < focusedList.top - 1 || title.bottom > focusedList.bottom + 1 || document.scrollingElement.scrollTop) throw new Error('Keyboard focus must reveal the last automation name without scrolling the screen: ' + JSON.stringify({viewport: [innerWidth, innerHeight], title: [title.top, title.bottom], list: [focusedList.top, focusedList.bottom], focusVisible: list.lastElementChild.matches(':focus-visible'), height: list.clientHeight, page: document.scrollingElement.scrollTop}));
-        // Synthetic wheel delivery checks cancellation; native pointer scrolling remains an installed-app check.
-        let wheelReceived = false; list.addEventListener('wheel', () => { wheelReceived = true; }, {once: true});
-        if (!list.lastElementChild.dispatchEvent(new WheelEvent('wheel', {bubbles: true, cancelable: true, deltaY: 120})) || !wheelReceived) throw new Error('The automation list must receive wheel input without cancellation');
       })()`);
     }
     await step('reset-workspace', async () => {
@@ -155,24 +161,70 @@ if (!process.versions.electron) {
         if (document.scrollingElement.scrollTop !== 0) throw new Error('Confirmation body must not scroll');
       })()`);
     }
-    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/capability-findings/operation-flags/confirmation-layout elapsedMs=' + (Date.now() - started)); app.exit(0);
+    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/capability-findings/operation-flags/confirmation-layout/workspace-wheel elapsedMs=' + (Date.now() - started)); app.exit(0);
   };
   run().catch(error => { console.error('EXTENSION_UPDATE_DOM_FAILED ' + error.stack); app.exit(1); });
 }
 
+async function workspaceWheelTest(window, theme) {
+  const view = window.webContents;
+  const point = await view.executeJavaScript(`(() => {
+    document.documentElement.style.colorScheme = '${theme}'; document.documentElement.style.fontSize = '16px';
+    document.activeElement?.blur();
+    const list = document.querySelector('#entry-list'); list.scrollTop = 0;
+    window.workspaceWheelObservation = {events: 0, trusted: false, prevented: false};
+    if (window.workspaceWheelListener) list.removeEventListener('wheel', window.workspaceWheelListener);
+    window.workspaceWheelListener = event => {
+      queueMicrotask(() => { window.workspaceWheelObservation = {
+        events: window.workspaceWheelObservation.events + 1, trusted: event.isTrusted, prevented: event.defaultPrevented
+      }; });
+    };
+    list.addEventListener('wheel', window.workspaceWheelListener, {passive: true});
+    const box = list.getBoundingClientRect();
+    const x = Math.round(box.left + box.width / 2), y = Math.round(box.top + Math.min(box.height / 2, 50));
+    return {x, y, inside: list.contains(document.elementFromPoint(x, y)), viewportHeight: innerHeight};
+  })()`);
+  if (!point.inside || point.y > point.viewportHeight) throw new Error('Wheel target is outside the visible automation list: ' + JSON.stringify(point));
+  const state = () => view.executeJavaScript(`(() => ({
+    top: document.querySelector('#entry-list').scrollTop,
+    page: document.scrollingElement.scrollTop,
+    tools: document.querySelector('.desktop-navigation-tools').scrollTop,
+    navigation: document.querySelector('.workspace .navigation').scrollTop,
+    wheel: window.workspaceWheelObservation
+  }))()`);
+  for (const deltaY of [200, -200]) {
+    const before = await state();
+    await view.debugger.sendCommand('Input.dispatchMouseEvent', {type: 'mouseMoved', x: point.x, y: point.y});
+    await view.debugger.sendCommand('Input.dispatchMouseEvent', {type: 'mouseWheel', x: point.x, y: point.y, deltaX: 0, deltaY});
+    const deadline = Date.now() + 3000; let after; let moved = false;
+    do {
+      after = await state();
+      moved = deltaY > 0 ? after.top > before.top : after.top < before.top;
+      if (moved && after.wheel.events > before.wheel.events) break;
+      await new Promise(resolve => setTimeout(resolve, 25));
+    } while (Date.now() < deadline);
+    if (!moved || after.wheel.events <= before.wheel.events || !after.wheel.trusted || after.wheel.prevented) {
+      throw new Error('Mouse wheel did not scroll the automation list: ' + JSON.stringify({deltaY, before, after}));
+    }
+    if (after.page !== 0 || after.tools !== before.tools || after.navigation !== before.navigation) {
+      throw new Error('Automation wheel input moved an outer container: ' + JSON.stringify({before, after}));
+    }
+  }
+}
+
 async function prepareWorkspaceLayout() {
   const {installDesktopWorkspace} = await import('./desktop-workspace.js');
+  const {installLayout} = await import('./layout.js');
   document.body.classList.add('module-designer', 'desktop-foundation', 'desktop-editable');
   for (const selector of ['#save-button', '#activate-button', '#stop-button', '.toolbar-divider', '.navigation-footer']) document.querySelector(selector)?.remove();
-  const menu = document.createElement('details'); menu.className = 'designer-menu';
   for (const id of ['draft-wizard-start', 'new-sequence-button']) {
-    const button = document.createElement('button'); button.id = id; button.textContent = id === 'draft-wizard-start' ? 'Neue Automation als Entwurf' : 'Neue Aktionsfolge'; menu.append(button);
+    const button = document.createElement('button'); button.id = id; button.textContent = id === 'draft-wizard-start' ? 'Neue Automation als Entwurf' : 'Neue Aktionsfolge'; document.querySelector('.toolbar').append(button);
   }
-  document.body.append(menu);
-  const feedback = document.createElement('div'); feedback.className = 'designer-feedback';
-  const notice = document.createElement('p'); notice.textContent = 'Synthetic workspace feedback'; feedback.append(notice); document.body.append(feedback);
   const systems = document.createElement('label'); systems.className = 'system-selector'; systems.textContent = 'Z2M-System';
   const select = document.createElement('select'); select.append(new Option('Synthetic system', 'synthetic')); systems.append(select); document.body.append(systems);
+  installLayout({getData: () => null});
+  document.querySelector('.designer-menu-items').append(document.querySelector('#draft-wizard-start'));
+  document.querySelector('#feedback').textContent = 'Synthetic workspace feedback';
   const categories = document.querySelector('#categories');
   for (const name of ['Geräteausgelöst', 'Zeit & Astro', 'Aktionsfolgen', 'Geräte & Kanäle']) {
     const button = document.createElement('button'); button.className = 'category'; button.textContent = name; categories.append(button);
