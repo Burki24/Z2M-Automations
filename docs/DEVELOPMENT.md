@@ -14,6 +14,13 @@ local rule switches, cancellation and explicit scoped stop/check/store in both
 browser and tile. It contacts only its own loopback fixture. Keep native installed
 acceptance and platform CI evidence separate from these local checks.
 
+The Symcon guided transfer distinguishes the saved restart preference from the
+receiver's durable restart state. A confirmed `resumeStatus: stopped` disarms
+restart even when `resumeAfterRestart` remains enabled. Keep that preference;
+do not block storage or repeatedly stop an already stopped receiver. Missing or
+still armed restart confirmation must continue to block storage. Regression
+checks cover the new rule alongside the complete existing draft in browser/tile.
+
 Device flow cards and inspector fields identify the owning Z2M network by system
 name and base topic. Local ownership follows the selected stable system ID;
 remote references use their declared base topic, including for missing devices.

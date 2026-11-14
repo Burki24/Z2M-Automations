@@ -36,6 +36,12 @@ Starting operation remains a separate action. Native enabled flags and runtime
 backup semantics remain native; the desktop backup dialog and disabled-content
 policy are not silently imposed on Symcon.
 
+The native adapter exposes the confirmed `resumeStatus` separately from the
+saved restart preference. `stopped` confirms a disarmed durable intent while
+preserving that preference; the guided transfer may then validate and store.
+An enabled preference alone does not indicate active restart intent. Missing or
+still armed confirmation after a stop prevents storage without replaying it.
+
 The native Operation page can change a rule's local enabled flag through the
 existing authenticated edit endpoint. Checking and transmission remain explicit.
 Stored enabled counts require a matching confirmed document. A local checkbox

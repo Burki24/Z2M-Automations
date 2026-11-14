@@ -30,7 +30,9 @@ export async function runGuidedTransfer({getData, reload, token, runtime = runti
     let operation = await complete('runtime', await runtime(current(), 'status', {token}));
     if (!operation.confirmed) throw new MessageError('symcon.transfer.unconfirmed');
     current().runtime = operation;
-    const needsStop = value => value.executing || value.resumeAfterRestart || Object.values(value.rules ?? {}).some(rule => rule.state === 'running');
+    // A stopped receiver keeps the user's restart preference, but has no active restart intent.
+    const needsStop = value => value.executing || (value.resumeAfterRestart && value.resumeStatus !== 'stopped')
+        || Object.values(value.rules ?? {}).some(rule => rule.state === 'running');
     if (needsStop(operation)) {
         operation = await complete('runtime', await runtime(current(), 'deactivate', {token, resume: false}));
         if (!operation.confirmed || needsStop(operation)) throw new MessageError('symcon.transfer.unconfirmed');
