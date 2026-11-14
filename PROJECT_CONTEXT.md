@@ -57,6 +57,13 @@ Native Linux keyring/dialog evidence remains open. See docs/D2.md and docs/D3.md
 
 ## Versioning and next work
 
+Desktop CI now calls application metadata generation as a prerequisite and passes
+the resulting immutable commit to both platform jobs. This replaces parallel
+versioning and packaging, which could produce installers with an older version.
+The checked handoff and failure gates are described in [versioning](docs/VERSIONING.md#build-order-and-immutable-checkout).
+Local Git fixtures cover retries and concurrent source changes; a new GitHub run
+after the user's push remains required to confirm the complete ordered pipeline.
+
 The automatic metadata action on Symcon_ModuleCI/main is operational. Run
 42367039704 passed; bot commit 744fc251503047068bed507a6f84cd4457cf6cb8 set
 version.json to 0.2.0. The subsequent D1 source push produced metadata commit

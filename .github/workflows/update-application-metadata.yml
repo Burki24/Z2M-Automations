@@ -1,8 +1,17 @@
 name: Update application metadata
 
 on:
-  push:
-    branches: [dev]
+  workflow_call:
+    secrets:
+      HELPER_SYNC_APP_PRIVATE_KEY:
+        required: true
+    outputs:
+      sha:
+        description: Immutable commit containing the updated application version.
+        value: ${{ jobs.update-application-metadata.outputs.sha }}
+      version:
+        description: Application version in that commit.
+        value: ${{ jobs.update-application-metadata.outputs.version }}
 
 permissions:
   contents: read
@@ -13,8 +22,10 @@ concurrency:
 
 jobs:
   update-application-metadata:
-    if: "${{ github.event.head_commit == null || !startsWith(github.event.head_commit.message, 'CHORE: Update application metadata') }}"
     runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.build.outputs.sha }}
+      version: ${{ steps.build.outputs.version }}
     steps:
       - name: Create GitHub App token
         id: app-token
@@ -73,3 +84,10 @@ jobs:
           git commit -m "CHORE: Update application metadata to v${VERSION} (${SHORT_SHA})" \
             -m "Source-Commit: ${SOURCE_SHA}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
+      - name: Resolve the versioned build commit
+        id: build
+        env:
+          Z2MA_SOURCE_SHA: ${{ github.sha }}
+          Z2MA_METADATA_SKIPPED: ${{ steps.metadata.outputs.skipped }}
+          Z2MA_BUILD_VERSION: ${{ steps.metadata.outputs.version }}
+        run: node scripts/ci-build-ref.mjs capture

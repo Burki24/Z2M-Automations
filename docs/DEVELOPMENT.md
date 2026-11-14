@@ -61,6 +61,24 @@ back to itself and no duplicate Symcon warning.
 
 ## Setup and checks
 
+Desktop CI on `dev` versions first through a reusable prerequisite, then checks
+out that exact metadata commit in both platform jobs. The build-ref helper
+verifies HEAD and version before tools or packaging run. Pull requests and `main`
+keep read-only committed metadata. See [versioning](VERSIONING.md#build-order-and-immutable-checkout).
+The Git-backed regression in `tests/ci-versioning.test.mjs` also covers manual
+rebuilds, superseded pushes, failure gates and a branch advancing between the two
+platform checkouts. No live repository push or package publication is part of it.
+Local verification passed with 201 tests, the complete capture-free extension-
+update UI fixture, and eight Git-backed workflow cases included in that count;
+two native APT cases require Ubuntu. The ordered GitHub pipeline remains to be
+confirmed after pushing this workflow change.
+
+Actionlint 1.7.12 validates the workflow graph with two narrow local exceptions
+for its stale `create-github-app-token@v3` input metadata. The current upstream
+[action definition](https://github.com/actions/create-github-app-token/blob/v3/action.yml)
+supports `client-id` and makes `app-id` optional. Keep that verified input; no
+workflow-wide lint suppression or token-permission change is introduced.
+
 ~~~sh
 npm ci --ignore-scripts --no-audit --no-fund
 npm run setup:tools
