@@ -25,6 +25,7 @@ import {installNativeEmbedding} from './embedding.js';
     const values = localizeRecord(() => (new Map([['ON', t("ui.on.b9a637bc")], ['OFF', t("ui.off.f0ce9450")], ['TOGGLE', t("ui.toggle.77fec02e")]])));
     const valueText = value => typeof value === 'boolean' ? (value ? t("ui.yes.detected.f51e55b6") : t("ui.no.not.detected.2e04e05d")) : (values.get(value) ?? (typeof value === 'object' ? JSON.stringify(value) : String(value ?? '—')));
     let data = null;
+    let readFailure = null;
     let category = 'device';
     let selected = null;
     let selectedPart = null;
@@ -290,6 +291,19 @@ import {installNativeEmbedding} from './embedding.js';
         bindText($('#draft-status'), () => data.draftAvailable ? t("ui.local.draft.revision.b3e4c474", {p1: data.configuration.revision}) : t("ui.no.matching.editor.draft.loaded.8fabd4d0"));
         renderRuntimeStatus();
         $('#draft-status').className = 'status-chip';
+        const summary = paintIssues();
+        if (summary) {
+            $('#feedback').dataset.tone = '';
+            message(() => summary);
+        }
+    }
+    function paintIssues() {
+        if (readFailure) {
+            $('#issues').hidden = false;
+            bindText($('#issues-message') ?? $('#issues'), readFailure);
+            return;
+        }
+        if (!data || isDesktop()) return;
         const notices = [t("ui.topic.module.data.no.live.baaf06b9", {p1: data.module.name, p2: data.module.baseTopic})];
         const catalogTime = Number.isSafeInteger(data.catalogLoadedAt) && data.catalogLoadedAt > 0
             ? new Date(data.catalogLoadedAt * 1000).toLocaleString(locale()) : null;
@@ -297,17 +311,17 @@ import {installNativeEmbedding} from './embedding.js';
             ? new Date(data.catalogRefresh.storedAt * 1000).toLocaleString(locale()) : null;
         notices[0] += catalogTime ? t("ui.device.data.last.refreshed.7a5587aa", {p1: catalogTime})
             : storedTime ? t("ui.device.data.previously.saved.20fb84c1", {p1: storedTime}) : t("ui.device.data.refresh.time.is.c4aac5f2");
-        if (!data.catalogAvailable) notices.push(data.workspace
+        const catalogNotice = !data.catalogAvailable && !(data.workspace && document.querySelector('#desktop-view-connection')?.hidden === false);
+        if (catalogNotice) notices.push(data.workspace
             ? (data.catalogRefresh?.storedAt ? t("ui.saved.device.data.is.not.ee025668")
                 : t("ui.device.data.is.missing.for.db0f1bfb"))
             : t("ui.device.data.is.missing.for.23e595fa"));
         if (!data.draftAvailable && !data.draftMismatch) notices.push(data.workspace ? t("ui.this.system.has.no.local.5787ff4b") : t("ui.no.automation.draft.has.been.549085f2"));
         if (data.draftMismatch) notices.push(t("ui.the.yaml.draft.differs.from.417e170d"));
         if (data.openFormEdits) notices.push(t("ui.the.native.form.has.input.d0b78d48"));
-        $('#issues').hidden = data.catalogAvailable && data.draftAvailable && !data.openFormEdits;
-        bindText($('#issues'), () => notices.join(' '));
-        $('#feedback').dataset.tone = '';
-        message(() => (notices[0]));
+        $('#issues').hidden = !catalogNotice && data.draftAvailable && !data.draftMismatch && !data.openFormEdits;
+        bindText($('#issues-message') ?? $('#issues'), () => notices.join(' '));
+        return notices[0];
     }
     function load(preferredRule = '', preferredSequence = '') {
         const task = loadQueue.then(() => readView(preferredRule, preferredSequence));
@@ -341,7 +355,7 @@ import {installNativeEmbedding} from './embedding.js';
                 category = view?.category ?? 'device'; selected = view?.selected ?? null; selectedPart = view?.selectedPart ?? null;
                 $('#search').value = view?.search ?? '';
             }
-            data = next; systemId = nextSystem; updateSystems(data);
+            data = next; readFailure = null; systemId = nextSystem; updateSystems(data);
             if (isDesktop()) {
                 document.body.classList.toggle('desktop-editable', !!data.desktop?.project && data.desktop.source === 'draft');
                 document.body.classList.toggle('desktop-stored-view', data.desktop?.source === 'stored');
@@ -361,9 +375,9 @@ import {installNativeEmbedding} from './embedding.js';
             if (isDesktop()) document.dispatchEvent(new CustomEvent('z2ma-designer-view', {detail: data}));
             return true;
         } catch (error) {
-            const text = error.message === 'access' ? t("ui.read.access.is.missing.or.e380a485") : t("ui.module.data.could.not.be.80c47bf5");
-            message(text); $('#feedback').dataset.tone = 'error';
-            $('#issues').hidden = false; bindText($('#issues'), () => text);
+            readFailure = () => t(error.message === 'access' ? "ui.read.access.is.missing.or.e380a485" : "ui.module.data.could.not.be.80c47bf5");
+            message(readFailure); $('#feedback').dataset.tone = 'error';
+            paintIssues();
             return false;
         } finally {
             busy = false; $('#validate-button').disabled = false; updateTransfers(); updateRuntime(); updateCatalog(); updateDiagnostics(); updatePermissions(); management?.refresh(category, stateFilter); eventImport?.refresh(); updateLayout();
@@ -398,7 +412,7 @@ import {installNativeEmbedding} from './embedding.js';
         filterChanged: value => { stateFilter = value; renderNavigation(); }});
     eventImport = installEventImport({getData: () => data, isLoading: () => busy, reload: () => load(), message,
         onImported: async ruleId => { if (!await load(ruleId)) message(() => (t("ui.event.imported.disabled.refresh.the.338172e3"))); }});
-    updateLayout = installLayout({getData: () => data, reload: () => load()});
+    updateLayout = installLayout({getData: () => data, reload: () => load(), onStepChange: paintIssues});
     onLanguageChange(() => { paintStatus(); render(); updateTransfers(); updateRuntime(); updateCatalog(); updateLayout(); });
     render();
     if (isDesktop()) {

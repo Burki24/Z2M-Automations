@@ -17,6 +17,10 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     navigate('connection');
     const catalog = document.querySelector('#mqtt-catalog');
     assert(catalog?.hidden, 'the catalog lists wait for a confirmed read');
+    assert(document.querySelector('#issues').hidden && !document.querySelector('#symcon-open-device-refresh'),
+      'the app has no duplicate Symcon navigation warning in step 4');
+    assert(!document.querySelector('#desktop-view-connection [data-step="connection"]'), 'the connection page never links to itself');
+    assert(document.querySelector('#mqtt-connect').classList.contains('primary'), 'connecting is the primary action before a read');
     const projectState = (await bridge.project({action: 'status'})).state;
     const mode = projectState.protectedAvailable ? 'credentials' : 'anonymous';
     if (mode === 'credentials') assert((await bridge.credential({brokerId: broker.id, mode: 'protected', source: 'manual'})).ok, 'save protected automatic connection credentials');

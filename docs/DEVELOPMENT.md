@@ -14,10 +14,19 @@ local rule switches, cancellation and explicit scoped stop/check/store in both
 browser and tile. It contacts only its own loopback fixture. Keep native installed
 acceptance and platform CI evidence separate from these local checks.
 
-Symcon's missing/unconfirmed catalogue guidance names step 4 and offers a
-navigation shortcut. Opening that step or refreshing the module view must not
-start a device read. The offline browser/tile fixture verifies the explicit
-catalogue request separately and checks that drafts survive it in DE/EN.
+Symcon's missing/unconfirmed catalogue guidance appears above the work area,
+with its primary navigation action directly below the warning text. Its bounded
+message area leaves the action reachable in narrow tiles. Opening step 4 or
+refreshing the module view must not start a device read. On step 4 the catalogue
+card highlights the explicit refresh action; the redundant navigation warning
+is omitted. Other form warnings and failed view reads remain visible. The offline
+browser/tile fixture checks navigation, refresh, language changes and recovery
+separately and verifies that drafts survive them in DE/EN.
+
+Both desktop editions already keep the Symcon warning out of their workspace.
+Their connection page highlights Connect or Read inventory when a current read
+is missing. The capture-free desktop smoke also checks that step 4 has no link
+back to itself and no duplicate Symcon warning.
 
 ## Setup and checks
 

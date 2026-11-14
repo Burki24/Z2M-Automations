@@ -45,7 +45,7 @@ export async function workspaceSetupRequest(action, {token, body, request: send 
 }
 
 /* Symcon supplies authority and persistence; the shared shell owns presentation. */
-export function installSymconWorkspace({getData, reload = async () => false}) {
+export function installSymconWorkspace({getData, reload = async () => false, onStepChange = () => {}}) {
     let shell = null;
     let nodes;
     let initial = true;
@@ -56,9 +56,18 @@ export function installSymconWorkspace({getData, reload = async () => false}) {
         parent.append(element); return element;
     };
     const card = parent => { const element = node('section', parent); element.className = 'desktop-card'; return element; };
+    function updateCatalogShortcut() {
+        if (!nodes) return;
+        const data = getData();
+        nodes.catalogShortcut.hidden = data?.catalogAvailable !== false || !data.catalogRefresh || !data.workspaceContext?.systemId
+            || document.querySelector('#desktop-view-connection')?.hidden === false;
+    }
     function mount() {
         document.body.classList.add('symcon-foundation');
-        shell = installGuidedWorkspace({prefix: 'symcon', partnerActions: '#symcon-partner-actions'});
+        shell = installGuidedWorkspace({prefix: 'symcon', partnerActions: '#symcon-partner-actions', onStepChange: () => {
+            updateCatalogShortcut();
+            onStepChange();
+        }});
         const storedStatus = node('span', shell.context); storedStatus.className = 'status-chip'; storedStatus.id = 'symcon-stored-status';
         const runtimeStatus = node('span', shell.context); runtimeStatus.className = 'status-chip'; runtimeStatus.id = 'symcon-runtime-status';
         const centre = card(shell.pages.project);
@@ -75,7 +84,10 @@ export function installSymconWorkspace({getData, reload = async () => false}) {
         const permissions = node('div', systems); permissions.id = 'symcon-partner-actions';
         shell.link(systems, 'connection');
         const catalogue = document.querySelector('.system-catalog');
-        if (catalogue) shell.pages.connection.append(catalogue);
+        if (catalogue) {
+            catalogue.querySelector('.catalog-actions > button')?.classList.add('primary');
+            shell.pages.connection.append(catalogue);
+        }
         const installation = document.querySelector('.system-installation');
         if (installation) shell.pages.connection.append(installation);
         const inventory = card(shell.pages.connection);
@@ -122,9 +134,13 @@ export function installSymconWorkspace({getData, reload = async () => false}) {
         nodes = {centreName, brokerList, systemList, inventoryStatus, devices, groups, draftStatus, download, reviewStatus, reviewDetails, findings, storedStatus, runtimeStatus, releasedCount, ruleSwitches, releaseFeedback};
         shell.mountDesigner();
         // Request failures must remain visible in setup, review and operation too.
-        shell.context.after(document.querySelector('.designer-feedback'));
-        const catalogShortcut = shell.link(document.querySelector('.designer-feedback'), 'connection', 'symcon.catalog.openRefresh');
-        catalogShortcut.id = 'symcon-open-device-refresh'; catalogShortcut.hidden = true;
+        const statusFeedback = document.querySelector('.designer-feedback');
+        shell.context.after(statusFeedback);
+        const issues = document.querySelector('#issues');
+        statusFeedback.after(issues);
+        const catalogShortcut = shell.link(issues, 'connection', 'symcon.catalog.openRefresh');
+        catalogShortcut.id = 'symcon-open-device-refresh'; catalogShortcut.className = 'primary'; catalogShortcut.hidden = true;
+        catalogShortcut.setAttribute('aria-describedby', 'issues-message');
         nodes.catalogShortcut = catalogShortcut;
         document.querySelector('#validate-button')?.addEventListener('click', () => shell.show('connection'));
         document.addEventListener('z2ma-workflow-next', event => shell.show(event.detail?.next === 'store' ? 'transfer' : event.detail?.next === 'review' ? 'review' : 'connection'));
@@ -178,7 +194,7 @@ export function installSymconWorkspace({getData, reload = async () => false}) {
         if (!data?.workspace) return;
         data.guidedUI = true;
         if (!shell) mount();
-        nodes.catalogShortcut.hidden = data.catalogAvailable !== false || !data.catalogRefresh || !data.workspaceContext?.systemId;
+        updateCatalogShortcut();
         const systems = [...data.workspace.systems].sort((a, b) => new Intl.Collator(locale(), {numeric: true, sensitivity: 'base'}).compare(a.name, b.name));
         const brokers = [...new Set(systems.map(system => system.binding?.mqttParent))];
         shell.updateProject({active: true, project: {name: data.module.name, brokers: brokers.length ? brokers : [{}], systems}}, initial);

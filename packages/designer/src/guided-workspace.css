@@ -143,8 +143,14 @@
 .guided-foundation .desktop-content > .designer-feedback { flex: none; max-height: 20dvh; overflow: auto; padding: .4rem 1rem; }
 .guided-foundation .desktop-content > .designer-feedback:has(#feedback:empty) { display: none; }
 .symcon-foundation .app-header :is(#new-automation-button, .preview-label) { display: none; }
-.symcon-foundation .designer-feedback:has(#symcon-open-device-refresh:not([hidden])) { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
-.symcon-foundation .designer-feedback:has(#symcon-open-device-refresh:not([hidden])) #feedback { flex: 1 1 24rem; min-width: 0; }
+.symcon-foundation #issues { flex: none; margin: 0 1rem .65rem; overflow-wrap: anywhere; }
+.symcon-foundation #issues-message { display: block; max-height: clamp(3.5rem, 14dvh, 8rem); overflow-y: auto; }
+.symcon-foundation #issues > .primary {
+  display: flex; width: fit-content; max-width: 100%; margin-block-start: .6rem;
+  padding: .55rem .8rem; min-height: 2.5rem; border: 1px solid var(--primary);
+  background: var(--primary); color: var(--on-primary); font-size: .875rem; font-weight: 600; white-space: normal;
+}
+.symcon-foundation #issues > .primary:hover { background: var(--primary-hover); }
 @media (max-width: 900px), (max-height: 650px) {
   /* Native access controls and wrapped context must not consume the whole work area. */
   .symcon-foundation .desktop-content { overflow-y: auto; }
