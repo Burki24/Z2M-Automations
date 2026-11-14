@@ -20,6 +20,7 @@
     "test:system-link-ui": "node scripts/test-system-link-ui.mjs",
     "test:extension-update-ui": "node scripts/test-extension-update-ui.mjs",
     "verify": "npm run build && npm run check && npm test",
+    "verify:local": "npm run verify && npm run test:extension-update-ui",
     "start": "npm run build && npm run start --workspace @z2ma/desktop",
     "package": "npm run build && npm run package --workspace @z2ma/desktop",
     "make": "npm run build && npm run make --workspace @z2ma/desktop",

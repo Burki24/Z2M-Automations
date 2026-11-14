@@ -134,6 +134,10 @@ connected Z, and forest green `#3D7058` for the play symbol.
   earlier Symcon tests to this project.
 - Run suitable checks as described in `docs/DEVELOPMENT.md`. Report results and
   limitations separately. A Windows pass does not establish Ubuntu acceptance.
+- Run `npm run verify:local` before completing code changes. This includes the
+  existing build, type, integrity and unit checks plus the complete capture-free
+  extension-update UI test. `npm run verify` alone is insufficient for local
+  sign-off. Linux display and sandbox requirements are in `docs/DEVELOPMENT.md`.
 
 ## Working practices and Git
 

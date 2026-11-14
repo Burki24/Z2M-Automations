@@ -33,13 +33,21 @@ back to itself and no duplicate Symcon warning.
 ~~~sh
 npm ci --ignore-scripts --no-audit --no-fund
 npm run setup:tools
-npm run verify
+npm run verify:local
 npm run smoke
 npm start
 ~~~
 
 setup:tools explicitly invokes only the reviewed pinned Electron download. Do not
 enable all dependency lifecycle scripts to work around missing tools.
+
+`npm run verify:local` is the required local check before completing code changes.
+It runs `npm run verify` and then the complete `test:extension-update-ui` fixture,
+stopping with a failure if either stage fails. A successful `verify` alone is
+not a complete local sign-off. The UI fixture uses a hidden Electron window and
+captures no images; Linux without a desktop session needs Xvfb and the sandbox
+setup shown in the CI workflow. CI retains its separate platform-specific steps.
+
 Transient Electron download errors are retried at most three times, with
 one- and three-second delays and a three-minute limit per attempt. Integrity,
 permanent HTTP and local installer-helper errors still fail immediately.
@@ -175,9 +183,11 @@ full source/package smoke or native Ubuntu acceptance. The ordinary unit suite
 also verifies mesh-only suggestions, template safety, schema limits and actual
 correlated reads against isolated loopback MQTT peers.
 
-`npm run test:extension-update-ui` is another DOM-only check, included in both
-platform jobs. It covers pending update/transfer progress, automatic draft-check
-modes, the single check action, explicit-transfer controls and DE/EN feedback.
+`npm run test:extension-update-ui` is a mandatory part of `verify:local` and both
+platform jobs. Its fixed asset list must include transitive designer imports,
+including `layout.js` → `symcon-workspace.js` → `draft-sync.js`. It covers pending
+update/transfer progress, automatic draft-check modes, the single check action,
+explicit-transfer controls and DE/EN feedback.
 Confirmation layout is checked in both themes. It captures no images. Backend
 integration tests use the real pinned extension to verify consent, backup and
 stop ordering, switch-only/unchanged drafts and lost replies without replay.

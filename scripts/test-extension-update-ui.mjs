@@ -45,7 +45,7 @@ if (!process.versions.electron) {
     };
     await step('app-ready', () => app.whenReady());
     const assets = join(root, 'apps/desktop/.build/renderer');
-    const names = new Set(['network.js', 'operation-flags.js', 'draft-review.js', 'validation-feedback.js', 'drafts.js', 'desktop-workspace.js', 'guided-workspace.js', 'symcon-workspace.js', 'guided-workspace.css', 'layout.js', 'confirmation.js', 'runtime.js', 'workspace.js', 'identity.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
+    const names = new Set(['network.js', 'operation-flags.js', 'draft-review.js', 'validation-feedback.js', 'drafts.js', 'desktop-workspace.js', 'guided-workspace.js', 'symcon-workspace.js', 'draft-sync.js', 'guided-workspace.css', 'layout.js', 'confirmation.js', 'runtime.js', 'workspace.js', 'identity.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
     protocol.handle('z2ma', async request => {
       if (request.url === 'z2ma://app/index.html') return new Response('<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="designer.css"><link rel="stylesheet" href="desktop-palette.css"><link rel="stylesheet" href="desktop.css"><body class="desktop-foundation"></body>', {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
       if (request.url === 'z2ma://app/workspace.html') return new Response((await readFile(join(assets, 'index.html'), 'utf8')).replace('<script type="module" src="desktop.js"></script>', ''), {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});

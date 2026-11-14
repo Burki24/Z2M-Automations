@@ -23,7 +23,7 @@ setup:tools. It does not connect to Z2M. For diagnostics, expand "Desktop
 diagnostics" below the designer and start a one-minute recording.
 
 ~~~sh
-npm run verify
+npm run verify:local
 npm run smoke
 npm run make
 npm run smoke:packaged
