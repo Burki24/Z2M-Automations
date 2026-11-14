@@ -268,6 +268,12 @@ executable. It must follow `package` or `make`. See [D3](D3.md).
 
 ## Shared source ownership
 
+The Symcon-only adapter provides “Update from Z2M” in step 6. Its fixed HTTP
+routes and remote-to-local persistence live in Symcon_Z2MAutomations; the desktop
+application does not install this action. `tests/draft-sync.test.mjs` verifies
+request scope, response bounds, operation identity and the absence of retries.
+The consumer's capture-free browser test covers both browser and tile workflows.
+
 Edit packages/designer/src, build the versioned archive and review its manifest.
 Symcon imports that explicit archive and verifies its committed assets without
 needing this clone. See packages/designer/README.md. Native tile/helper sources

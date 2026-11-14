@@ -151,6 +151,11 @@
   background: var(--primary); color: var(--on-primary); font-size: .875rem; font-weight: 600; white-space: normal;
 }
 .symcon-foundation #issues > .primary:hover { background: var(--primary-hover); }
+.symcon-foundation #symcon-draft-sync { flex: none; margin: .2rem 0 .5rem; max-height: min(30dvh, 14rem); overflow-y: auto; }
+.symcon-foundation #symcon-draft-sync > p { margin: .25rem 0; }
+.symcon-foundation #symcon-draft-sync [data-tone="error"] { color: var(--danger); }
+.symcon-foundation #symcon-draft-sync [data-tone="warning"] { color: var(--warning); }
+.symcon-foundation #symcon-draft-sync [data-tone="success"] { color: var(--success); }
 @media (max-width: 900px), (max-height: 650px) {
   /* Native access controls and wrapped context must not consume the whole work area. */
   .symcon-foundation .desktop-content { overflow-y: auto; }
