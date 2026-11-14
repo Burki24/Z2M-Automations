@@ -147,6 +147,7 @@ if (!process.versions.electron) {
         if (document.activeElement !== input || input.getBoundingClientRect().width < 18) throw new Error('Rule checkboxes must remain keyboard accessible');
       })()`);
     }
+    await step('transfer-resume-confirmation', () => transferConfirmationTest(window, assets, resize));
     await load('confirmation', 'z2ma://app/confirmation.html');
     for (const width of [320, 540]) for (const theme of ['light', 'dark']) {
       await layout(`confirmation-${width}-${theme}`, width, 310, `(() => {
@@ -162,9 +163,53 @@ if (!process.versions.electron) {
         if (document.scrollingElement.scrollTop !== 0) throw new Error('Confirmation body must not scroll');
       })()`);
     }
-    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/capability-findings/operation-flags/confirmation-layout/workspace-wheel elapsedMs=' + (Date.now() - started)); app.exit(0);
+    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/capability-findings/operation-flags/transfer-resume-confirmation/confirmation-layout/workspace-wheel elapsedMs=' + (Date.now() - started)); app.exit(0);
   };
   run().catch(error => { console.error('EXTENSION_UPDATE_DOM_FAILED ' + error.stack); app.exit(1); });
+}
+
+async function transferConfirmationTest(window, assets, resize) {
+  const assert = (await import('node:assert/strict')).default;
+  const {confirmationScript} = require('../apps/desktop/.build/confirmation.js');
+  for (const language of ['de', 'en']) {
+    const catalog = JSON.parse(await readFile(join(assets, 'locales', language + '.json'), 'utf8'));
+    const options = {language, question: 'Synthetic transfer?', detail: 'Synthetic stopped review. '.repeat(30), cancel: 'Cancel', accept: 'Continue',
+      resume: {label: catalog['project.transferResumePrevious'], help: catalog['project.transferResumeHelp'],
+        detail: 'Synthetic checked enabled rule, new rule disabled. '.repeat(30), enabled: true}};
+    await window.loadURL('z2ma://app/confirmation.html');
+    const reply = window.webContents.executeJavaScript(confirmationScript(options));
+    assert.deepEqual(await window.webContents.executeJavaScript(`(() => ({checked: document.querySelector('#resume-previous-operation').checked,
+      disabled: document.querySelector('#resume-previous-operation').disabled, focus: document.activeElement.id,
+      label: document.querySelector('#resume-label').textContent}))()`),
+    {checked: false, disabled: false, focus: 'cancel', label: options.resume.label});
+    for (const width of [320, 540]) for (const theme of ['light', 'dark']) {
+      await resize(width, 430);
+      await window.webContents.executeJavaScript(`(() => {
+        document.documentElement.style.colorScheme = '${theme}';
+        const footer = document.querySelector('footer').getBoundingClientRect();
+        const choice = document.querySelector('#resume-previous-operation'); const bounds = choice.getBoundingClientRect();
+        if (footer.bottom > innerHeight + 1 || footer.top < 0 || bounds.top < 0 || bounds.bottom > footer.top || bounds.width < 18) throw new Error('Transfer choice or buttons outside viewport');
+        if (document.scrollingElement.scrollHeight > innerHeight + 1 || document.scrollingElement.scrollWidth > innerWidth + 1) throw new Error('Transfer dialog must not scroll as a whole');
+        const detail = document.querySelector('#detail');
+        if (detail.clientHeight < 20 || detail.scrollHeight <= detail.clientHeight) throw new Error('Transfer review needs a usable scroll area');
+        choice.focus(); if (document.activeElement !== choice) throw new Error('Resume choice needs keyboard access');
+      })()`);
+    }
+    assert.equal(await window.webContents.executeJavaScript(`(() => {
+      document.querySelector('#resume-previous-operation').click(); return document.querySelector('#detail').textContent;
+    })()`), options.resume.detail);
+    await window.webContents.executeJavaScript("document.querySelector('#accept').click()");
+    assert.deepEqual(await reply, {accepted: true, resume: true});
+    for (const ending of ['cancel', 'escape', 'disabled']) {
+      await window.loadURL('z2ma://app/confirmation.html');
+      const next = window.webContents.executeJavaScript(confirmationScript({...options, resume: {...options.resume, enabled: ending !== 'disabled'}}));
+      assert.equal(await window.webContents.executeJavaScript("document.querySelector('#resume-previous-operation').checked"), false, 'a subsequent transfer never inherits a previous choice');
+      await window.webContents.executeJavaScript(ending === 'disabled'
+        ? "document.querySelector('#resume-previous-operation').checked = true; document.querySelector('#accept').click()"
+        : ending === 'escape' ? "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))" : "document.querySelector('#cancel').click()");
+      assert.deepEqual(await next, ending === 'disabled' ? {accepted: true, resume: false} : false);
+    }
+  }
 }
 
 async function workspaceWheelTest(window, theme) {

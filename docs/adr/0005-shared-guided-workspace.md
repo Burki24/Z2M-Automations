@@ -32,7 +32,12 @@ and field and can open that field in the common editor. Step 8 captures explicit
 consent, obtains fresh operating status, stops operation/restart intent/remaining
 runs when necessary, revalidates and stores once through the existing scoped
 native protocol. Cached GET polling is bounded and never replays a mutation.
-Starting operation remains a separate action. Native enabled flags and runtime
+Starting operation remains separate by default. A per-transfer, unchecked option
+can resume previously confirmed active operation only after successful storage,
+fresh readback and activation checks. It preserves the saved restart preference
+and never grants a new rule permission or replays interrupted single runs.
+Missing confirmation prevents activation; an ambiguous activation is never
+automatically repeated. Native enabled flags and runtime
 backup semantics remain native; the desktop backup dialog and disabled-content
 policy are not silently imposed on Symcon.
 

@@ -80,6 +80,9 @@ svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width:
 .operation-networks [data-state="active"] { color: var(--success); background: var(--success-soft); }
 .operation-networks button { white-space: normal; max-width: 100%; }
 .operation-confirm-rules { max-height: 35vh; overflow: auto; overflow-wrap: anywhere; }
+.transfer-resume-choice { margin-block: 12px; }
+.transfer-resume-choice label { display: flex; align-items: start; gap: 10px; }
+.transfer-resume-choice input { flex: 0 0 auto; min-width: 18px; min-height: 18px; }
 .runtime-chip.running i { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
 #feedback { color: var(--muted); flex: 1; }
 #feedback[data-tone="error"] { color: var(--danger); }

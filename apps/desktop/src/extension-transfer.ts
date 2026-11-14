@@ -4,7 +4,7 @@ import {isDeepStrictEqual} from 'node:util';
 import {join} from 'node:path';
 import {exportDraft} from './draft-exchange.js';
 import {checkConfigurationCapabilities, checkedDocument} from './draft-validation.js';
-import {record, type RemoteRead, type RemoteStatus} from './mqtt-protocol.js';
+import {record, uuid, type RemoteRead, type RemoteStatus} from './mqtt-protocol.js';
 import type {MqttReader} from './mqtt-reader.js';
 import type {ProjectService} from './project-service.js';
 import {projectBytes, type Configuration, type Project, type ProjectSystem} from './project.js';
@@ -25,14 +25,14 @@ type Wire = ReturnType<MqttReader['transfer']>;
 type Action = 'validateEnabled' | 'validate' | 'store' | 'install' | 'checkTransfer';
 type CheckKind = 'configuration' | 'flags' | 'unchanged';
 type Review = {system: string; topic: string; broker: string; revision: number; next: number; rules: number; enabled: number; changes: string; build: string;
-  kind: CheckKind; running: boolean; added: number; changed: number; removed: number};
+  kind: CheckKind; running: boolean; added: number; changed: number; removed: number; resumeAllowed: boolean; resumeRules: string[]};
 interface Dialogs {
-  confirm(action: 'store' | 'install', review: Review): Promise<boolean>;
+  confirm(action: 'store' | 'install', review: Review): Promise<boolean | {accepted: boolean; resume: boolean}>;
   backup(conflict: boolean, review?: Review): Promise<string | null>;
 }
 interface Receipt {base: RemoteStatus; yaml: string; checksum: string; configuration: Configuration; draft: string; kind: CheckKind; review: Review; assertCurrent(): void}
-type TransferPhase = 'backingUp' | 'stopping' | 'checking' | 'sending' | 'verifying' | 'complete';
-interface PendingTransfer {id: string; phase: 'stopping' | 'sending'; base: RemoteStatus; checksum?: string; revision?: number}
+type TransferPhase = 'backingUp' | 'stopping' | 'checking' | 'sending' | 'verifying' | 'resuming' | 'complete';
+interface PendingTransfer {id: string; phase: 'stopping' | 'sending' | 'resuming'; base: RemoteStatus; checksum?: string; revision?: number}
 const running = (status: RemoteStatus) => !runtimeStopped(status);
 const same = (a: RemoteStatus, b: RemoteStatus) => a.session === b.session && a.build === b.build
   && a.revision === b.revision && a.checksum === b.checksum && a.executing === b.executing && a.resumeEnabled === b.resumeEnabled && Boolean(running(a)) === Boolean(running(b));
@@ -50,7 +50,7 @@ export class ExtensionTransfer {
   constructor(private readonly projects: ProjectService, private readonly reader: MqttReader, private readonly dialogs: Dialogs,
     options?: {timeout: number; poll: number}) {
     this.updates = new ExtensionUpdate(projects, reader, {code: artifact, build: manifest.build}, {
-      confirm: (system, base) => dialogs.confirm('install', this.review(system, base)),
+      confirm: async (system, base) => await dialogs.confirm('install', this.review(system, base)) === true,
       backup: async (system, remote) => {
         this.observe(system.id, remote);
         const path = await dialogs.backup(false);
@@ -155,6 +155,14 @@ export class ExtensionTransfer {
       this.observe(id, stopped); this.uncertain.delete(key);
       return 'transferStopped';
     }
+    if (pending.phase === 'resuming') {
+      if (current.revision !== pending.base.revision || current.checksum !== pending.base.checksum || current.build !== pending.base.build) throw new Error('transferResumeUncertain');
+      const remote = await this.read(wire);
+      if (!same(current, remote.status)) throw new Error('transferResumeUncertain');
+      this.observe(id, remote); this.projects.acceptStoredBase(id); this.uncertain.delete(key);
+      this.stage(id, 'complete', this.progress.get(id)?.kind ?? 'configuration');
+      return 'transferStored';
+    }
     if (current.checksum === pending.checksum && current.revision === pending.revision && current.build === pending.base.build && !running(current)) {
       const remote = await this.read(wire);
       if (!same(current, remote.status)) throw new Error('transferUncertain');
@@ -249,7 +257,18 @@ export class ExtensionTransfer {
       if (this.projects.generation() !== epoch || endpoint(current) !== endpoint(project) || !draft || checksumOf(draft) !== receipt.draft) throw new Error('transferChanged');
     };
     if (this.uncertain.size >= 32) throw new Error('transferUncertain');
-    if (!await this.dialogs.confirm('store', receipt.review)) return 'transferCanceled';
+    const resumeConfiguration = checkedDocument(structuredClone(receipt.kind === 'configuration' ? system.configuration : receipt.configuration));
+    resumeConfiguration.revision = receipt.configuration.revision;
+    const review = {...receipt.review, resumeAllowed: base.executing,
+      resumeRules: resumeConfiguration.automations.filter(rule => rule['enabled'] === true).map(rule => String(rule['name']))};
+    const choice = await this.dialogs.confirm('store', review);
+    if (choice !== true && (typeof choice !== 'object' || choice.accepted !== true)) return 'transferCanceled';
+    const resume = base.executing && typeof choice === 'object' && choice.resume === true;
+    if (resume) {
+      const yaml = exportDraft(resumeConfiguration).toString('utf8');
+      if (Buffer.byteLength(yaml) > 131072) throw new Error('draftLimit');
+      receipt = {...receipt, configuration: resumeConfiguration, yaml, checksum: sha(yaml)};
+    }
     let phase: TransferPhase = 'backingUp';
     try {
       assertReview(); this.stage(id, phase, receipt.kind);
@@ -292,10 +311,26 @@ export class ExtensionTransfer {
         || stored.status.revision !== receipt.configuration.revision || stored.yaml !== receipt.yaml || running(stored.status)) throw new Error('transferUncertain');
       assertReview();
       this.observe(id, stored); this.projects.acceptStoredBase(id);
-      this.uncertain.delete(key); this.stage(id, 'complete', receipt.kind);
+      this.uncertain.delete(key);
+      if (resume) {
+        phase = 'resuming'; this.stage(id, phase, receipt.kind);
+        assertReview();
+        const challenge = await wire.runtimeStatus();
+        if (!same(stored.status, challenge.status) || !runtimeStopped(challenge.status) || !record(challenge.value) || !uuid(challenge.value['activation_token'])) throw new Error('transferResumeUncertain');
+        assertReview();
+        this.uncertain.set(key, {id, phase: 'resuming', base: stored.status});
+        await wire.runtime('activate', {session: stored.status.session, expected_revision: stored.status.revision, checksum: stored.status.checksum,
+          activation_token: challenge.value['activation_token'], resume_after_restart: base.resumeEnabled}).catch(() => {});
+        const active = await this.read(wire);
+        if (!sameStoredStatus(stored.status, active.status) || active.yaml !== receipt.yaml || !active.status.executing
+          || !active.status.activeMatches || active.status.resumeEnabled !== base.resumeEnabled) throw new Error('transferResumeUncertain');
+        assertReview(); this.observe(id, active); this.uncertain.delete(key);
+      }
+      this.stage(id, 'complete', receipt.kind);
       return 'transferStored';
     } catch (error) {
       this.stage(id, phase, receipt.kind, true);
+      if (phase === 'resuming') throw new Error('transferResumeUncertain');
       if (this.uncertain.get(key)?.phase === 'sending') throw new Error('transferUncertain');
       throw error;
     }
@@ -348,6 +383,7 @@ export class ExtensionTransfer {
     return {system: system.name, topic: system.baseTopic, broker: broker ? broker.name + ' (' + broker.host + ':' + broker.port + ')' : '—',
       revision: base?.revision ?? 0, next: next?.revision ?? 0,
       rules: next?.automations.length ?? 0, enabled: next?.automations.filter(rule => rule['enabled'] === true).length ?? 0, changes: changes.slice(0, 16).join(', ') + (changes.length > 16 ? ' …' : ''),
-      build: (base?.build?.slice(0, 12) ?? '—') + ' → ' + manifest.build.slice(0, 12), kind, running: Boolean(base && running(base)), added, changed, removed};
+      build: (base?.build?.slice(0, 12) ?? '—') + ' → ' + manifest.build.slice(0, 12), kind, running: Boolean(base && running(base)), added, changed, removed,
+      resumeAllowed: false, resumeRules: []};
   }
 }

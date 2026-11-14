@@ -5,6 +5,11 @@ p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 #detail { flex: 1; min-height: 0; overflow-y: auto; }
 #detail:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 footer { flex-shrink: 0; display: flex; flex-wrap: wrap; justify-content: end; gap: .5rem; margin-top: auto; }
+#resume-choice { flex: 0 1 auto; min-height: 3rem; max-height: 8rem; overflow-y: auto; }
+#resume-choice[hidden] { display: none; }
+#resume-choice label { display: flex; align-items: start; gap: .5rem; }
+#resume-choice input { min-width: 18px; min-height: 18px; flex: 0 0 auto; }
+#resume-help { margin-top: .25rem; color: var(--muted); font-size: .875rem; }
 button { padding: .5rem .8rem; border-radius: .5rem; border: 1px solid var(--line-strong); background: var(--surface-soft); color: var(--ink); }
 button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 button[hidden] { display: none; }

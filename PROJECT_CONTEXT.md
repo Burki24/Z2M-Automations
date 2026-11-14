@@ -5,6 +5,14 @@ primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 ## Current state
 
+Step 8 now offers **Resume previous operation afterwards**, unchecked for each
+transfer in the app, Symcon browser designer and tile. Only previously confirmed
+active operation may resume, after revalidation, verified storage and independent
+fresh status/readback. Checked permissions and the previous restart preference
+are preserved; new disabled rules stay disabled. Interrupted single runs and
+uncertain control requests are never replayed. The shared implementation is
+pinned into Symcon; no extension/schema change or live deployment is required.
+
 The shared designer now explains required receiver operation for cross-system
 conditions and actions, including sequences. Confirmed stopped, unknown and
 active destinations have separate text/color states and direct Operation-page
@@ -13,10 +21,10 @@ make activation explicit. Desktop receivers with saved partner permissions may
 activate without enabling local rules. No automatic multi-system control or
 runtime/schema changes were introduced. See [D6](docs/D6.md).
 
-Local verification passes 210 tests, with two native Linux APT checks skipped
+Local verification passes 217 tests, with two native Linux APT checks skipped
 on Windows, plus the complete capture-free extension-update UI suite including
 receiver navigation, desktop palette states and partner-only start controls.
-The pinned Symcon adaptation passes its full offline suite (268 JavaScript
+The pinned Symcon adaptation passes its full offline suite (275 JavaScript
 tests), capture-free browser/tile acceptance and structure/style checks.
 New platform CI and practical acceptance after updating remain separate.
 

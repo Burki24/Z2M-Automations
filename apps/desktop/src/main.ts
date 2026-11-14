@@ -1,4 +1,4 @@
-import {showConfirmation, showConfirmationChoice} from './confirmation.js';
+import {showConfirmation, showConfirmationChoice, showTransferConfirmation} from './confirmation.js';
 import {RuntimeControl} from './runtime-control.js';
 import {app, BrowserWindow, ipcMain, protocol, session, Menu, nativeTheme, dialog, safeStorage} from 'electron';
 import {readFileSync, mkdtempSync, readdirSync, rmSync, mkdirSync, writeFileSync} from 'node:fs';
@@ -278,7 +278,14 @@ async function open(): Promise<void> {
         + message(review.kind === 'flags' ? 'transferStoreFlags' : 'transferStoreConfiguration') + '\n'
         + message(review.running ? 'transferStoreStop' : 'transferStoreStopped') : message('transferInstallDetail'))
         .replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? ''));
-      return reviewDialog(action === 'store' ? review.kind === 'flags' ? 'transferStoreFlagsConfirm' : 'transferStoreConfirm' : 'transferInstallConfirm', detail);
+      if (action === 'store') {
+        const values = {...review, enabled: review.resumeRules.length, names: review.resumeRules.map(name => '• ' + name).join('\n') || '—'};
+        return showTransferConfirmation(window, {language, question: message(review.kind === 'flags' ? 'transferStoreFlagsConfirm' : 'transferStoreConfirm'),
+          detail, cancel: message('cancel'), accept: message('continue'), resume: {enabled: review.resumeAllowed,
+            label: message('transferResumePrevious'), help: message(review.resumeAllowed ? 'transferResumeHelp' : 'transferResumeUnavailable'),
+            detail: message('transferResumeDetail').replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof values) => String(values[key] ?? ''))}});
+      }
+      return reviewDialog('transferInstallConfirm', detail);
     }
   });
   runtime = new RuntimeControl(projects, reader, async (action, review) => {

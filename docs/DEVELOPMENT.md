@@ -21,6 +21,18 @@ do not block storage or repeatedly stop an already stopped receiver. Missing or
 still armed restart confirmation must continue to block storage. Regression
 checks cover the new rule alongside the complete existing draft in browser/tile.
 
+Step 8 offers an unchecked, per-transfer choice to resume previous automatic
+operation in all three surfaces. Only a previously confirmed active receiver can
+resume, after revalidation, confirmed storage, fresh readback and a new activation
+challenge. Preserve the saved restart preference; never release a new disabled
+rule or replay an interrupted single run. Without the choice, operation stays
+stopped. Desktop content transfers preserve checked flags only with this explicit
+choice; otherwise their existing all-disabled policy remains. Regression checks
+cover both recovery preferences, stopped systems, cancellation, changed input,
+failed checks/readback, lost replies and read-only reconciliation. Hidden Electron
+and headless browser/tile tests verify the real DE/EN checkbox, safe initial focus,
+per-transfer reset and bounded dialog layout without capture.
+
 Module view reads recover once, after 250 ms, from explicit transient HTTP
 availability errors or a stale workspace/system snapshot. Recovery restarts the
 complete GET read and all catalog pages; partially read old pages are discarded.
