@@ -5,7 +5,7 @@ import {installEditing} from './editor.js';
 import {installEventImport} from './imports.js';
 import {installDiagnostics} from './diagnostics.js';
 import {installPermissions} from './permissions.js';
-import {installSystemSelection, loadSystemDevices, deviceSystemName} from './workspace.js';
+import {installSystemSelection, loadSystemView, checkViewResponse, deviceSystemName} from './workspace.js';
 import {installTransfers} from './transfer.js';
 import {installRuntime} from './runtime.js';
 import {installCatalogRefresh} from './catalog.js';
@@ -335,19 +335,21 @@ import {installNativeEmbedding} from './embedding.js';
         if (!isDesktop()) message(() => (t("ui.reading.existing.module.data.no.53b451b0")));
         try {
             if (!isDesktop() && !/^[a-f0-9]{64}$/.test(token)) throw new Error('access');
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 10000);
-            let response; let text;
-            try {
-                response = await fetch(endpoint, {method: 'GET', headers: {'X-Z2MA-Read-Token': token, ...(systemId ? {'X-Z2MA-System-ID': systemId} : {})}, cache: 'no-store', signal: controller.signal, redirect: 'error'});
-                if (response.ok) text = await response.text();
-            } finally { clearTimeout(timeout); }
-            if (!response.ok) throw new Error(response.status === 403 ? 'access' : 'transport');
-            // Desktop combines at most eight independently bounded peer catalogs.
-            if (text.length > (isDesktop() ? 67108864 : 2097152)) throw new Error('invalid');
-            const next = localizeResponse(JSON.parse(text));
-            if (next.contractVersion !== 1 || next.mode !== 'read' || !Array.isArray(next.devices) || !next.module || !next.status) throw new Error('invalid');
-            await loadSystemDevices(next, {token, signal: controller.signal, onProgress: (loaded, total) => message(() => (t("ui.reading.device.data.of.drafts.6ef5f0ac", {p1: loaded, p2: total})))});
+            const next = await loadSystemView(async () => {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 10000);
+                let text;
+                try {
+                    const response = await fetch(endpoint, {method: 'GET', headers: {'X-Z2MA-Read-Token': token, ...(systemId ? {'X-Z2MA-System-ID': systemId} : {})}, cache: 'no-store', signal: controller.signal, redirect: 'error'});
+                    await checkViewResponse(response);
+                    text = await response.text();
+                } finally { clearTimeout(timeout); }
+                // Desktop combines at most eight independently bounded peer catalogs.
+                if (text.length > (isDesktop() ? 67108864 : 2097152)) throw new Error('invalid');
+                const view = localizeResponse(JSON.parse(text));
+                if (view.contractVersion !== 1 || view.mode !== 'read' || !Array.isArray(view.devices) || !view.module || !view.status) throw new Error('invalid');
+                return view;
+            }, {token, onProgress: (loaded, total) => message(() => (t("ui.reading.device.data.of.drafts.6ef5f0ac", {p1: loaded, p2: total})))});
             const previousSystem = data?.workspaceContext?.systemId ?? '';
             const nextSystem = next.workspaceContext?.systemId ?? '';
             if (previousSystem !== nextSystem) {

@@ -23,6 +23,35 @@ export function systemHeaders(data) {
     return context ? {'X-Z2MA-System-ID': context.systemId, 'X-Z2MA-Generation': String(context.generation), 'X-Z2MA-Fingerprint': context.fingerprint} : {};
 }
 
+class RetryableViewRead extends Error {
+    constructor(stage, reason, status = 0) { super('view_changed'); this.stage = stage; this.reason = reason; this.status = status; }
+}
+
+export async function checkViewResponse(response, stage = 'data') {
+    if (response.ok) return;
+    if ([408, 425, 429, 502, 503, 504].includes(response.status)) throw new RetryableViewRead(stage, 'unavailable', response.status);
+    if (response.status === 409) {
+        let result;
+        try { result = await response.json(); } catch { /* A malformed reply is not a confirmed transient conflict. */ }
+        if (['stale_workspace', 'stale_system', 'busy'].includes(result?.error)) throw new RetryableViewRead(stage, result.error, 409);
+    }
+    throw new Error(response.status === 403 ? 'access' : 'transport');
+}
+
+/* Retry one complete GET snapshot, including its pages. Never wrap mutations. */
+export async function loadSystemView(read, {wait = ms => new Promise(resolve => setTimeout(resolve, ms)), ...options} = {}) {
+    for (let attempt = 0; ; attempt++) {
+        try { return await loadSystemDevices(await read(), options); }
+        catch (error) {
+            if (!(error instanceof RetryableViewRead)) throw error;
+            console.warn(attempt === 0 ? 'Z2MA_VIEW_READ_RETRY' : 'Z2MA_VIEW_READ_FAILED',
+                {stage: error.stage, reason: error.reason, status: error.status, attempt: attempt + 1});
+            if (attempt !== 0) throw error;
+            await wait(250);
+        }
+    }
+}
+
 export async function loadSystemDevices(data, {token, signal, base = location.href, request = fetch, onProgress = () => {}}) {
     while (data.devicePage?.hasMore) {
         const offset = data.devices.length;
@@ -36,11 +65,13 @@ export async function loadSystemDevices(data, {token, signal, base = location.hr
         try {
             const response = await request(endpoint, {headers: {'X-Z2MA-Read-Token': token, ...systemHeaders(data), 'X-Z2MA-Workspace-Fingerprint': data.workspace?.fingerprint ?? '', 'X-Z2MA-Offset': String(offset)},
                 signal: controller.signal, credentials: 'same-origin', cache: 'no-store', redirect: 'error'});
-            if (!response.ok) throw new Error('catalog');
+            await checkViewResponse(response, 'devices');
             page = localizeResponse(await response.json());
         } finally { clearTimeout(timeout); signal?.removeEventListener('abort', abort); }
-        if (page.workspaceContext?.systemId !== data.workspaceContext.systemId || page.workspaceContext.fingerprint !== data.workspaceContext.fingerprint
-            || page.devicePage?.offset !== offset || page.devicePage.total !== data.devicePage.total || !Array.isArray(page.devices) || !page.devices.length) throw new Error('catalog');
+        if (page.workspaceContext?.systemId !== data.workspaceContext.systemId || page.workspaceContext.generation !== data.workspaceContext.generation
+            || page.devicePage?.offset !== offset || !Array.isArray(page.devices) || !page.devices.length) throw new Error('catalog');
+        if (page.workspaceContext.fingerprint !== data.workspaceContext.fingerprint || page.devicePage.total !== data.devicePage.total)
+            throw new RetryableViewRead('devices', 'snapshot_changed');
         data.devices.push(...page.devices); data.devicePage = page.devicePage;
     }
     return data;

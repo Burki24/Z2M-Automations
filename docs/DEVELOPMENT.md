@@ -21,6 +21,16 @@ do not block storage or repeatedly stop an already stopped receiver. Missing or
 still armed restart confirmation must continue to block storage. Regression
 checks cover the new rule alongside the complete existing draft in browser/tile.
 
+Module view reads recover once, after 250 ms, from explicit transient HTTP
+availability errors or a stale workspace/system snapshot. Recovery restarts the
+complete GET read and all catalog pages; partially read old pages are discarded.
+Authorization failures, foreign bindings and malformed data remain errors.
+Persistent failures retain the previous displayed model and its read warning.
+Recovery never repeats transfer, runtime, installation or editor mutations.
+Structured console events contain only read stage, fixed reason, HTTP status
+and attempt. The browser/tile regression injects a one-shot read failure directly
+after successful storage and verifies recovery with exactly one store request.
+
 Device flow cards and inspector fields identify the owning Z2M network by system
 name and base topic. Local ownership follows the selected stable system ID;
 remote references use their declared base topic, including for missing devices.

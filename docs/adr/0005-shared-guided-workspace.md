@@ -42,6 +42,11 @@ preserving that preference; the guided transfer may then validate and store.
 An enabled preference alone does not indicate active restart intent. Missing or
 still armed confirmation after a stop prevents storage without replaying it.
 
+After a successful transfer, the shared reader may restart one failed complete
+GET snapshot on an explicit temporary availability or stale-snapshot response.
+Catalog pages from different snapshots are never combined. Access failures and
+foreign bindings remain terminal; mutations are outside this recovery path.
+
 The native Operation page can change a rule's local enabled flag through the
 existing authenticated edit endpoint. Checking and transmission remain explicit.
 Stored enabled counts require a matching confirmed document. A local checkbox
