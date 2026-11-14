@@ -17,11 +17,12 @@ const {Diagnostics} = require('../apps/desktop/.build/diagnostics.js');
 const {RuntimeControl} = require('../apps/desktop/.build/runtime-control.js');
 const {ExtensionTransfer} = require('../apps/desktop/.build/extension-transfer.js');
 
-async function setup(t, {delay = 0, systems = 1, enabled = true, stored = true, extensionClass = Extension, brightness = false} = {}) {
+async function setup(t, {delay = 0, systems = 1, enabled = true, stored = true, extensionClass = Extension, brightness = false, peers = []} = {}) {
   const base = 'synthetic/runtime';
   const directory = await mkdtemp(join(tmpdir(), 'z2ma-runtime-'));
   const fixture = remoteFixture();
   const configuration = {...fixture.editor.configuration, revision: 1};
+  configuration.mesh_peers = peers;
   configuration.automations[0].enabled = enabled;
   if (delay) configuration.automations[0].actions[0].delay_seconds = delay;
   const [sensor, light] = fixture.editor.devices.map(({id, name}) => ({ID: id, ieeeAddr: id, name, isDevice: () => true}));
@@ -32,7 +33,7 @@ async function setup(t, {delay = 0, systems = 1, enabled = true, stored = true, 
   let receive, state, send, suppress, rejected;
   const zigbee = {devicesIterator: () => [sensor, light].values(), groupsIterator: () => [].values(),
     resolveEntity: id => [sensor, light].find(device => device.ID === id)};
-  const extension = new extensionClass(zigbee, {publish: async (topic, bytes) => {
+  const extension = new extensionClass(zigbee, {isConnected: () => true, subscribe: async () => {}, unsubscribe: async () => {}, publish: async (topic, bytes) => {
     if (!topic.endsWith('/response/' + suppress)) send?.(JSON.parse(bytes), base + '/' + topic);
   }}, {get: () => ({})}, null, {
     onMQTTMessage: (_owner, handler) => { receive = handler; },
@@ -91,6 +92,38 @@ async function setup(t, {delay = 0, systems = 1, enabled = true, stored = true, 
     reject: operation => { rejected = operation; },
     suppress: operation => { suppress = operation; }};
 }
+
+test('activation confirmation identifies the saved released rules and cancellation sends no start', async t => {
+  const s = await setup(t);
+  let reviewed;
+  s.review.confirm = async (action, review) => { reviewed = {action, review}; return false; };
+  assert.equal(await s.command('activate', {resume: true}), 'transferCanceled');
+  assert.equal(reviewed.action, 'activate');
+  assert.deepEqual(reviewed.review.enabledRules, s.reader.current(s.id).configuration.automations.filter(rule => rule.enabled).map(rule => rule.name));
+  assert.equal(reviewed.review.enabledRules.length, reviewed.review.enabled);
+  assert.equal(s.extension.status().executing, false);
+  assert.equal(s.peer.publications.some(packet => packet.topic.endsWith('/request/activate')), false);
+});
+
+test('a saved partner receiver can activate without releasing a local automation', async t => {
+  const s = await setup(t, {enabled: false, peers: ['synthetic/partner']});
+  let reviewed;
+  s.review.confirm = async (_action, review) => { reviewed = review; return true; };
+  assert.equal(await s.command('activate', {resume: false}), 'runtimeConfirmed');
+  assert.equal(reviewed.enabled, 0);
+  assert.deepEqual(reviewed.enabledRules, []);
+  assert.equal(s.extension.status().executing, true);
+  assert.equal(s.extension.status().mesh_ready, true);
+  assert.equal(s.extension.status().enabled_count, 0);
+  assert.equal(s.effects.length, 0);
+});
+
+test('a network with neither released rules nor saved partner permissions cannot start', async t => {
+  const s = await setup(t, {enabled: false});
+  s.review.confirm = async () => assert.fail('No activation confirmation is offered without rules or receivers');
+  await assert.rejects(s.command('activate', {resume: false}), /runtimeNoEnabled/);
+  assert.equal(s.extension.status().executing, false);
+});
 
 test('one draft check automatically preserves enabled flags when only switches changed', async t => {
   const s = await setup(t, {enabled: false});

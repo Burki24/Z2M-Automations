@@ -8,6 +8,7 @@ import {installPermissions} from './permissions.js';
 import {installSystemSelection, loadSystemView, checkViewResponse, deviceSystemName} from './workspace.js';
 import {installTransfers} from './transfer.js';
 import {installRuntime} from './runtime.js';
+import {installOperationReadiness} from './operation-readiness.js';
 import {installCatalogRefresh} from './catalog.js';
 import {installManagement, matchesRuleState} from './management.js';
 import {installLayout} from './layout.js';
@@ -103,7 +104,9 @@ import {installNativeEmbedding} from './embedding.js';
     const updateTransfers = installTransfers({getData: () => data, reload: () => load(), isLoading: () => busy, message,
         onStatus: () => { paintStatus(); updateRuntime(); updateLayout(); }});
     const updateCatalog = installCatalogRefresh({getData: () => data, reload: () => load(), isLoading: () => busy, message});
-    const updateRuntime = installRuntime({getData: () => data, reload: () => load(), isLoading: () => busy, message, onStatus: () => renderRuntimeStatus()});
+    const updateRuntime = installRuntime({getData: () => data, reload: () => load(), isLoading: () => busy, message, onStatus: () => { renderRuntimeStatus(); updateReadiness(); }});
+    const updateReadiness = installOperationReadiness({getData: () => data, getEntry: () => category === 'catalog' ? null : current(),
+        chooseSystem: id => updateSystems.choose(id), showOperation: () => document.querySelector('#desktop-nav-operation')?.click(), isLoading: () => busy});
     function renderRuntimeStatus() {
         bindText($('#runtime-status'), () => data?.status?.confirmed ? t("ui.last.confirmed.active.revision.26a50546", {p1: data.status.executing ? t("ui.automatic.operation.active.5be9b590") : t("ui.automatic.operation.stopped.46b63e37"), p2: data.status.activeRevision ?? '—'}) : t("ui.operation.not.confirmed.yet.162d963a"));
         $('#runtime-status').classList.toggle('running', !!data?.status?.confirmed && !!data.status.executing);
@@ -240,7 +243,7 @@ import {installNativeEmbedding} from './embedding.js';
         bindHTML($('#inspector-fields'), () => html || `<p class="field-help">${t("ui.choose.an.entry.on.the.81b6eb13")}</p>`);
     }
 
-    function render() { embedding.update(data); renderNavigation(); renderFlow(); renderInspector(); editing?.refresh(); management?.refresh(category, stateFilter); eventImport?.refresh(); }
+    function render() { embedding.update(data); renderNavigation(); renderFlow(); renderInspector(); editing?.refresh(); management?.refresh(category, stateFilter); eventImport?.refresh(); updateReadiness(); }
     function selectEntry(key) { selected = key; selectedPart = null; render(); }
     function chooseArea(area) {
         category = area; selectedPart = null;
@@ -384,7 +387,7 @@ import {installNativeEmbedding} from './embedding.js';
             paintIssues();
             return false;
         } finally {
-            busy = false; $('#validate-button').disabled = false; updateTransfers(); updateRuntime(); updateCatalog(); updateDiagnostics(); updatePermissions(); management?.refresh(category, stateFilter); eventImport?.refresh(); updateLayout();
+            busy = false; $('#validate-button').disabled = false; updateTransfers(); updateRuntime(); updateCatalog(); updateDiagnostics(); updatePermissions(); management?.refresh(category, stateFilter); eventImport?.refresh(); updateLayout(); updateReadiness();
             if (projectReloadPending) { projectReloadPending = false; queueMicrotask(() => { void load(); }); }
         }
     }

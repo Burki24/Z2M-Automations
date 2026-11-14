@@ -366,7 +366,7 @@ export class MqttReader {
         runtime: (() => {
           const remote = this.remote.get(system.id);
           if (!remote?.fresh || !remote.status.execution) return null;
-          return {rules: remote.configuration.automations.map(rule => ({id: rule['id'], name: rule['name'], enabled: rule['enabled'] === true})),
+          return {peers: remote.configuration.mesh_peers, rules: remote.configuration.automations.map(rule => ({id: rule['id'], name: rule['name'], enabled: rule['enabled'] === true})),
             runs: remote.status.execution.runs, recovery: remote.status.recovery, resume: remote.status.resumeEnabled};
         })(),
         extensionVersion: this.remote.get(system.id)?.status.extensionVersion ?? '', build: this.remote.get(system.id)?.status.build ?? null,

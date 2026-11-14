@@ -284,8 +284,10 @@ export function installNetwork(bridge, workspace, settleEditor) {
     setOptions(rules, sortByName(viewRuntime?.rules ?? []).map(rule => [rule.id, rule.name + ' · ' + t(rule.enabled ? 'mqtt.ruleEnabled' : 'mqtt.ruleDisabled')]), t('mqtt.chooseRule'));
     const running = viewRuntime?.runs.find(run => run.rule === rules.value && run.state === 'running');
     resume.disabled = pending || !runtimeReady || system.executing;
-    activate.disabled = pending || !runtimeReady || system.executing || !viewRuntime.rules.some(rule => rule.enabled)
+    activate.disabled = pending || !runtimeReady || system.executing || !viewRuntime.rules.some(rule => rule.enabled) && !viewRuntime.peers?.length
       || system.transferPending || system.updatePending;
+    bindText(activate, () => t(viewRuntime && !viewRuntime.rules.some(rule => rule.enabled) && viewRuntime.peers?.length ? 'operation.receiver.activate' : 'mqtt.activate'));
+    activate.classList.toggle('primary', runtimeReady && !system.executing && !activate.disabled);
     deactivate.disabled = pending || !connected;
     rules.disabled = pending || !runtimeReady;
     runOnce.disabled = pending || !runtimeReady || !rules.value || Boolean(running) || system.transferPending || system.updatePending;

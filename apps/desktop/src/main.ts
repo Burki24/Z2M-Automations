@@ -73,7 +73,11 @@ function snapshot(): unknown {
       storedRevision: remote?.status.revision ?? system?.stored?.revision ?? null,
       executing: remote?.fresh ? remote.status.executing : false, activeRevision: remote?.fresh && remote.status.executing ? remote.status.revision : null},
     catalogAvailable: Boolean(remote), configuration: configuration ?? {schema_version: 1, revision: 1, automations: [], sequences: [], mesh_peers: []},
-    workspace: {fingerprint: project.id, systems: project.systems.map(system => ({name: system.name, binding: {systemId: system.id, generation: 1, baseTopic: system.baseTopic}}))},
+    operationConfiguration: remote?.fresh ? remote.configuration : null,
+    workspace: {fingerprint: project.id, systems: project.systems.map(system => ({name: system.name,
+      runtimeConfirmed: reader.connected(system.brokerId) && reader.current(system.id)?.fresh === true,
+      executing: reader.connected(system.brokerId) && reader.current(system.id)?.fresh ? reader.current(system.id)!.status.executing : null,
+      binding: {systemId: system.id, generation: 1, baseTopic: system.baseTopic}}))},
     partnerPermissions: partnerOverview(project, reader),
     workspaceContext: {systemId: system?.id ?? '', generation: projects.generation() + 1, fingerprint: project.id},
     ...(system ? drafts.view(system) : {})};
@@ -280,7 +284,8 @@ async function open(): Promise<void> {
   runtime = new RuntimeControl(projects, reader, async (action, review) => {
     if (!window || smoke) return false;
     const detail = message('runtimeTarget').replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? ''))
-      + (action === 'activate' ? '\n' + message(review.recovery ? 'runtimeRecoveryOn' : 'runtimeRecoveryOff').replace('{{enabled}}', String(review.enabled)) : '');
+      + (action === 'activate' ? '\n' + message(review.recovery ? 'runtimeRecoveryOn' : 'runtimeRecoveryOff').replace('{{enabled}}', String(review.enabled))
+        + '\n' + (review.enabled ? message('runtimeEnabledRules') + '\n' + review.enabledRules.map(name => '• ' + name).join('\n') : message('runtimeReceiverOnly')) : '');
     return reviewDialog('runtime_' + action, detail);
   });
   exchange = new DraftExchange(projects, drafts, {

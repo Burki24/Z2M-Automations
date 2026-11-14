@@ -1,7 +1,7 @@
 import {t, bindText} from './localization.js';
 
 /* Cancellation is the default for Escape, window close and explicit dismissal. */
-export function confirmAction({title, detail}) {
+export function confirmAction({title, detail, items = []}) {
     if (document.querySelector('dialog[open]')) return Promise.resolve(false);
     const dialog = document.createElement('dialog'); dialog.className = 'management-dialog guided-confirmation';
     const heading = document.createElement('h2'); heading.id = 'guided-confirmation-title';
@@ -11,6 +11,11 @@ export function confirmAction({title, detail}) {
     const cancel = document.createElement('button'); cancel.type = 'button'; bindText(cancel, () => t('ui.cancel.f7ff1178'));
     const accept = document.createElement('button'); accept.type = 'button'; accept.className = 'primary'; bindText(accept, () => t('ui.confirm.15b63b4d'));
     actions.append(cancel, accept); dialog.append(heading, description, actions); document.body.append(dialog);
+    if (items.length) {
+        const list = document.createElement('ul'); list.className = 'operation-confirm-rules'; list.tabIndex = 0;
+        for (const name of items) { const item = document.createElement('li'); item.textContent = name; list.append(item); }
+        actions.before(list);
+    }
     return new Promise(resolve => {
         let accepted = false;
         cancel.addEventListener('click', () => dialog.close());

@@ -54,6 +54,15 @@ does not establish an effective permission in Z2M.
 
 ## Verification
 
+The shared readiness panel projects confirmed receiver operation from each
+adapter's system overview. It resolves remote condition/action/sequence references
+by unique base topic and navigates by stable system ID to the existing Operation
+page. Preparation explains permissions, destination activation and source
+activation. Each start retains its existing explicit confirmation and native
+authority; no group start, command replay or automatic upload is introduced.
+Confirmations identify the saved released rules, including a separate explanation
+for partner-only reception with no local rules enabled.
+
 Use synthetic PHP kernel/MQTT peers and headless browser/tile fixtures. Verify
 assignment rights and session scope changes, exact local edits, field correction,
 cancellation, stop/check/store ordering, missing acknowledgements, DE/EN input

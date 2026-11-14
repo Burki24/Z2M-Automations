@@ -67,6 +67,19 @@ svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width:
 .runtime-chip { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--muted); }
 .runtime-chip i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
 .runtime-chip.running { color: var(--success); }
+.operation-readiness { margin: 16px; padding: 16px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); }
+.operation-readiness h3, .operation-preparation h2 { margin: 0 0 8px; }
+.operation-readiness > p, .operation-start-steps { color: var(--muted); font-size: .9375rem; }
+.operation-start-steps { padding-inline-start: 22px; line-height: 1.6; }
+.operation-networks { list-style: none; padding: 0; margin: 12px 0 0; max-height: 18rem; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; }
+.operation-networks li { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--line-strong); border-inline-start-width: 4px; border-radius: 8px; padding: 12px; margin-block-end: 8px; overflow-wrap: anywhere; }
+.operation-networks li > div { flex: 1 1 250px; min-width: 0; }
+.operation-networks p { margin: 5px 0 0; }
+.operation-networks [data-state="stopped"] { color: var(--danger); background: var(--danger-soft); }
+.operation-networks [data-state="unknown"] { color: var(--warning); background: var(--warning-soft); }
+.operation-networks [data-state="active"] { color: var(--success); background: var(--success-soft); }
+.operation-networks button { white-space: normal; max-width: 100%; }
+.operation-confirm-rules { max-height: 35vh; overflow: auto; overflow-wrap: anywhere; }
 .runtime-chip.running i { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
 #feedback { color: var(--muted); flex: 1; }
 #feedback[data-tone="error"] { color: var(--danger); }

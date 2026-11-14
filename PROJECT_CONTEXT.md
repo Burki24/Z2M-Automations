@@ -1,9 +1,24 @@
 # Project context: Z2M-Automations
 
-As of 2026-11-13. Repository Burki24/Z2M-Automations; working branch dev,
+As of 2026-11-14. Repository Burki24/Z2M-Automations; working branch dev,
 primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 ## Current state
+
+The shared designer now explains required receiver operation for cross-system
+conditions and actions, including sequences. Confirmed stopped, unknown and
+active destinations have separate text/color states and direct Operation-page
+navigation with a return path. Start preparation and saved rule-name previews
+make activation explicit. Desktop receivers with saved partner permissions may
+activate without enabling local rules. No automatic multi-system control or
+runtime/schema changes were introduced. See [D6](docs/D6.md).
+
+Local verification passes 210 tests, with two native Linux APT checks skipped
+on Windows, plus the complete capture-free extension-update UI suite including
+receiver navigation, desktop palette states and partner-only start controls.
+The pinned Symcon adaptation passes its full offline suite (268 JavaScript
+tests), capture-free browser/tile acceptance and structure/style checks.
+New platform CI and practical acceptance after updating remain separate.
 
 The owner completed the three workflow acceptance cases with app 0.99.0.
 The accepted numbered workspace is now shared with the Symcon browser designer

@@ -61,6 +61,13 @@ back to itself and no duplicate Symcon warning.
 
 ## Setup and checks
 
+Receiver-readiness regressions cover remote conditions, actions and sequence
+references, distinct stopped/unknown/active states and stable system navigation.
+Runtime integration tests verify saved rule-name previews, cancellation and
+explicit partner-only activation without releasing local rules. The complete
+Symcon browser/tile fixture verifies the real navigation, activation confirmation,
+return path and language changes without capture or live systems.
+
 Desktop CI on `dev` versions first through a reusable prerequisite, then checks
 out that exact metadata commit in both platform jobs. The build-ref helper
 verifies HEAD and version before tools or packaging run. Pull requests and `main`

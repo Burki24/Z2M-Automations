@@ -45,7 +45,7 @@ if (!process.versions.electron) {
     };
     await step('app-ready', () => app.whenReady());
     const assets = join(root, 'apps/desktop/.build/renderer');
-    const names = new Set(['network.js', 'operation-flags.js', 'draft-review.js', 'validation-feedback.js', 'drafts.js', 'desktop-workspace.js', 'guided-workspace.js', 'symcon-workspace.js', 'draft-sync.js', 'guided-workspace.css', 'layout.js', 'confirmation.js', 'runtime.js', 'workspace.js', 'identity.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
+    const names = new Set(['network.js', 'operation-flags.js', 'operation-readiness.js', 'draft-review.js', 'validation-feedback.js', 'drafts.js', 'desktop-workspace.js', 'guided-workspace.js', 'symcon-workspace.js', 'draft-sync.js', 'guided-workspace.css', 'layout.js', 'confirmation.js', 'runtime.js', 'workspace.js', 'identity.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
     protocol.handle('z2ma', async request => {
       if (request.url === 'z2ma://app/index.html') return new Response('<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="designer.css"><link rel="stylesheet" href="desktop-palette.css"><link rel="stylesheet" href="desktop.css"><body class="desktop-foundation"></body>', {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
       if (request.url === 'z2ma://app/workspace.html') return new Response((await readFile(join(assets, 'index.html'), 'utf8')).replace('<script type="module" src="desktop.js"></script>', ''), {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
@@ -122,6 +122,7 @@ if (!process.versions.electron) {
       await window.webContents.executeJavaScript("document.documentElement.style.fontSize = '';");
       await resize(1000, 800);
     });
+    await evaluate('receiver-readiness', '(' + receiverReadinessTest + ')()');
     await load('draft-summaries', 'z2ma://app/index.html');
     await evaluate('draft-summaries', '(' + workspaceSummaryTest + ')()');
     await load('network-controls', 'z2ma://app/index.html');
@@ -249,6 +250,45 @@ async function prepareWorkspaceLayout() {
   workspace.mountDesigner();
   workspace.updateProject({active: true, project: {name: 'Synthetic project', brokers: [{}], systems: [{}]}}, true);
   workspace.update({desktop: {project: true, source: 'draft', draftRevision: 13}, workspaceContext: {systemId: 'synthetic'}, status: {mqttConnected: true}});
+}
+
+async function receiverReadinessTest() {
+  const {installOperationReadiness} = await import('./operation-readiness.js');
+  const {setLanguage} = await import('./localization.js');
+  const assert = (value, message) => { if (!value) throw new Error(message); };
+  const source = {name: 'Synthetic source', binding: {systemId: 'source', baseTopic: 'synthetic/source'}, runtimeConfirmed: true, executing: true};
+  const target = {name: 'Synthetic receiver', binding: {systemId: 'target', baseTopic: 'synthetic/target'}, runtimeConfirmed: true, executing: false};
+  const entry = {id: 'saved', name: 'Saved remote rule', enabled: true, actions: [{type: 'set', target: {system: 'synthetic/target'}}]};
+  const saved = {automations: [entry], sequences: [], mesh_peers: ['synthetic/target']};
+  let data = {desktop: {project: true}, workspaceContext: {systemId: 'source'}, module: {baseTopic: 'synthetic/source'},
+    workspace: {systems: [source, target]}, configuration: {automations: [], sequences: []}, operationConfiguration: saved};
+  const choices = [];
+  const update = installOperationReadiness({getData: () => data, getEntry: () => entry,
+    chooseSystem: async id => { choices.push(id); data = {...data, workspaceContext: {systemId: id}, module: {baseTopic: id === 'source' ? source.binding.baseTopic : target.binding.baseTopic},
+      operationConfiguration: id === 'source' ? saved : {automations: [], sequences: [], mesh_peers: ['synthetic/source']}}; return true; },
+    showOperation: () => document.querySelector('#desktop-nav-operation').click()});
+  update();
+  for (const lang of ['de', 'en']) {
+    setLanguage(lang, {persist: false, report: false}); update();
+    const row = document.querySelector('.operation-readiness li');
+    assert(row.dataset.state === 'stopped' && row.textContent.includes('Synthetic receiver'), 'Desktop identifies the stopped receiver');
+    assert(document.querySelector('.operation-preparation li[data-state="stopped"]'), 'Desktop operation uses saved rules even when the local draft has no remote rules');
+    for (const [index, theme] of ['light', 'dark'].entries()) {
+      document.documentElement.style.colorScheme = theme;
+      assert(getComputedStyle(row).color === ['rgb(159, 40, 63)', 'rgb(240, 166, 177)'][index], 'Stopped receiver uses the desktop error palette');
+    }
+  }
+  document.querySelector('button[data-operation-system="target"]').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert(choices.join(',') === 'target' && !document.querySelector('#desktop-view-operation').hidden, 'Direct receiver navigation opens Operation');
+  assert(document.querySelector('.operation-preparation').textContent.includes('Activate partner reception'), 'Receiver-only preparation explains that local rules need not be released');
+  document.querySelector('button[data-operation-return="source"]').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert(choices.join(',') === 'target,source', 'Return navigation uses the original stable system identity');
+  target.runtimeConfirmed = false; update();
+  assert(document.querySelector('.operation-readiness li').dataset.state === 'unknown', 'An unconfirmed desktop receiver remains unknown');
+  target.runtimeConfirmed = target.executing = true; update();
+  assert(document.querySelector('.operation-readiness li').dataset.state === 'active', 'Confirmed desktop readback clears the stopped warning');
 }
 
 async function workspaceSummaryTest() {
@@ -440,6 +480,12 @@ async function rendererTest() {
   assert(document.querySelector('#mqtt-rule-count').textContent.includes('0 of 2')
     && document.querySelector('#mqtt-operation-reason').textContent.includes('No automation is enabled')
     && document.querySelector('#mqtt-activate').disabled, 'Explain the zero-enabled start block beside the operation controls');
+  state.systems[0].runtime.peers = ['synthetic/partner']; state.sequence++; update(view);
+  await wait(() => !document.querySelector('#mqtt-activate').disabled);
+  assert(document.querySelector('#mqtt-activate').textContent === 'Activate partner reception'
+    && document.querySelector('#mqtt-operation-reason').textContent.includes('No local automations'), 'Saved partner grants offer an explicit receiver-only start without releasing local rules');
+  state.systems[0].runtime.peers = []; state.sequence++; update(view);
+  await wait(() => document.querySelector('#mqtt-activate').disabled);
   await grantStatus('Rule permissions: Confirmed', 'success');
   assert([...ruleList.querySelectorAll('strong')].map(node => node.textContent).join('|') === 'Alpha|Zulu', 'Operation rules must be alphabetical');
   choose('rule_b', true);
