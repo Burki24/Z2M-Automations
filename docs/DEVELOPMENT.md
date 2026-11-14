@@ -21,6 +21,13 @@ The capture-free browser/tile fixture checks both languages, system switches and
 identical device IDs across networks. Unknown or ambiguous topics retain their
 literal identity instead of borrowing another system's display name.
 
+The shared editor enables network choices from the adapter's `deviceSystems`
+metadata in both products. Device triggers remain local. Symcon preserves directed
+action grants; remote conditions additionally require the reply-direction grant.
+Its optional `conditionReason` distinguishes that restriction from action access.
+Missing partner catalogs remain selectable with guidance, without borrowing local
+devices or starting an implicit catalog read.
+
 Symcon's missing/unconfirmed catalogue guidance appears above the work area,
 with its primary navigation action directly below the warning text. Its bounded
 message area leaves the action reachable in narrow tiles. Opening step 4 or

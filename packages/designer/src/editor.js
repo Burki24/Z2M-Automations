@@ -157,15 +157,16 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
     }
     function devicePicker(parent, side, current, set, sourceKind = '', system = '') {
         const box = node('div', undefined, 'edit-device-picker'); parent.append(box);
-        const systemChoice = desktop && side !== 'source';
+        const systemChoice = side !== 'source' && Array.isArray(getData().deviceSystems);
         if (systemChoice) {
             const systems = sortByName(getData().deviceSystems ?? []);
             const systemPicker = field(box, () => t('editor.deviceSystem'), system, topic => { set(undefined, topic); renderFields(); }, {field: 'system', required: false,
                 choices: () => systems.map(owner => [owner.key, t('editor.deviceSystemOption', {system: owner.name, topic: owner.baseTopic, broker: owner.broker})])});
             systemPicker.parentElement.classList.add('edit-device-system');
             const owner = systems.find(owner => owner.key === system);
-            const help = node('p', () => owner?.reason === 'permissions' ? t('editor.deviceSystem.permissions')
-                : owner?.reason === 'catalog' ? t('editor.deviceSystem.catalog') : owner?.reason === 'ambiguous' ? t('editor.deviceSystem.ambiguous')
+            const reason = side === 'condition' ? owner?.conditionReason ?? owner?.reason : owner?.reason;
+            const help = node('p', () => reason === 'permissions' ? t('editor.deviceSystem.permissions')
+                : reason === 'catalog' ? t('editor.deviceSystem.catalog') : reason === 'ambiguous' ? t('editor.deviceSystem.ambiguous')
                     : system ? t('editor.deviceSystem.remote') : t('editor.deviceSystem.local'), 'field-help');
             help.classList.add('edit-device-system-help'); box.append(help);
         }
@@ -186,7 +187,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
         refreshOptions();
     }
     function sourceFields(parent, item, sourceKind = '') {
-        const condition = desktop && item.type === 'device_value';
+        const condition = item.type === 'device_value';
         const device = targetDevice(getData(), {type: 'device', id: item.device, ...(item.system ? {system: item.system} : {})});
         devicePicker(parent, condition ? 'condition' : 'source', device, (selected, system = '') => {
             item.device = selected?.target.id ?? ''; item.property = ''; delete item.value;
