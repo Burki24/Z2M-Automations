@@ -5,7 +5,7 @@ import {installEditing} from './editor.js';
 import {installEventImport} from './imports.js';
 import {installDiagnostics} from './diagnostics.js';
 import {installPermissions} from './permissions.js';
-import {installSystemSelection, loadSystemDevices} from './workspace.js';
+import {installSystemSelection, loadSystemDevices, deviceSystemName} from './workspace.js';
 import {installTransfers} from './transfer.js';
 import {installRuntime} from './runtime.js';
 import {installCatalogRefresh} from './catalog.js';
@@ -153,9 +153,11 @@ import {installNativeEmbedding} from './embedding.js';
 
     function card(kind, index, title, summary, tag = '') {
         const key = `${kind}:${index}`;
-        const type = current()?.[kind]?.[index]?.type;
+        const item = current()?.[kind]?.[index];
+        const type = item?.type;
+        const network = item?.device || item?.target ? t('reader.deviceNetwork', {name: deviceSystemName(data, item.target?.system ?? item.system)}) : '';
         const symbol = kind === 'conditions' ? 'condition' : kind === 'actions' ? (type === 'sequence' ? 'flow' : type === 'scene' ? 'bolt' : 'lamp') : type === 'time' || type === 'sun' ? 'clock' : 'device';
-        return `<button class="flow-card read-card ${selectedPart === key ? 'selected' : ''}" data-part="${key}" aria-pressed="${selectedPart === key}"><span class="card-mark">${icon(symbol)}</span><span class="card-content"><strong>${esc(title)}</strong><span class="read-summary">${esc(summary)}</span>${tag ? `<span class="card-tag">${icon('clock')}${esc(tag)}</span>` : ''}</span><span class="card-number">${index + 1}</span></button>`;
+        return `<button class="flow-card read-card ${selectedPart === key ? 'selected' : ''}" data-part="${key}" aria-pressed="${selectedPart === key}"><span class="card-mark">${icon(symbol)}</span><span class="card-content"><span class="card-heading"><strong>${esc(title)}</strong>${network ? `<span class="card-network">${esc(network)}</span>` : ''}</span><span class="read-summary">${esc(summary)}</span>${tag ? `<span class="card-tag">${icon('clock')}${esc(tag)}</span>` : ''}</span><span class="card-number">${index + 1}</span></button>`;
     }
 
     function section(title, type, content) {
@@ -198,7 +200,7 @@ import {installNativeEmbedding} from './embedding.js';
         if (entry && category === 'catalog') {
             const property = selectedPart?.startsWith('properties:') ? entry.properties[Number(selectedPart.split(':')[1])] : null;
             title = property?.label ?? t("ui.device.group.fe09aa58");
-            html = field(t("ui.name.dcd1d522"), entry.name) + field(t("ui.z2m.system.7a27be0b"), entry.target.system ?? data.module.baseTopic) + field(t("ui.identifier.f1f479e2"), entry.target.id);
+            html = field(t("ui.name.dcd1d522"), entry.name) + field(t("ui.z2m.system.7a27be0b"), deviceSystemName(data, entry.target.system)) + field(t("ui.identifier.f1f479e2"), entry.target.id);
             if (property) {
                 html += field(t("ui.property.channel.b524f965"), property.id) + field(t("ui.readable.738bdf22"), property.readable ? t("ui.yes.cde9e58a") : t("ui.no.90ebc1bd")) + field(t("ui.controllable.in.symcon.edc60e84"), property.writable ? t("ui.yes.cde9e58a") : t("ui.no.90ebc1bd"));
                 if (property.unit) html += field(t("ui.unit.d5ba1549"), property.unit);
@@ -215,8 +217,8 @@ import {installNativeEmbedding} from './embedding.js';
             if (item) {
                 html += field(t("ui.description.e9262f00"), kind === 'triggers' ? triggerSummary(item) : kind === 'conditions' ? conditionSummary(item) : actionSummary(item));
                 if (item.device) html += field(t("ui.device.b32db786"), sourceName(item.device, item.system));
-                if (item.system) html += field(t("ui.z2m.system.7a27be0b"), item.system);
-                if (item.target) html += field(t("ui.target.f487ce39"), targetName(item.target)) + field(t("ui.z2m.system.7a27be0b"), item.target.system ?? data.module.baseTopic);
+                if (item.device) html += field(t("ui.z2m.system.7a27be0b"), deviceSystemName(data, item.system));
+                if (item.target) html += field(t("ui.target.f487ce39"), targetName(item.target)) + field(t("ui.z2m.system.7a27be0b"), deviceSystemName(data, item.target.system));
                 if (item.property) html += field(t("ui.property.channel.b524f965"), propertyName(item.target ? targetDevice(item.target) : sourceDevice(item.device, item.system), item.property));
                 if (Object.hasOwn(item, 'value')) html += field(t("ui.comparison.value.b6e7150f"), displayValue(sourceDevice(item.device, item.system), item.property, item.value));
                 if (item.values) for (const [key, value] of Object.entries(item.values)) html += field(propertyName(targetDevice(item.target), key), displayValue(targetDevice(item.target), key, value));

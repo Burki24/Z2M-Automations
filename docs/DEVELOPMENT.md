@@ -14,6 +14,13 @@ local rule switches, cancellation and explicit scoped stop/check/store in both
 browser and tile. It contacts only its own loopback fixture. Keep native installed
 acceptance and platform CI evidence separate from these local checks.
 
+Device flow cards and inspector fields identify the owning Z2M network by system
+name and base topic. Local ownership follows the selected stable system ID;
+remote references use their declared base topic, including for missing devices.
+The capture-free browser/tile fixture checks both languages, system switches and
+identical device IDs across networks. Unknown or ambiguous topics retain their
+literal identity instead of borrowing another system's display name.
+
 Symcon's missing/unconfirmed catalogue guidance appears above the work area,
 with its primary navigation action directly below the warning text. Its bounded
 message area leaves the action reachable in narrow tiles. Opening step 4 or

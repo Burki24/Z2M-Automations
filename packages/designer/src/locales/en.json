@@ -4,6 +4,7 @@
     "duration.seconds.other": "{{count}} seconds",
     "import.onlyImportable": "Importable events only",
     "language.caption": "Language",
+    "reader.deviceNetwork": "Z2M network: {{name}}",
     "rule.summary.one": "{{state}} in draft · {{count}} action step",
     "rule.summary.other": "{{state}} in draft · {{count}} action steps",
     "server.0024a1580b07ed00": "The pending action was cancelled because execution was stopped.",

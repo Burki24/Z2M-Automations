@@ -4,6 +4,7 @@
     "duration.seconds.other": "{{count}} Sekunden",
     "import.onlyImportable": "Nur importierbare Ereignisse",
     "language.caption": "Sprache",
+    "reader.deviceNetwork": "Z2M-Netzwerk: {{name}}",
     "rule.summary.one": "Im Entwurf {{state}} · {{count}} Aktionsschritt",
     "rule.summary.other": "Im Entwurf {{state}} · {{count}} Aktionsschritte",
     "server.0024a1580b07ed00": "Die ausstehende Aktion wurde durch den Stopp abgebrochen.",

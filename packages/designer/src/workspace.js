@@ -7,6 +7,16 @@ export function selectedSystemName(data) {
         || data?.module?.baseTopic || data?.module?.name || '';
 }
 
+export function deviceSystemName(data, baseTopic = '') {
+    const id = data?.workspaceContext?.systemId;
+    const systems = data?.workspace?.systems ?? [];
+    const local = id ? systems.find(system => (system.systemId ?? system.binding?.systemId) === id) : undefined;
+    const topic = baseTopic || local?.binding?.baseTopic || data?.module?.baseTopic || '';
+    const matches = baseTopic ? systems.filter(system => system.binding?.baseTopic === baseTopic) : [];
+    const name = baseTopic ? (matches.length === 1 ? matches[0].name : '') : data?.desktop?.systemName || local?.name || '';
+    return name && topic && name !== topic ? `${name} · ${topic}` : name || topic || t('ui.unknown.a418e69e');
+}
+
 /* Explicit system identity accompanies every local draft write. */
 export function systemHeaders(data) {
     const context = data?.workspaceContext;

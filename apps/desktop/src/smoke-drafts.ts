@@ -459,9 +459,15 @@ async function verifyDrafts(view: WebContents, exportPath: string): Promise<void
       && saved.actions[0].type === 'set' && saved.actions[0].values.state === 'TOGGLE',
       'draft must retain stable device and system identities');
     await wait(() => document.querySelector('#entry-title').textContent === saved.name, 'select-cross-system-draft');
+    const networkLabel = part => document.querySelector('.flow-card[data-part="' + part + '"] .card-network')?.textContent;
+    const deviceParts = [['triggers:0', local], ['conditions:0', other], ['conditions:1', other], ['actions:0', other]];
+    const ownsNetworks = prefix => deviceParts.every(([part, owner]) => networkLabel(part) === prefix + ': ' + owner.name
+      + (owner.name === owner.baseTopic ? '' : ' · ' + owner.baseTopic));
+    assert(ownsNetworks('Z2M-Netzwerk'), 'flow cards must identify each local or remote device network');
     document.querySelector('#edit-automation-button').click();
     await wait(() => document.querySelector('#edit-dialog').open, 'reopen-cross-system-draft');
     set(document.querySelector('#designer-language'), 'en');
+    assert(ownsNetworks('Z2M network'), 'network labels must follow the language without changing device ownership');
     assert(field('conditions', 'system').value === other.baseTopic && field('conditions', 'device').value === other.id + ':0x0000000000000001'
       && field('conditions', 'type', 1).value === 'measurement' && field('conditions', 'system', 1).value === other.baseTopic
       && field('actions', 'system').value === other.baseTopic && field('actions', 'target').value === other.id + ':0x0000000000000002'
@@ -476,6 +482,6 @@ async function verifyDrafts(view: WebContents, exportPath: string): Promise<void
     }
     await refreshView('restore-after-cross-system-device-check');
   })()`);
-  console.log('DESKTOP_CROSS_SYSTEM_OK condition/action/system-picker/ownership/alphabetical/reopen/language');
+  console.log('DESKTOP_CROSS_SYSTEM_OK condition/action/system-picker/ownership/network-labels/alphabetical/reopen/language');
   console.log('DESKTOP_DRAFTS_OK local/editor/status/measurement/sunrise/sunset/reload/language/sequence/yaml-export/scoped-review/correction/separate-transfer');
 }
