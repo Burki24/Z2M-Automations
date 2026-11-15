@@ -59,6 +59,7 @@ function properties(device: Record<string, unknown>): CatalogProperty[] {
         || !Array.isArray(raw['values']) || raw['values'].length > 32 || !raw['values'].every(scalar)) continue;
       if (result.some(item => item.id === raw['property'])) throw new Error('protocol');
       const value: CatalogProperty = {id: raw['property'], label: displayText(raw['label'], 80) && raw['label'] ? raw['label'] : raw['property'], type: String(raw['type']), access: Number(raw['access']), values: raw['values']};
+      if (displayText(raw['unit'], 24)) value.unit = raw['unit'];
       if (text(raw['endpoint'], 32) && /^[A-Za-z0-9_-]+$/.test(raw['endpoint'])) value.endpoint = raw['endpoint'];
       for (const bound of ['minimum', 'maximum', 'step'] as const) if (typeof raw[bound] === 'number' && Number.isFinite(raw[bound]) && (bound !== 'step' || raw[bound] > 0)) value[bound] = raw[bound];
       result.push(value);

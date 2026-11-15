@@ -29,7 +29,7 @@ async function setup(t, options = {}) {
     reply({operation, request, response, publish}) {
       if (operation === 'install') {
         assert.equal(request.name, 'z2m-automations.mjs');
-        assert.equal(hash(request.code), '56878a00be9671c8f470f3f3c8ad3be014d8f9a08a4ad807e4f0ec42f548867f');
+        assert.equal(hash(request.code), '57f3f32b26772dfaa3ea637110e6ab52e48b67e6073375aa0179711cb3e0b0bd');
         installed = true;
         Object.assign(fixture.status, {session: randomUUID(), extension_build: bundledExtension.build, extension_version: bundledExtension.version});
         if (options.absent) {

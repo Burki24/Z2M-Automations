@@ -216,7 +216,8 @@ export class MqttReader {
         const details = pending.operation === 'validate' && value['status'] === 'error' && record(error)
           && typeof error['code'] === 'string' && ['invalid_schema', 'invalid_semantics', 'invalid_yaml', 'scene_unavailable'].includes(error['code'])
           ? readDraftDetails(error['details']) : null;
-        pending.reject(details ? new DraftValidationError('remoteError', details) : new Error('remoteError'));
+        pending.reject(details ? new DraftValidationError('remoteError', details)
+          : new Error(pending.operation === 'read' && record(error) && error['code'] === 'catalog_limit' ? 'catalogLimit' : 'remoteError'));
       }
     });
     client.connect();
@@ -323,7 +324,7 @@ export class MqttReader {
         }
         this.remote.set(id, {...remote, fresh: true}); this.debug.record('mqttReadComplete', id);
       } catch (error) {
-        const code = error instanceof Error && ['timeout', 'protocol', 'stale', 'disconnected', 'remoteError'].includes(error.message) ? error.message : 'readError';
+        const code = error instanceof Error && ['timeout', 'protocol', 'stale', 'disconnected', 'remoteError', 'catalogLimit'].includes(error.message) ? error.message : 'readError';
         if (connection.reads.get(id) === task && generation === connection.generation && this.connections.get(system.brokerId) === connection && this.epoch === epoch) this.errors.set(id, code);
         this.debug.record('mqttFailure', id, undefined, {operation: 'read', reason: code}); throw new Error(code);
       } finally { if (connection.reads.get(id) === task) connection.reads.delete(id); this.sequence++; }

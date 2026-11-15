@@ -1,4 +1,9 @@
 {
+    "server.ca3d929fda0eb08c": "Der Gerätekatalog ist zu groß, um ihn vollständig zu laden. Es wurde kein unvollständiger Katalog übernommen.",
+    "desktop.connection.catalogLimit": "Der Gerätekatalog ist zu groß, um ihn vollständig zu laden. Es wurde kein unvollständiger Katalog übernommen.",
+    "project.catalogLimit": "Der Gerätekatalog ist zu groß, um ihn vollständig zu laden. Es wurde kein unvollständiger Katalog übernommen.",
+    "editor.measurementDevicesHelp": "Hier stehen Geräte mit Zahlenwerten. Auch Taster können z. B. einen Batteriestand und Radarsensoren eine Helligkeit liefern. Wähle darunter die gewünschte Eigenschaft / den Kanal.",
+    "editor.statusDevicesHelp": "Hier stehen Geräte mit Zuständen oder Ereignissen, z. B. Fenstergriffstellung, Anwesenheit oder Tastendruck. Für Temperatur, Feuchtigkeit oder andere Zahlenwerte wähle „Messwert“.",
     "project.transferResumePrevious": "Bisherigen Betrieb anschließend wieder aufnehmen",
     "project.transferResumeHelp": "Nur nach bestätigter Speicherung und erfolgreicher Rückprüfung. Die Freigaben im geprüften Entwurf gelten; neue Automationen erhalten dadurch keine Freigabe. Die bisherige Wiederanlaufeinstellung bleibt erhalten.",
     "project.transferResumeUnavailable": "Ein bereits gestoppter oder nicht bestätigter Betrieb wird durch diese Übertragung nicht gestartet.",

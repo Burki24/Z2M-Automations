@@ -73,6 +73,23 @@ back to itself and no duplicate Symcon warning.
 
 ## Setup and checks
 
+Catalog regressions fill the legacy choice budget before a synthetic window
+handle and sensor. Typed channels and numeric units must survive without expanding
+the legacy lists or changing read/write rights. Extension catalog construction
+has a separate 512 KiB byte budget and rejects an oversized complete result.
+The desktop parser accepts typed units when legacy numeric lists are exhausted
+and reports `catalog_limit` without accepting a partial inventory. Shared
+browser/tile checks select handle positions and mixed-device numeric channels
+in DE/EN without creating rules or sending MQTT commands.
+
+The bundled correction is Extension `0.2.4`, build `3f8a06859635`, pinned to
+canonical commit `2db85997a2a317bee6c59e96d78c050b8c579095`. Final local verification
+passes 219 desktop tests, with two native Linux APT cases skipped on Windows,
+and the complete capture-free UI suite. The first concurrent UI run exceeded its
+30-second process deadline after its DOM checks finished; the final isolated
+`verify:local` passed with the pinned artifact in 15.3 seconds for the UI part.
+Do not increase that deadline or use partial UI checks for sign-off.
+
 Receiver-readiness regressions cover remote conditions, actions and sequence
 references, distinct stopped/unknown/active states and stable system navigation.
 Runtime integration tests verify saved rule-name previews, cancellation and

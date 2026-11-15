@@ -1,4 +1,8 @@
 {
+    "server.ca3d929fda0eb08c": [
+        "Der Gerätekatalog ist zu groß, um ihn vollständig zu laden. Es wurde kein unvollständiger Katalog übernommen.",
+        "The device catalog is too large to load completely. No incomplete catalog was accepted."
+    ],
     "server.d4b5697b5d987abe": [
         "Nicht importierbar: %s „%s“ gehört zu einem anderen Z2M-System. Als Ziel ist nur dieses System oder ein dafür freigegebenes Partnersystem erlaubt.",
         "%s \"%s\": The device does not belong to the selected Z2M system or an allowed target system."

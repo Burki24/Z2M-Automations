@@ -55,7 +55,7 @@ async function setup(t, options = {}) {
         }
         send = publish;
         if (operation === 'install') {
-          assert.equal(sha(request.code), '56878a00be9671c8f470f3f3c8ad3be014d8f9a08a4ad807e4f0ec42f548867f');
+          assert.equal(sha(request.code), '57f3f32b26772dfaa3ea637110e6ab52e48b67e6073375aa0179711cb3e0b0bd');
           if (options.rejectInstall) { publish({...context.response, status: 'error'}); return; }
           installedClass = options.oldBuild ? LegacyExtension : Extension;
           if (!options.loadOnRestart) { await extension.stop(); await load(installedClass); }

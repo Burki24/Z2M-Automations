@@ -1,4 +1,9 @@
 {
+    "server.ca3d929fda0eb08c": "The device catalog is too large to load completely. No incomplete catalog was accepted.",
+    "desktop.connection.catalogLimit": "The device catalog is too large to load completely. No incomplete catalog was accepted.",
+    "project.catalogLimit": "The device catalog is too large to load completely. No incomplete catalog was accepted.",
+    "editor.measurementDevicesHelp": "These devices provide numeric values. Buttons may also report a battery level and radar sensors may report illuminance. Select the desired property / channel below.",
+    "editor.statusDevicesHelp": "These devices provide states or events, such as window handle position, presence or button presses. For temperature, humidity or other numeric values, select Measurement.",
     "project.transferResumePrevious": "Resume previous operation afterwards",
     "project.transferResumeHelp": "Only after confirmed storage and successful readback. Permissions in the checked draft apply; this does not release new automations. The previous restart preference is preserved.",
     "project.transferResumeUnavailable": "A stopped or unconfirmed operation will not be started by this transfer.",

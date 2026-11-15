@@ -104,7 +104,7 @@ password/ACL files. Dynamic Security administration remains a separate server
 task. Before adding a bridge, check for existing routes and host aliases; do
 not create a second reverse bridge or a loop between multiple brokers.
 
-Before using remote conditions, install the bundled extension 0.2.2 or later on
+Before using remote conditions, install the current bundled extension on
 both Z2M instances. Separate brokers need an independently configured MQTT bridge
 for `z2ma/mesh/#`; the application does not create it. Transfer the receiving
 system's grants separately and activate that receiver before running the source

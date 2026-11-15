@@ -239,6 +239,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
     if (['connecting', 'reconnecting'].includes(broker?.state)) return 'desktop.connection.connecting';
     if (broker?.state !== 'connected') return 'desktop.connection.offline';
     if (system.reading) return 'desktop.connection.reading';
+    if (system.error === 'catalogLimit') return 'desktop.connection.catalogLimit';
     if (system.error) return 'desktop.connection.noReply';
     return system.fresh ? 'desktop.connection.ready' : 'desktop.connection.readFirst';
   }

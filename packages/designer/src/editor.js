@@ -157,6 +157,7 @@ export function installEditing({getData, getRule, reload, switchToDraft, onCreat
     }
     function devicePicker(parent, side, current, set, sourceKind = '', system = '') {
         const box = node('div', undefined, 'edit-device-picker'); parent.append(box);
+        if (sourceKind) box.append(node('p', () => t(sourceKind === 'measurement' ? 'editor.measurementDevicesHelp' : 'editor.statusDevicesHelp'), 'field-help edit-device-system-help'));
         const systemChoice = side !== 'source' && Array.isArray(getData().deviceSystems);
         if (systemChoice) {
             const systems = sortByName(getData().deviceSystems ?? []);

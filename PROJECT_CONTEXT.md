@@ -5,6 +5,18 @@ primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 ## Current state
 
+The catalog correction separates typed device properties from the extension's
+legacy 1,024-choice budget. Later window handles and sensors keep their readable
+states, enum values and numeric units; oversized catalogs fail explicitly instead
+of silently omitting devices. Source kinds filter channels, not device names:
+buttons can expose battery measurements and radar sensors illuminance. Both
+languages now explain this distinction in the shared form.
+
+The app bundles canonical Extension `0.2.4`, build `3f8a06859635`, from Symcon
+commit `2db85997a2a317bee6c59e96d78c050b8c579095`, with verified artifact and schema
+checksums. Existing installations need the explicit extension update and a fresh
+device-catalog read to receive the corrected metadata. No live system was changed.
+
 Step 8 now offers **Resume previous operation afterwards**, unchecked for each
 transfer in the app, Symcon browser designer and tile. Only previously confirmed
 active operation may resume, after revalidation, verified storage and independent
@@ -21,10 +33,10 @@ make activation explicit. Desktop receivers with saved partner permissions may
 activate without enabling local rules. No automatic multi-system control or
 runtime/schema changes were introduced. See [D6](docs/D6.md).
 
-Local verification passes 217 tests, with two native Linux APT checks skipped
+Local verification passes 219 tests, with two native Linux APT checks skipped
 on Windows, plus the complete capture-free extension-update UI suite including
 receiver navigation, desktop palette states and partner-only start controls.
-The pinned Symcon adaptation passes its full offline suite (275 JavaScript
+The pinned Symcon adaptation passes its full offline suite (278 JavaScript
 tests), capture-free browser/tile acceptance and structure/style checks.
 New platform CI and practical acceptance after updating remain separate.
 

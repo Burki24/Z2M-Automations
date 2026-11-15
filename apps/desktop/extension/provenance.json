@@ -1,9 +1,9 @@
 {
   "repository": "https://github.com/Burki24/Symcon_Z2MAutomations",
-  "commit": "369e2808270e2d1eedb9f6bd932ac9250daf5a3c",
+  "commit": "2db85997a2a317bee6c59e96d78c050b8c579095",
   "path": "libs/z2m/z2m-automations.mjs",
-  "version": "0.2.2",
-  "build": "c17ae7537a1e209649c73bef62df7d2d223978181db28865b4e9f1ca2bfde23d",
-  "sha256": "56878a00be9671c8f470f3f3c8ad3be014d8f9a08a4ad807e4f0ec42f548867f",
+  "version": "0.2.4",
+  "build": "3f8a06859635cdb3222da02a237fe41971e6aaa53cd43c5d16ae4df03ffbef6b",
+  "sha256": "57f3f32b26772dfaa3ea637110e6ab52e48b67e6073375aa0179711cb3e0b0bd",
   "schemaSha256": "0ad54355ff7d5dcad4c480897e15d152f60e67238af5608c32126830c19d99f5"
 }
