@@ -1,5 +1,14 @@
 # Development
 
+Module-view recovery verification on 2026-11-15 passed `npm run verify:local`
+(230 passing tests, two Ubuntu-only APT skips and the complete capture-free
+extension-update UI test in 15.3 seconds) and `node scripts/smoke.mjs --no-capture`.
+The pinned Symcon package is `0.117.0`, content `1dc396096d94`. Its full PHP suite
+and 279 JavaScript tests, capture-free browser/tile acceptance, structure, encoding,
+official JSON style (20 files) and PHP CS Fixer (164 files) pass. Focused tests
+cover repeated transient failures, exhausted retry/time budgets, overdue waits,
+cancellation and permanent errors. Live and new platform CI evidence are separate.
+
 Connected-workspace regressions cover first reads with unsent local rules, actual
 base persistence, independent edits/deletions, explicit conflict choices, open
 forms, interrupted evidence and guarded undo. Portable-file checks cover format-1
@@ -51,15 +60,20 @@ failed checks/readback, lost replies and read-only reconciliation. Hidden Electr
 and headless browser/tile tests verify the real DE/EN checkbox, safe initial focus,
 per-transfer reset and bounded dialog layout without capture.
 
-Module view reads recover once, after 250 ms, from explicit transient HTTP
-availability errors or a stale workspace/system snapshot. Recovery restarts the
-complete GET read and all catalog pages; partially read old pages are discarded.
+Module view reads recover from explicit transient HTTP availability errors or a
+stale workspace/system snapshot with at most five retries, delayed by
+250/500/1000/2000/2000 ms. No new retry starts outside the ten-second recovery
+window; individual reads retain their existing request timeouts. Recovery restarts
+the complete GET read and all catalog pages; partially read old pages are discarded.
+The view stays busy with localized neutral progress. A previous red read warning
+is hidden during recovery and returns only if the bounded read ultimately fails.
 Authorization failures, foreign bindings and malformed data remain errors.
 Persistent failures retain the previous displayed model and its read warning.
 Recovery never repeats transfer, runtime, installation or editor mutations.
 Structured console events contain only read stage, fixed reason, HTTP status
-and attempt. The browser/tile regression injects a one-shot read failure directly
-after successful storage and verifies recovery with exactly one store request.
+and attempt. The browser/tile regression injects three temporary read failures
+after successful storage and verifies waiting and recovery with exactly one store
+request. It also checks permanent failure and a later explicit view refresh.
 
 Device flow cards and inspector fields identify the owning Z2M network by system
 name and base topic. Local ownership follows the selected stable system ID;

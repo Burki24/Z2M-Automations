@@ -5,6 +5,12 @@ primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 ## Current state
 
+Transient module-view contention now uses a bounded GET recovery loop with
+localized waiting feedback. Up to five retries start within ten seconds; previous
+read warnings stay hidden while recovery is pending. Control requests are not
+replayed and persistent failures remain visible. Both browser and tile exercise
+several post-store read failures and DE/EN waiting states without capture.
+
 Connected reads now reconcile the fresh Z2M document, local work and the actual
 last accepted base content. Independent additions/edits/deletions merge; divergent
 versions require per-entry choices. Open input is preserved and local recovery
@@ -50,7 +56,7 @@ on Windows, plus the complete capture-free extension-update UI suite including
 receiver navigation, desktop palette states and partner-only start controls.
 The complete capture-free Electron smoke also passes with unsent local rules,
 automatic connection reconciliation, editing, export, reopen and save on close.
-The pinned Symcon adaptation passes its full offline suite (278 JavaScript
+The pinned Symcon adaptation passes its full offline suite (279 JavaScript
 tests), capture-free browser/tile acceptance and structure/style checks.
 New platform CI and practical acceptance after updating remain separate.
 

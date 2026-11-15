@@ -38,16 +38,26 @@ export async function checkViewResponse(response, stage = 'data') {
     throw new Error(response.status === 403 ? 'access' : 'transport');
 }
 
-/* Retry one complete GET snapshot, including its pages. Never wrap mutations. */
-export async function loadSystemView(read, {wait = ms => new Promise(resolve => setTimeout(resolve, ms)), ...options} = {}) {
+/* Recover complete GET snapshots, including pages, within a bounded contention window. */
+export async function loadSystemView(read, {wait = ms => new Promise(resolve => setTimeout(resolve, ms)), now = Date.now, onRetry = () => {}, ...options} = {}) {
+    const delays = [250, 500, 1000, 2000, 2000];
+    const deadline = now() + 10000;
     for (let attempt = 0; ; attempt++) {
+        options.signal?.throwIfAborted();
         try { return await loadSystemDevices(await read(), options); }
         catch (error) {
             if (!(error instanceof RetryableViewRead)) throw error;
-            console.warn(attempt === 0 ? 'Z2MA_VIEW_READ_RETRY' : 'Z2MA_VIEW_READ_FAILED',
+            const delay = delays[attempt];
+            const retry = delay !== undefined && now() + delay < deadline && !options.signal?.aborted;
+            console.warn(retry ? 'Z2MA_VIEW_READ_RETRY' : 'Z2MA_VIEW_READ_FAILED',
                 {stage: error.stage, reason: error.reason, status: error.status, attempt: attempt + 1});
-            if (attempt !== 0) throw error;
-            await wait(250);
+            if (!retry) throw error;
+            onRetry({attempt: attempt + 1, delay});
+            await wait(delay);
+            if (now() >= deadline) {
+                console.warn('Z2MA_VIEW_READ_FAILED', {stage: error.stage, reason: error.reason, status: error.status, attempt: attempt + 1});
+                throw error;
+            }
         }
     }
 }

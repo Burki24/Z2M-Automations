@@ -970,6 +970,7 @@
     "ui.loading.device.data.62d8fef4": "Gerätedaten werden geladen …",
     "ui.loading.diagnostics.c33fa3d0": "Diagnosestand wird geladen …",
     "ui.loading.module.data.7d76c819": "Moduldaten werden geladen …",
+    "view.read.waiting": "Ansicht wird aktualisiert … Das Modul ist noch beschäftigt. Bitte kurz warten.",
     "ui.loads.only.devices.channels.groups.813e397b": "Lädt nur Geräte, Kanäle, Gruppen und Szenen dieses Systems. Automationsentwürfe und laufende Regeln bleiben erhalten.",
     "ui.local.automations.use.this.connection.812f035e": "{{p1}} lokale Automationen verwenden diese Verbindung.",
     "ui.local.draft.revision.b3e4c474": "Lokaler Entwurf · Revision {{p1}}",

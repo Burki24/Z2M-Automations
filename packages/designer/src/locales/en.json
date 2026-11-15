@@ -970,6 +970,7 @@
     "ui.loading.device.data.62d8fef4": "Loading device data …",
     "ui.loading.diagnostics.c33fa3d0": "Loading diagnostics …",
     "ui.loading.module.data.7d76c819": "Loading module data …",
+    "view.read.waiting": "Updating the view … The module is still busy. Please wait a moment.",
     "ui.loads.only.devices.channels.groups.813e397b": "Loads only devices, channels, groups and scenes for this system. Automation drafts and running rules are preserved.",
     "ui.local.automations.use.this.connection.812f035e": "{{p1}} local automations use this connection.",
     "ui.local.draft.revision.b3e4c474": "Local draft · Revision {{p1}}",

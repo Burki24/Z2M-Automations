@@ -27,6 +27,7 @@ import {installNativeEmbedding} from './embedding.js';
     const valueText = value => typeof value === 'boolean' ? (value ? t("ui.yes.detected.f51e55b6") : t("ui.no.not.detected.2e04e05d")) : (values.get(value) ?? (typeof value === 'object' ? JSON.stringify(value) : String(value ?? '—')));
     let data = null;
     let readFailure = null;
+    let viewReading = false;
     let category = 'device';
     let selected = null;
     let selectedPart = null;
@@ -303,6 +304,7 @@ import {installNativeEmbedding} from './embedding.js';
         }
     }
     function paintIssues() {
+        if (viewReading) { $('#issues').hidden = true; return; }
         if (readFailure) {
             $('#issues').hidden = false;
             bindText($('#issues-message') ?? $('#issues'), readFailure);
@@ -334,7 +336,9 @@ import {installNativeEmbedding} from './embedding.js';
         return task;
     }
     async function readView(preferredRule, preferredSequence) {
-        busy = true; $('#validate-button').disabled = true;
+        busy = true; viewReading = true; readFailure = null; $('#validate-button').disabled = true;
+        $('#validate-button').setAttribute('aria-busy', 'true'); $('#feedback').dataset.tone = 'pending';
+        paintIssues();
         if (!isDesktop()) message(() => (t("ui.reading.existing.module.data.no.53b451b0")));
         try {
             if (!isDesktop() && !/^[a-f0-9]{64}$/.test(token)) throw new Error('access');
@@ -352,7 +356,8 @@ import {installNativeEmbedding} from './embedding.js';
                 const view = localizeResponse(JSON.parse(text));
                 if (view.contractVersion !== 1 || view.mode !== 'read' || !Array.isArray(view.devices) || !view.module || !view.status) throw new Error('invalid');
                 return view;
-            }, {token, onProgress: (loaded, total) => message(() => (t("ui.reading.device.data.of.drafts.6ef5f0ac", {p1: loaded, p2: total})))});
+            }, {token, onRetry: () => message(() => t('view.read.waiting')),
+                onProgress: (loaded, total) => message(() => (t("ui.reading.device.data.of.drafts.6ef5f0ac", {p1: loaded, p2: total})))});
             const previousSystem = data?.workspaceContext?.systemId ?? '';
             const nextSystem = next.workspaceContext?.systemId ?? '';
             if (previousSystem !== nextSystem) {
@@ -362,7 +367,7 @@ import {installNativeEmbedding} from './embedding.js';
                 category = view?.category ?? 'device'; selected = view?.selected ?? null; selectedPart = view?.selectedPart ?? null;
                 $('#search').value = view?.search ?? '';
             }
-            data = next; readFailure = null; systemId = nextSystem; updateSystems(data);
+            data = next; viewReading = false; readFailure = null; $('#feedback').dataset.tone = ''; systemId = nextSystem; updateSystems(data);
             if (isDesktop()) {
                 document.body.classList.toggle('desktop-editable', !!data.desktop?.project && data.desktop.source === 'draft');
                 document.body.classList.toggle('desktop-stored-view', data.desktop?.source === 'stored');
@@ -382,12 +387,13 @@ import {installNativeEmbedding} from './embedding.js';
             if (isDesktop()) document.dispatchEvent(new CustomEvent('z2ma-designer-view', {detail: data}));
             return true;
         } catch (error) {
+            viewReading = false;
             readFailure = () => t(error.message === 'access' ? "ui.read.access.is.missing.or.e380a485" : "ui.module.data.could.not.be.80c47bf5");
             message(readFailure); $('#feedback').dataset.tone = 'error';
             paintIssues();
             return false;
         } finally {
-            busy = false; $('#validate-button').disabled = false; updateTransfers(); updateRuntime(); updateCatalog(); updateDiagnostics(); updatePermissions(); management?.refresh(category, stateFilter); eventImport?.refresh(); updateLayout(); updateReadiness();
+            busy = false; viewReading = false; $('#validate-button').disabled = false; $('#validate-button').setAttribute('aria-busy', 'false'); updateTransfers(); updateRuntime(); updateCatalog(); updateDiagnostics(); updatePermissions(); management?.refresh(category, stateFilter); eventImport?.refresh(); updateLayout(); updateReadiness();
             if (projectReloadPending) { projectReloadPending = false; queueMicrotask(() => { void load(); }); }
         }
     }
