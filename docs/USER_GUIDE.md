@@ -41,11 +41,15 @@ reading, editing, checking and transfer.
 3. **Assign a Z2M system.** Choose its broker and enter its base topic.
 4. **Connect and read Z2M state.** Read devices and the stored configuration.
    The bundled extension is available under **Z2M extension** when needed.
-5. **Choose a starting point.** Edit the local draft, import a YAML or JSON
-   file, or copy the configuration stored in Z2M into the draft. **Export
-   draft YAML** creates an optional file from the selected system's local
-   draft. Copy the stored configuration first if you want to add to existing
-   rules. Replacing a draft requires a project backup.
+5. **Work with the combined draft.** Connecting reads the existing automations
+   and combines them with local additions. Different versions of the same rule
+   require a choice; independent changes merge automatically. Use **Edit offline**
+   explicitly when a new network cannot be read yet. Save the whole project as
+   `.z2map` (older `.z2ma` projects still open), or save selected rules and their
+   required sequences as `.z2mad`. **Add draft file** also accepts a project as
+   a source: select its source network, rules and destination network. It preserves
+   existing rules and does not add partner grants. Automatic backups offer local
+   undo until further edits. **Export draft YAML** remains available separately.
 6. **Edit automations.** Enter a name, a trigger, optional conditions and
    actions. Choose **Device status**, **Measured value**, **Time**, **Sunrise**
    or **Sunset** as the trigger. Status lists discrete values such as motion

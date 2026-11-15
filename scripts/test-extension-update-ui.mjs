@@ -45,7 +45,7 @@ if (!process.versions.electron) {
     };
     await step('app-ready', () => app.whenReady());
     const assets = join(root, 'apps/desktop/.build/renderer');
-    const names = new Set(['network.js', 'operation-flags.js', 'operation-readiness.js', 'draft-review.js', 'validation-feedback.js', 'drafts.js', 'desktop-workspace.js', 'guided-workspace.js', 'symcon-workspace.js', 'draft-sync.js', 'guided-workspace.css', 'layout.js', 'confirmation.js', 'runtime.js', 'workspace.js', 'identity.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
+    const names = new Set(['network.js', 'operation-flags.js', 'operation-readiness.js', 'draft-review.js', 'validation-feedback.js', 'drafts.js', 'desktop-workspace.js', 'guided-workspace.js', 'symcon-workspace.js', 'draft-sync.js', 'draft-files.js', 'draft-merge.js', 'guided-workspace.css', 'layout.js', 'confirmation.js', 'runtime.js', 'workspace.js', 'identity.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
     protocol.handle('z2ma', async request => {
       if (request.url === 'z2ma://app/index.html') return new Response('<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="designer.css"><link rel="stylesheet" href="desktop-palette.css"><link rel="stylesheet" href="desktop.css"><body class="desktop-foundation"></body>', {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
       if (request.url === 'z2ma://app/workspace.html') return new Response((await readFile(join(assets, 'index.html'), 'utf8')).replace('<script type="module" src="desktop.js"></script>', ''), {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
@@ -340,9 +340,10 @@ async function workspaceSummaryTest() {
   const {installDraftExchange} = await import('./drafts.js');
   const {setLanguage} = await import('./localization.js');
   const panel = document.createElement('section'); document.body.append(panel);
-  const workspace = {pages: {draft: panel}, review: document.createElement('div'), link: parent => {
+  const workspace = {pages: {draft: panel}, actions: document.createElement('div'), review: document.createElement('div'), link: parent => {
     const button = document.createElement('button'); parent.append(button); return button;
   }};
+  panel.append(workspace.actions);
   installDraftExchange({}, workspace);
   const view = {desktop: {project: true, source: 'stored', draftRevision: 13,
     draftSummary: {rules: 8, enabled: 1, sequences: 0}, storedSummary: {rules: 8, enabled: 7, sequences: 0}},

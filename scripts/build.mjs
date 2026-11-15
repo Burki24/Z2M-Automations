@@ -9,6 +9,12 @@ import {createHash} from 'node:crypto';
 rmSync(join(root, 'apps/desktop/.build'), {recursive: true, force: true});
 const result = spawnSync(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '--project', 'apps/desktop/tsconfig.json'], {cwd: root, stdio: 'inherit'});
 if (result.status !== 0) process.exit(result.status ?? 1);
+// The exact shared pure source also runs behind the desktop's privileged IPC boundary.
+const mergeSource = readFileSync(join(root, 'packages/designer/src/draft-merge.js'), 'utf8');
+const mergeExports = [...mergeSource.matchAll(/^export function (\w+)\(/gm)].map(match => match[1]);
+const mergeBody = mergeSource.replaceAll(/^export (?=function )/gm, '');
+if (!mergeExports.length || /^\s*(?:import|export)\b/m.test(mergeBody)) throw new Error('Shared reconciliation must remain a self-contained pure module.');
+writeFileSync(join(root, 'apps/desktop/.build/draft-merge.cjs'), mergeBody + '\nmodule.exports = {' + mergeExports.join(', ') + '};\n');
 const destination = join(root, 'apps/desktop/.build/renderer');
 mkdirSync(destination, {recursive: true});
 cpSync(join(root, 'packages/designer/dist/assets'), destination, {recursive: true});

@@ -1,9 +1,21 @@
 # Project context: Z2M-Automations
 
-As of 2026-11-14. Repository Burki24/Z2M-Automations; working branch dev,
+As of 2026-11-15. Repository Burki24/Z2M-Automations; working branch dev,
 primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 ## Current state
+
+Connected reads now reconcile the fresh Z2M document, local work and the actual
+last accepted base content. Independent additions/edits/deletions merge; divergent
+versions require per-entry choices. Open input is preserved and local recovery
+is backed up before applying changes. New networks require an initial read or
+explicit offline editing. No read or file operation controls Z2M execution.
+
+The default project extension is `.z2map` with format 2; format 1 and `.z2ma`
+remain readable. Shared `.z2mad` files carry selected rules, needed sequences and
+source identity. Both adapters support adding files to a chosen existing network;
+native project snapshots include assigned drafts without broker credentials or
+native authority. See [ADR 0006](docs/adr/0006-draft-reconciliation-and-portable-files.md).
 
 The catalog correction separates typed device properties from the extension's
 legacy 1,024-choice budget. Later window handles and sensors keep their readable
@@ -33,9 +45,11 @@ make activation explicit. Desktop receivers with saved partner permissions may
 activate without enabling local rules. No automatic multi-system control or
 runtime/schema changes were introduced. See [D6](docs/D6.md).
 
-Local verification passes 219 tests, with two native Linux APT checks skipped
+Local verification passes 230 tests, with two native Linux APT checks skipped
 on Windows, plus the complete capture-free extension-update UI suite including
 receiver navigation, desktop palette states and partner-only start controls.
+The complete capture-free Electron smoke also passes with unsent local rules,
+automatic connection reconciliation, editing, export, reopen and save on close.
 The pinned Symcon adaptation passes its full offline suite (278 JavaScript
 tests), capture-free browser/tile acceptance and structure/style checks.
 New platform CI and practical acceptance after updating remain separate.

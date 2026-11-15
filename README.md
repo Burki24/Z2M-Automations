@@ -46,6 +46,12 @@ fakeroot/dpkg and a display (Xvfb for CI). See the platform limitations in
 
 ## Project documents
 
+Connections automatically reconcile stored Z2M automations with local work.
+Projects use `.z2map`; existing `.z2ma` projects remain readable. Selected rules
+and their required sequences can be saved separately as `.z2mad` and added to a
+chosen network in the app, Symcon browser designer or tile. New imported rules
+remain disabled. See [workspace reconciliation](docs/adr/0006-draft-reconciliation-and-portable-files.md).
+
 - [Implementation plan D0–D7](docs/DESKTOP_PLAN.md)
 - [Project context](PROJECT_CONTEXT.md) and [development rules](AGENTS.md)
 - [Architecture](docs/ARCHITECTURE.md) and [development commands](docs/DEVELOPMENT.md)

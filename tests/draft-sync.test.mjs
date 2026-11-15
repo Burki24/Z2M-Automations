@@ -35,10 +35,19 @@ test('draft sync explicitly addresses the selected system and keeps polling read
 test('draft sync rejects foreign, superseded, malformed and oversized responses', async () => {
   for (const invalid of [ {...view, systemId: 'other'}, {...view, generation: 4}, {...view, operation: 'c'.repeat(32)},
     {...view, phase: 'activated'}, {...view, remoteRevision: -1}, {...view, canReplace: 'yes'}, {...view, counts: {added: 201, changed: 0, removed: 0}},
-    {...view, fingerprint: 'invalid'}]) {
+    {...view, fingerprint: 'invalid'}, {...view, conflicts: [{}]}, {...view, conflicts: Array(134).fill({})}]) {
     await assert.rejects(draftSyncRequest(data, 'replace', {...options, request: async () => ({ok: true, text: async () => JSON.stringify({ok: true, draftSync: invalid})})}));
   }
   await assert.rejects(draftSyncRequest(data, 'refresh', {...options, request: async () => ({ok: true, text: async () => ' '.repeat(16385)})}));
+});
+
+test('per-entry merge sends only explicit choices and does not replay a failed confirmation', async () => {
+  let captured;
+  const choices = {'automations:one': 'local'};
+  await draftSyncRequest(data, 'merge', {...options, choices, request: async (_url, init) => {
+    captured = JSON.parse(init.body); return {ok: true, text: async () => JSON.stringify({ok: true, draftSync: view})};
+  }});
+  assert.deepEqual(captured, {requestId: options.requestId, action: 'merge', operation: view.operation, choices});
 });
 
 test('ambiguous draft update failures are never retried', async () => {

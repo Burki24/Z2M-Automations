@@ -2518,5 +2518,9 @@
     "server.cbaa827876381c0c": [
         "Diese Verbindung wird von %s (Instanz %d) verwaltet. Die Z2M-Erweiterung bitte in dieser Automationszentrale installieren oder aktualisieren: im Konfigurationsformular der Zentrale oder im Webdesigner.",
         "This connection is managed by %s (instance %d). Install or update the Z2M extension in that automation center, using its configuration form or browser designer."
+    ],
+    "server.fd959e7113be3c48": [
+        "Bitte zuerst den Z2M-Abgleich unter „Automationen bearbeiten“ abschließen und offene Versionskonflikte auflösen. Es wurde nichts übertragen.",
+        "Complete the Z2M reconciliation under “Edit automations” and resolve any version conflicts first. Nothing was transferred."
     ]
 }

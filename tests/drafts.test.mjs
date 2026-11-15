@@ -25,7 +25,8 @@ async function setup(dialogs = {}) {
   const id = randomUUID(); await service.command({action: 'system', system: {id, name: 'Synthetic', brokerId: broker.id, baseTopic: 'synthetic'}});
   const remotes = new Map([[id, {...editorData(remoteFixture().editor), fresh: true}]]);
   const views = new Map(); const reader = {current: id => remotes.get(id) ?? null, source: id => views.get(id) ?? 'draft',
-    reconcile() {}, view(id, source) { views.set(id, source); }};
+    connected: () => true, reconcile() {}, view(id, source) { views.set(id, source); }};
+  await service.resolveDraftSync(id, '', 'offline');
   const editor = new DraftEditor(service, reader);
   const system = () => service.data().systems.find(system => system.id === id);
   const command = (route, payload = {}) => ({route, systemId: id, generation: service.generation() + 1, fingerprint: editor.context(system()), payload});
@@ -292,7 +293,7 @@ test('adopting stored state requires a private backup and never changes stored d
   const backup = join(dir, 'before.z2ma'); dialogs.chooseBackup = async () => backup;
   await exchange.command(s.command('adopt'));
   assert.deepEqual(parseProject(await readFile(backup)).systems[0].configuration, before.configuration);
-  assert.deepEqual(s.system().stored, before.stored); assert.equal(s.system().configuration.automations[0].enabled, false);
+  assert.deepEqual(s.system().stored, before.stored); assert.equal(s.system().configuration.automations[0].enabled, before.stored.configuration.automations[0].enabled);
   assert.equal(s.system().configuration.automations[0].id, 'remote-rule');
 });
 test('adopted rules and their timing survive project save and a new service without restoring the pre-import backup', async t => {
@@ -319,13 +320,13 @@ test('adopted rules and their timing survive project save and a new service with
   const adopted = s.service.data();
   assert.equal(s.reader.source(s.id), 'draft'); assert.equal(s.service.isDirty(), true);
   assert.deepEqual(parseProject(await readFile(backup)).systems[0].configuration, before.systems[0].configuration);
-  assert.deepEqual(s.system().configuration.automations.map(rule => [rule.id, rule.enabled]), [['hallway-on', false], ['hallway-off', false]]);
-  assert.notEqual(s.system().configuration.revision, stored.revision, 'Local and remote revision counters are independent');
+  assert.deepEqual(s.system().configuration.automations.map(rule => [rule.name, rule.enabled]), [['Obsolete hallway rule', false], ['Hallway on', true], ['Hallway off', true]]);
+  assert.deepEqual(s.system().baseline.configuration, stored.configuration, 'The actual common content is persisted independently of local edits');
   await s.service.command({action: 'save'});
   const reopened = await setup({chooseOpen: async () => path}); await reopened.service.command({action: 'open'});
   assert.deepEqual(reopened.service.data(), adopted); assert.equal(reopened.service.isDirty(), false);
-  assert.deepEqual(reopened.service.data().systems[0].stored, stored, 'Saved Z2M flags remain separate from imported disabled drafts');
-  assert.deepEqual(reopened.service.data().systems[0].configuration.automations[1].triggers[0], off.triggers[0]);
+  assert.deepEqual(reopened.service.data().systems[0].stored, stored, 'Saved Z2M flags remain separate from new disabled drafts');
+  assert.deepEqual(reopened.service.data().systems[0].configuration.automations.find(rule => rule.id === 'hallway-off').triggers[0], off.triggers[0]);
   assert.deepEqual(importDraft(exportDraft(reopened.service.data().systems[0].configuration)), s.system().configuration);
 });
 

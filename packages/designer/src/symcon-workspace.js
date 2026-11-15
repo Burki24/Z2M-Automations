@@ -5,6 +5,7 @@ import {createUUID} from './identity.js';
 import {validationSummary} from './validation-feedback.js';
 import {systemHeaders} from './workspace.js';
 import {installDraftSync} from './draft-sync.js';
+import {installDraftFiles} from './draft-files.js';
 
 export async function setLocalRuleEnabled(data, ruleId, enabled, {token, request: send = request, base = location.href} = {}) {
     if (!data?.editAllowed || !data.configuration?.automations?.some(rule => rule.id === ruleId) || typeof enabled !== 'boolean') throw new MessageError('symcon.request.failed');
@@ -52,6 +53,7 @@ export function installSymconWorkspace({getData, reload = async () => false, onS
     let initial = true;
     let flagBusy = false;
     let updateDraftSync = () => {};
+    let updateDraftFiles = () => {};
     const node = (tag, parent, key) => {
         const element = document.createElement(tag);
         if (key) bindText(element, () => t(key));
@@ -135,6 +137,7 @@ export function installSymconWorkspace({getData, reload = async () => false, onS
         }
         nodes = {centreName, brokerList, systemList, inventoryStatus, devices, groups, draftStatus, download, reviewStatus, reviewDetails, findings, storedStatus, runtimeStatus, releasedCount, ruleSwitches, releaseFeedback};
         updateDraftSync = installDraftSync({getData, reload, actions: shell.actions});
+        updateDraftFiles = installDraftFiles({getData, reload, parent: draft});
         shell.mountDesigner();
         // Request failures must remain visible in setup, review and operation too.
         const statusFeedback = document.querySelector('.designer-feedback');
@@ -198,6 +201,7 @@ export function installSymconWorkspace({getData, reload = async () => false, onS
         data.guidedUI = true;
         if (!shell) mount();
         updateDraftSync();
+        updateDraftFiles();
         updateCatalogShortcut();
         const systems = [...data.workspace.systems].sort((a, b) => new Intl.Collator(locale(), {numeric: true, sensitivity: 'base'}).compare(a.name, b.name));
         const brokers = [...new Set(systems.map(system => system.binding?.mqttParent))];

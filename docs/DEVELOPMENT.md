@@ -1,5 +1,23 @@
 # Development
 
+Connected-workspace regressions cover first reads with unsent local rules, actual
+base persistence, independent edits/deletions, explicit conflict choices, open
+forms, interrupted evidence and guarded undo. Portable-file checks cover format-1
+projects, format-2 `.z2map`, `.z2mad` selections and dependency closure, disabled
+new rules and unchanged destination grants. The capture-free fixtures exercise
+the shared controls in Electron, browser and tile. See ADR 0006. No live system
+or runtime action is part of these checks.
+
+Final local evidence on 2026-11-15: `npm run verify:local` passed build, strict
+types, integrity and 230 tests; two native APT tests require Ubuntu. Its complete
+capture-free extension-update UI test passed in 15.2 seconds. The subsequent
+`node scripts/smoke.mjs --no-capture` passed actual Electron/MQTT reconciliation,
+editing, file persistence, reopen, save on close and 360/1024/1920/3840px layouts
+in both themes. The pinned Symcon package is `0.116.0`, content `0fde49a6e850`;
+its full PHP/278-JavaScript suite, capture-free browser/tile tests, structure,
+encoding, official JSON style (20 files) and PHP CS Fixer (164 files) pass.
+Platform CI and installed/live acceptance remain separate.
+
 Use Node 24.20.0 and npm 11 on Windows 11 x64 or Ubuntu Desktop LTS x64.
 All repository documentation and commit messages are English. Localized UI text
 belongs in the local DE/EN JSON catalogs. The user alone commits and pushes.
@@ -363,10 +381,11 @@ executable. It must follow `package` or `make`. See [D3](D3.md).
 
 ## Shared source ownership
 
-The Symcon-only adapter provides “Update from Z2M” in step 6. Its fixed HTTP
-routes and remote-to-local persistence live in Symcon_Z2MAutomations; the desktop
-application does not install this action. `tests/draft-sync.test.mjs` verifies
-request scope, response bounds, operation identity and the absence of retries.
+The shared adapter provides “Update from Z2M” in step 6 and portable file controls
+in step 5. Symcon implements its fixed HTTP routes and native persistence; the
+desktop maps the same surface to restricted main-process IPC. Connection reads
+reconcile local drafts automatically. `tests/draft-sync.test.mjs` verifies request
+scope, response bounds, operation identity and the absence of command retries.
 The consumer's capture-free browser test covers both browser and tile workflows.
 
 Edit packages/designer/src, build the versioned archive and review its manifest.

@@ -10,7 +10,7 @@ import {Diagnostics} from './diagnostics.js';
 import {OfflineWorkspace} from './offline-workspace.js';
 import {configureSmokeRendering, smokeCaptureEnabled} from './smoke-rendering.js';
 import {ProjectService, type ProjectCommand} from './project-service.js';
-import type {Configuration} from './project.js';
+import {validId, type Configuration} from './project.js';
 import {promptCredentials} from './credential-prompt.js';
 import {Credentials, readCredentialFile, type CredentialCommand} from './credentials.js';
 import {smokeProjects} from './smoke-projects.js';
@@ -124,7 +124,33 @@ async function designer(command: DesignerCommand): Promise<unknown> {
   const context = {operation: 'draft' as const, ...(typeof command.payload['requestId'] === 'string' ? {transaction: command.payload['requestId']} : {})};
   debug.record('draftRequest', command.systemId, undefined, context);
   try {
-    const result = await (['import', 'export', 'adopt'].includes(command.route) ? exchange.command(command) : drafts.command(command));
+    let result;
+    if (command.route === 'draft-files') result = await exchange.fileCommand(command);
+    else if (command.route === 'draft-sync' || command.route === 'draft-sync-status') {
+      drafts.system(command);
+      if (command.route === 'draft-sync-status' && Object.keys(command.payload).length) throw new Error('invalidRequest');
+      if (command.route === 'draft-sync') {
+        const {action, operation, choices = {}} = command.payload;
+        if (!validId(command.payload['requestId']) || String(command.payload['requestId']).startsWith('example')
+          || Object.keys(command.payload).some(key => !['requestId', 'action', 'operation', 'choices'].includes(key)) || typeof action !== 'string' || typeof operation !== 'string'
+          || !choices || typeof choices !== 'object' || Array.isArray(choices)) throw new Error('invalidRequest');
+        if (action !== 'refresh') await projects.resolveDraftSync(command.systemId, operation, action, choices);
+        if (action === 'refresh' || action === 'merge') {
+          const projectID = projects.data().id; const epoch = projects.generation();
+          projects.beginDraftRead(command.systemId);
+          void reader.refresh(command.systemId).catch(() => {
+            if (projects.data().id === projectID && projects.generation() === epoch) projects.failDraftRead(command.systemId);
+          });
+        }
+        reader.reconcile(projects.data(), projects.generation());
+      }
+      const system = projects.data().systems.find(item => item.id === command.systemId)!;
+      result = {ok: true, draftSync: drafts.view(system)['draftSync']};
+    } else result = await (['import', 'export', 'adopt'].includes(command.route) ? exchange.command(command) : drafts.command(command));
+    if (command.route === 'editor-state' && command.payload['pending'] === false) {
+      for (const system of projects.data().systems) if (system.stored) await projects.reconcileStored(projects.data().id, projects.generation(), system.id, system.stored);
+      reader.reconcile(projects.data(), projects.generation());
+    }
     debug.record('draftCompleted', command.systemId, undefined, context); return result;
   } catch (error) { debug.record('draftRejected', command.systemId, undefined, context); throw error; }
 }
@@ -169,6 +195,8 @@ async function network(command: NetworkCommand): Promise<unknown> {
     }
     case 'runtimeStatus': void reader.refresh(command.id).catch(() => {}); break;
     case 'validateEnabled': case 'validate': case 'store': case 'install': case 'checkTransfer': {
+      const target = projects.data().systems.find(system => system.id === command.id);
+      if (command.action === 'store' || ['validateEnabled', 'validate'].includes(command.action) && target && reader.connected(target.brokerId)) projects.assertDraftSynchronized(command.id);
       if (smoke && command.action !== 'validate') throw new Error('invalidRequest');
       try {
         const outcome = await transfers.command(command.action, command.id);
@@ -225,13 +253,13 @@ async function open(): Promise<void> {
     chooseOpen: async () => {
       if (smoke) return join(app.getPath('userData'), 'synthetic.z2ma');
       if (!window) return null;
-      const result = await dialog.showOpenDialog(window, {title: message('open'), properties: ['openFile'], filters: [{name: 'Z2M-Automations', extensions: ['z2ma', 'bak']}]});
+      const result = await dialog.showOpenDialog(window, {title: message('open'), properties: ['openFile'], filters: [{name: message('projectFile'), extensions: ['z2map', 'z2ma', 'bak']}]});
       return result.canceled ? null : result.filePaths[0] ?? null;
     },
     chooseSave: async () => {
       if (smoke) return join(app.getPath('userData'), 'synthetic.z2ma');
       if (!window) return null;
-      const result = await dialog.showSaveDialog(window, {title: message('save'), defaultPath: 'project.z2ma', filters: [{name: 'Z2M-Automations', extensions: ['z2ma']}]});
+      const result = await dialog.showSaveDialog(window, {title: message('save'), defaultPath: 'project.z2map', filters: [{name: message('projectFile'), extensions: ['z2map']}]});
       return result.canceled ? null : result.filePath ?? null;
     },
     confirmDiscard: () => confirm('discard'), confirmRestore: () => confirm('restoreConfirm'), confirmDelete: () => confirm('deleteConfirm'),
@@ -249,10 +277,10 @@ async function open(): Promise<void> {
       if (result.canceled || !result.filePaths[0]) return null;
       return readCredentialFile(result.filePaths[0]);
     }
-  }, debug);
+  }, debug, join(app.getPath('userData'), 'draft-recovery'));
   reader = new MqttReader(vault, debug, (project, epoch, system, stored, current) => projects.serialize(async () => {
     if (!current()) throw new Error('stale');
-    projects.observe(project, epoch, system, stored);
+    await projects.reconcileStored(project, epoch, system, stored, {}, current);
     reader.reconcile(projects.data(), projects.generation());
   }), smoke ? options => {
     if (options.host !== '127.0.0.1' || options.port !== Number(process.env['Z2MA_SMOKE_MQTT_PORT'])) throw new Error('smokeNetworkDisabled');
@@ -262,7 +290,7 @@ async function open(): Promise<void> {
   drafts = new DraftEditor(projects, reader);
   const chooseDraft = async (key: string, extension: string, open: boolean): Promise<string | null> => {
     if (!window || smoke) return null;
-    const filters = [{name: extension === 'z2ma' ? 'Z2M-Automations' : 'YAML / JSON', extensions: extension === 'z2ma' ? ['z2ma'] : ['yaml', 'yml', 'json']}];
+    const filters = [{name: extension === 'yaml' ? message('draftFile') : 'Z2M-Automations', extensions: open ? ['z2mad', 'z2map', 'z2ma', 'yaml', 'yml', 'json'] : extension === 'yaml' ? ['yaml', 'yml', 'json'] : [extension]}];
     if (open) { const result = await dialog.showOpenDialog(window, {title: message(key), properties: ['openFile'], filters}); return result.canceled ? null : result.filePaths[0] ?? null; }
     const result = await dialog.showSaveDialog(window, {title: message(key), defaultPath: 'draft.' + extension, filters}); return result.canceled ? null : result.filePath ?? null;
   };
@@ -270,7 +298,7 @@ async function open(): Promise<void> {
     backup: async (conflict, review) => {
       if (conflict && review) await reviewDialog('transferConflict',
         message('transferConflictDetail').replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? '')), true);
-      return chooseDraft(conflict ? 'transferConflictBackup' : 'transferBackup', 'z2ma', false);
+      return chooseDraft(conflict ? 'transferConflictBackup' : 'transferBackup', 'z2map', false);
     },
     confirm: async (action, review) => {
       if (!window || smoke) return false;
@@ -298,7 +326,9 @@ async function open(): Promise<void> {
   exchange = new DraftExchange(projects, drafts, {
     chooseImport: () => chooseDraft('importDraft', 'yaml', true),
     chooseExport: () => smoke ? Promise.resolve(join(app.getPath('userData'), 'synthetic-automations.yaml')) : chooseDraft('exportDraft', 'yaml', false),
-    chooseBackup: () => chooseDraft('backupDraft', 'z2ma', false),
+    chooseBackup: () => chooseDraft('backupDraft', 'z2map', false),
+    chooseDraftExport: () => chooseDraft('exportDraft', 'z2mad', false),
+    chooseProjectExport: () => chooseDraft('save', 'z2map', false),
     confirm: async summary => {
       if (!window || smoke) return false;
       return reviewDialog('replaceDraft', message('importSummary').replace('{{oldRules}}', String(summary.oldRules))
@@ -358,7 +388,7 @@ async function open(): Promise<void> {
         }
         debug.record('projectFailed');
         const key = error instanceof Error ? error.message : '';
-        return {ok: false, error: ['catalogLimit', 'invalidProject', 'invalidCredentials', 'credentialPromptUnavailable', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'credentialsMissing', 'credentialsLocked', 'autoConnectSettings', 'connectionError', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferStopUncertain', 'transferUnchanged', 'transferUncertain', 'transferBridge', 'extensionUpdatePending', 'extensionStopUncertain', 'extensionSaveUncertain', 'extensionRestartUncertain', 'extensionRestoreUncertain', 'extensionVerifyUncertain', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly', 'runtimeFlagsChanged'].includes(key) ? key : 'failed'};
+        return {ok: false, error: ['catalogLimit', 'invalidProject', 'invalidCredentials', 'credentialPromptUnavailable', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'credentialsMissing', 'credentialsLocked', 'autoConnectSettings', 'connectionError', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'draftInitialRead', 'draftSyncRequired', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferStopUncertain', 'transferUnchanged', 'transferUncertain', 'transferBridge', 'extensionUpdatePending', 'extensionStopUncertain', 'extensionSaveUncertain', 'extensionRestartUncertain', 'extensionRestoreUncertain', 'extensionVerifyUncertain', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly', 'runtimeFlagsChanged'].includes(key) ? key : 'failed'};
       }
     });
   });

@@ -161,3 +161,20 @@
   .symcon-foundation .desktop-content { overflow-y: auto; }
   .symcon-foundation .desktop-view { flex: 1 0 min(25rem, 65dvh); min-height: min(25rem, 65dvh); }
 }
+/* Local file and conflict choices remain reachable in browser, tile and desktop. */
+.draft-file-dialog {
+  box-sizing: border-box;
+  width: min(54rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: .75rem;
+  padding: 1.25rem;
+}
+.draft-file-dialog form { display: grid; gap: 1rem; }
+.draft-file-dialog select { width: 100%; }
+.draft-file-dialog .guided-inventory { max-height: 35dvh; overflow: auto; }
+.draft-conflicts pre, .draft-file-dialog pre { max-height: 14rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.draft-conflicts fieldset { margin-block: .75rem; min-width: 0; }
