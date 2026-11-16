@@ -42,6 +42,14 @@ The library mode and its two-component versions remain unchanged.
 4. Verification, packaging, source/package/installed smoke, removal checks and
    success-only artifact uploads retain their existing order and failure gates.
 
+RC1 uses this same version authority. CI audits the complete dependency tree
+before packaging and creates per-platform candidate manifests after the existing
+acceptance checks and designer handoff. `prepare:rc` reuses the immutable checkout
+verification and binds installer/designer SHA-256 values to that commit/version;
+untracked source, mismatched or incomplete artifacts are rejected. The manifest
+is uploaded with each native package. The RC label is an acceptance stage, not
+an independently bumped package version. See [RC1 preparation](RC1.md).
+
 Metadata-only `version.json` pushes do not start a second desktop run. Pull
 requests and `main` builds continue to use their triggering commit and committed
 metadata without invoking the version writer or receiving its App credential.

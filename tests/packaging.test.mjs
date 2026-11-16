@@ -8,6 +8,24 @@ import {tmpdir} from 'node:os';
 const require = createRequire(import.meta.url);
 const {stageRuntimeDependencies} = require('../apps/desktop/runtime-dependencies.cjs');
 
+test('packaging matchers support modern filters while legacy ASAR callers retain their function API', () => {
+  const builder = createRequire(require.resolve('app-builder-lib'));
+  const universal = createRequire(builder.resolve('@electron/universal'));
+  for (const consumer of [builder, universal]) {
+    const {Minimatch, minimatch} = consumer('minimatch');
+    const filter = new Minimatch('**/*.{js,json}', {dot: true});
+    assert.equal(filter.match('resources/.settings/config.json'), true);
+    assert.equal(filter.match('resources/Daten/Grüße.js'), true);
+    assert.equal(filter.match('resources/config.png'), false);
+    assert.equal(minimatch('native/addon.node', '*.node', {matchBase: true}), true);
+    assert.equal(minimatch('native/addon.txt', '*.node', {matchBase: true}), false);
+  }
+  const legacyAsar = createRequire(builder.resolve('@electron/asar'));
+  const legacyMatcher = legacyAsar('minimatch');
+  assert.equal(typeof legacyMatcher, 'function', 'the security override must not replace the older callable API');
+  assert.equal(legacyMatcher('resources/config.json', '**/*.json'), true);
+});
+
 test('native workspace packaging stages its production dependency closure and licenses without development tools', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'z2ma-package-test-'));
   t.after(() => rm(directory, {recursive: true, force: true}));

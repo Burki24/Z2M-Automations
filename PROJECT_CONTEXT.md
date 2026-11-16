@@ -5,6 +5,14 @@ primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 ## Current state
 
+RC1 preparation fixes the eight moderate build/packaging audit findings with
+upstream ASAR/glob updates and a version-scoped minimatch override. Runtime
+dependencies remain pinned. The CI matrix now audits the full dependency tree
+before packaging and emits commit/version-bound installer and designer checksums
+after acceptance checks. RC1 requires the owner's source commit/push and a fresh
+matrix; current local metadata is not a final candidate identity. See
+[RC1 preparation](docs/RC1.md).
+
 The shared guided transfer validates the draft and required partner catalogs
 before stopping operation. Missing partner data leave execution unchanged;
 conditions and action sequences are included. Final validation and store guards

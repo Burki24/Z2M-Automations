@@ -46,6 +46,8 @@ jobs:
         run: node scripts/ci-build-ref.mjs verify
       - name: Install pinned tools without implicit lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Audit runtime and packaging dependencies
+        run: npm run audit:dependencies
       - name: Cache verified Electron downloads for setup and packaging
         uses: actions/cache@v6
         with:
@@ -128,6 +130,11 @@ jobs:
           test ! -e "$binary"
       - name: Build the shared designer handoff
         run: npm run pack:designer
+      - name: Prepare candidate identity and package checksums
+        env:
+          Z2MA_BUILD_SHA: ${{ needs.version.outputs.sha || github.sha }}
+          Z2MA_BUILD_VERSION: ${{ needs.version.outputs.version }}
+        run: npm run prepare:rc
       - name: Upload smoke-test diagnostics
         if: failure()
         uses: actions/upload-artifact@v6
@@ -142,4 +149,5 @@ jobs:
           path: |
             apps/desktop/out/make/
             artifacts/*.tgz
+            artifacts/candidate-*.json
           retention-days: 7

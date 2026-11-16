@@ -1,5 +1,26 @@
 # Development
 
+RC preparation adds `npm run audit:dependencies` (runtime and development
+dependencies, moderate-or-higher findings fail) and a candidate identity/checksum
+step after platform acceptance in CI. Run the audit after a clean
+`npm ci --ignore-scripts --no-audit --no-fund`, then `npm run setup:tools`, the
+mandatory `npm run verify:local` and capture-free smoke/packaged smoke. Actual
+`npm run make` exercises the changed ASAR and NSIS dependency paths. Never use
+`npm audit fix --force` for this toolchain; see [RC1](RC1.md) for the reviewed
+override, immutable build handoff and remaining platform acceptance.
+
+`npm run prepare:rc` requires `Z2MA_BUILD_SHA`, a clean source checkout, one
+versioned native installer and the matching designer archive. When CI supplies
+`Z2MA_BUILD_VERSION`, it must match the checked metadata. Its `candidate-*.json` output is
+included in the existing platform artifacts. Local dirty-tree packaging may
+verify the toolchain but does not establish the final candidate identity.
+
+The 2026-11-16 RC preparation passes a clean install, full/production audits
+(zero findings), Windows `verify:local` (239 passing tests, two Ubuntu-specific
+skips, complete capture-free UI), capture-free source/system-link/packaged smoke,
+NSIS setup creation and designer packing. Fresh Ubuntu/installed-package CI
+and focused native RC acceptance remain separate; see [RC1 evidence](RC1.md).
+
 Partner-device preflight (2026-11-16) checks required catalogs before any stop.
 Desktop MQTT integration tests cover actions, conditions and sequences on two
 independent synthetic brokers, including data lost after confirmation. They

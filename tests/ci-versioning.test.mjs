@@ -24,6 +24,22 @@ test('desktop packaging waits for application versioning and checks out its exac
   assert.deepEqual(desktop.jobs.desktop.strategy.matrix.os, ['windows-2025', 'ubuntu-24.04']);
 });
 
+test('candidate packaging audits all dependencies and records immutable package identity after acceptance', () => {
+  const steps = workflow('desktop.yml').jobs.desktop.steps;
+  const index = run => steps.findIndex(step => step.run === run);
+  assert.ok(index('npm run audit:dependencies') > index('npm ci --ignore-scripts --no-audit --no-fund'));
+  assert.ok(index('npm run audit:dependencies') < index('npm run make'));
+  const candidate = steps[index('npm run prepare:rc')];
+  assert.ok(candidate);
+  assert.ok(index('npm run prepare:rc') > steps.findIndex(step => step.name === 'Verify installed Windows package'));
+  assert.ok(index('npm run prepare:rc') > steps.findIndex(step => step.name === 'Verify installed Ubuntu package'));
+  assert.ok(index('npm run prepare:rc') > index('npm run pack:designer'));
+  assert.equal(candidate.env.Z2MA_BUILD_SHA, '${{ needs.version.outputs.sha || github.sha }}');
+  assert.equal(candidate.env.Z2MA_BUILD_VERSION, '${{ needs.version.outputs.version }}');
+  const upload = steps.find(step => step.uses === 'actions/upload-artifact@v6' && !step.if);
+  assert.match(upload.with.path, /artifacts\/candidate-\*\.json/);
+});
+
 test('metadata is called by the build workflow and hands off its committed version and SHA', () => {
   const metadata = workflow('update-application-metadata.yml');
   assert.ok(metadata.on.workflow_call, 'metadata generation must finish in the same dependency graph');

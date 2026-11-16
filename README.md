@@ -56,6 +56,7 @@ remain disabled. See [workspace reconciliation](docs/adr/0006-draft-reconciliati
 - [Project context](PROJECT_CONTEXT.md) and [development rules](AGENTS.md)
 - [Architecture](docs/ARCHITECTURE.md) and [development commands](docs/DEVELOPMENT.md)
 - [Automatic versioning](docs/VERSIONING.md) and [localization](docs/LOCALIZATION.md)
+- [RC1 preparation and native acceptance](docs/RC1.md)
 - [Local projects and credential storage](docs/D2.md)
 - [Shared designer package](packages/designer/README.md)
 
