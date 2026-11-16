@@ -1,5 +1,22 @@
 # Development
 
+Partner-device preflight (2026-11-16) checks required catalogs before any stop.
+Desktop MQTT integration tests cover actions, conditions and sequences on two
+independent synthetic brokers, including data lost after confirmation. They
+assert no stop, store or activation and unchanged execution, grants and drafts.
+The shared browser/tile workflow validates before stopping, then revalidates
+after a required stop; the native store guard remains authoritative. Missing
+catalogs on unrelated networks do not block a local-only transfer.
+
+The Windows `npm run verify:local` recheck passes 233 tests (two Ubuntu-only APT
+skips), types, build, integrity and the complete capture-free UI fixture (15.5 s).
+Its first run completed all DOM assertions but exceeded the unchanged 30-second
+process deadline during exit. The isolated full recheck exited successfully.
+The subsequent `node scripts/smoke.mjs --no-capture` also passes. The Symcon
+consumer's full PHP/282-JavaScript suite and capture-free DE/EN browser/tile
+acceptance pass with shared content `3deb84bb5545`. Ubuntu CI and installed-system
+acceptance remain separate.
+
 Module-view recovery verification on 2026-11-15 passed `npm run verify:local`
 (230 passing tests, two Ubuntu-only APT skips and the complete capture-free
 extension-update UI test in 15.3 seconds) and `node scripts/smoke.mjs --no-capture`.

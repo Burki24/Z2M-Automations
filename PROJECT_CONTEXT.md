@@ -1,9 +1,15 @@
 # Project context: Z2M-Automations
 
-As of 2026-11-15. Repository Burki24/Z2M-Automations; working branch dev,
+As of 2026-11-16. Repository Burki24/Z2M-Automations; working branch dev,
 primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 ## Current state
+
+The shared guided transfer validates the draft and required partner catalogs
+before stopping operation. Missing partner data leave execution unchanged;
+conditions and action sequences are included. Final validation and store guards
+remain in place. Desktop transfers already check fresh partner data before stop,
+including after confirmation; regression tests cover that boundary.
 
 Transient module-view contention now uses a bounded GET recovery loop with
 localized waiting feedback. Up to five retries start within ten seconds; previous

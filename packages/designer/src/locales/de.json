@@ -2138,7 +2138,7 @@
     "symcon.review.check": "Entwurf prüfen",
     "symcon.review.unavailable": "Wähle ein System und lies seinen Bestand.",
     "symcon.transfer.confirm": "Entwurf nach Z2M übermitteln?",
-    "symcon.transfer.detail": "Ziel: {{name}}. {{count}} Automationen, davon {{enabled}} freigegeben. Ein laufender Automatikbetrieb wird gestoppt. Der Entwurf wird erneut geprüft und mit diesen Freigaben gespeichert. Z2M sichert die Vorversion. Ohne die Option zur Wiederaufnahme bleibt der Betrieb gestoppt.",
+    "symcon.transfer.detail": "Ziel: {{name}}. {{count}} Automationen, davon {{enabled}} freigegeben. Zuerst werden der Entwurf und benötigte Partner-Gerätedaten geprüft. Nur bei erfolgreicher Prüfung wird ein laufender Betrieb gestoppt. Danach wird erneut geprüft und mit diesen Freigaben gespeichert. Z2M sichert die Vorversion. Ohne die Option zur Wiederaufnahme bleibt der Betrieb gestoppt.",
     "symcon.transfer.changed": "Der Entwurf oder das Ziel wurde geändert. Prüfe den aktuellen Stand erneut.",
     "symcon.transfer.unconfirmed": "Der Vorgang wurde nicht eindeutig bestätigt. Lies den Status; es wird kein Befehl wiederholt.",
     "symcon.transfer.checkFailed": "Die erneute Entwurfsprüfung war nicht erfolgreich. Korrigiere die gemeldeten Stellen.",
@@ -2212,5 +2212,6 @@
     "project.draftFile": "Entwurf / YAML / JSON",
     "project.draftSyncRequired": "Bitte zuerst den Z2M-Abgleich unter „Automationen bearbeiten“ abschließen und offene Versionskonflikte auflösen. Es wurde nichts übertragen.",
     "mqtt.error.draftSyncRequired": "Bitte zuerst den Z2M-Abgleich unter „Automationen bearbeiten“ abschließen und offene Versionskonflikte auflösen. Es wurde nichts übertragen.",
-    "draft.sync.dependency": "Eine erhaltene Automation benötigt diese gelöschte Aktionsfolge. Wähle ausdrücklich, ob die Aktionsfolge erhalten bleiben soll."
+    "draft.sync.dependency": "Eine erhaltene Automation benötigt diese gelöschte Aktionsfolge. Wähle ausdrücklich, ob die Aktionsfolge erhalten bleiben soll.",
+    "symcon.transfer.partnerCatalog": "Für ein benötigtes Partner-System fehlen bestätigte Gerätedaten. Wähle das Partner-System und aktualisiere dort in Schritt 4 die Gerätedaten. Es wurde nichts übertragen."
 }

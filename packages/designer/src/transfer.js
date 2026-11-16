@@ -36,16 +36,21 @@ export async function runGuidedTransfer({getData, reload, token, runtime = runti
     // A stopped receiver keeps the user's restart preference, but has no active restart intent.
     const needsStop = value => value.executing || (value.resumeAfterRestart && value.resumeStatus !== 'stopped')
         || Object.values(value.rules ?? {}).some(rule => rule.state === 'running');
+    const validate = async () => {
+        if (await reload() === false) throw new MessageError('symcon.transfer.unconfirmed');
+        current();
+        const checked = await complete('transfer', await transfer(current(), 'validate', {token}));
+        if (!checked.canStore || checked.status !== 'validated') throw new MessageError('symcon.transfer.checkFailed');
+        current().transfer = checked;
+    };
+    // Validation also checks required partner catalogs without changing operation.
+    await validate();
     if (needsStop(operation)) {
         operation = await complete('runtime', await runtime(current(), 'deactivate', {token, resume: false}));
         if (!operation.confirmed || needsStop(operation)) throw new MessageError('symcon.transfer.unconfirmed');
         current().runtime = operation;
+        await validate();
     }
-    if (await reload() === false) throw new MessageError('symcon.transfer.unconfirmed');
-    current();
-    const checked = await complete('transfer', await transfer(current(), 'validate', {token}));
-    if (!checked.canStore || checked.status !== 'validated') throw new MessageError('symcon.transfer.checkFailed');
-    current().transfer = checked;
     const stored = await complete('transfer', await transfer(current(), 'store', {token}));
     current().transfer = stored;
     if (stored.status !== 'stored' || stored.receiverConfirmed !== true) throw new MessageError('symcon.transfer.unconfirmed');

@@ -2138,7 +2138,7 @@
     "symcon.review.check": "Check draft",
     "symcon.review.unavailable": "Select a system and read its inventory.",
     "symcon.transfer.confirm": "Transfer draft to Z2M?",
-    "symcon.transfer.detail": "Target: {{name}}. {{count}} automations, {{enabled}} enabled. Running automatic operation will stop. The draft will be checked again and stored with these permissions. Z2M retains the previous version. Without the resume option, operation stays stopped.",
+    "symcon.transfer.detail": "Target: {{name}}. {{count}} automations, {{enabled}} enabled. The draft and required partner device data are checked first. Running operation stops only after a successful check. The draft is then checked again and stored with these permissions. Z2M retains the previous version. Without the resume option, operation stays stopped.",
     "symcon.transfer.changed": "The draft or target changed. Check the current state again.",
     "symcon.transfer.unconfirmed": "The operation was not confirmed. Read the status; no command will be repeated.",
     "symcon.transfer.checkFailed": "The fresh draft check failed. Correct the reported findings.",
@@ -2212,5 +2212,6 @@
     "project.draftFile": "Draft / YAML / JSON",
     "project.draftSyncRequired": "Complete the Z2M reconciliation under “Edit automations” and resolve any version conflicts first. Nothing was transferred.",
     "mqtt.error.draftSyncRequired": "Complete the Z2M reconciliation under “Edit automations” and resolve any version conflicts first. Nothing was transferred.",
-    "draft.sync.dependency": "A retained automation needs this deleted sequence. Explicitly choose whether to keep the sequence."
+    "draft.sync.dependency": "A retained automation needs this deleted sequence. Explicitly choose whether to keep the sequence.",
+    "symcon.transfer.partnerCatalog": "Confirmed device data are missing for a required partner system. Select the partner system and update its device data in step 4. Nothing was transferred."
 }
