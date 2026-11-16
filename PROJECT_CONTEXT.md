@@ -5,6 +5,14 @@ primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 ## Current state
 
+User documentation now has matching English and German handbooks with 20
+chapters and 16 app-only screenshots per language, referenced to 0.120.0.
+They cover first setup, example rules, draft reconciliation/files, transfer
+resume, releases, cross-network receivers, updates and troubleshooting. Captures
+use isolated fictional data and the real shared renderer; they establish no
+live-system result or native Ubuntu-dialog evidence. See docs/USER_GUIDE.md,
+docs/USER_GUIDE_DE.md and docs/images/README.md.
+
 RC1 preparation fixes the eight moderate build/packaging audit findings with
 upstream ASAR/glob updates and a version-scoped minimatch override. Runtime
 dependencies remain pinned. The CI matrix now audits the full dependency tree

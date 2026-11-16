@@ -6,7 +6,9 @@ Automations will run in our own Z2M extension, independently of the application.
 
 **Current state:** D6 operation passed Windows and Ubuntu CI. D7 installed beta acceptance
 is complete for Windows and Ubuntu Desktop 24.04 under Hyper-V. See the
-[beta user guide](docs/USER_GUIDE.md) and [D7 acceptance](docs/D7.md).
+[English user manual](docs/USER_GUIDE.md),
+[deutsches Anwenderhandbuch](docs/USER_GUIDE_DE.md) and
+[D7 acceptance](docs/D7.md).
 
 ## Run the development application
 
