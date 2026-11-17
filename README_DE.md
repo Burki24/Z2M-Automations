@@ -6,90 +6,91 @@
 
 ![Z2M-Automations für Windows und Ubuntu: visueller Automationsdesigner, verbundene Zigbee2MQTT-Netzwerke, Projekte und Entwürfe sowie Ausführung in Zigbee2MQTT](docs/images/readme-hero-de.png)
 
-Ein eigenständiger Designer für Zigbee2MQTT-Automationen unter **Windows und
-Ubuntu Linux**. Die gemeinsame Oberfläche verwaltet bis zu acht Systeme an einem
-oder mehreren MQTT-Brokern. Die Automationen laufen unabhängig von der
-Anwendung in unserer eigenen Z2M-Erweiterung.
+**Dein Zigbee. Deine Automationen.**
 
-**Entwicklungsstand:** Der Betrieb aus Meilenstein D6 wurde in der Windows- und
-Ubuntu-CI geprüft. Die Abnahme installierter Beta-Pakete aus D7 ist für Windows
-und Ubuntu Desktop 24.04 unter Hyper-V abgeschlossen. Siehe
-[englisches Anwenderhandbuch](docs/USER_GUIDE.md),
-[deutsches Anwenderhandbuch](docs/USER_GUIDE_DE.md) und
-[D7-Abnahme](docs/D7_DE.md).
+Mit Z2M-Automations machst du aus Tastern, Sensoren, Leuchten und anderen
+Zigbee-Geräten praktische Alltagsautomationen – ohne Programmierung. Die App
+ist als **Z2M-Automations für Windows** und **Z2M-Automations für Linux (Ubuntu)**
+verfügbar und verbindet sich direkt mit deiner vorhandenen Zigbee2MQTT-Installation.
 
-<a id="run-the-development-application"></a>
+<a id="idea-and-purpose"></a>
 
-## Entwicklungsanwendung starten
+## Idee und Ziel
 
-Installiere Node 24.20.0 und führe in einem eigenständigen Klon Folgendes aus:
+Baue eine Regel visuell auf: **Wenn → Nur wenn → Dann**. Wähle den Auslöser,
+ergänze bei Bedarf Bedingungen und lege fest, was passieren soll. Die übersichtliche
+Ablaufansicht hilft dir, deine Automationen später zu verstehen und anzupassen.
 
-~~~sh
-npm ci --ignore-scripts --no-audit --no-fund
-npm run setup:tools
-npm start
-~~~
+Die App speichert deine Regeln direkt in Zigbee2MQTT. Dort führt unsere Erweiterung
+sie aus. **Nach Übermittlung, Freigabe und Aktivierung kannst du die App schließen.**
+Zigbee2MQTT, die Erweiterung, die MQTT-Verbindungen und die beteiligten Geräte
+halten die Automationen am Laufen.
 
-setup:tools führt ausschließlich die geprüfte Vorbereitung von Electron und den
-Windows-Installationswerkzeugen aus. Es verbindet sich nicht mit Z2M.
-Für die Diagnose öffne „Desktop-Diagnose“ unterhalb des Designers und starte
-eine einminütige Aufzeichnung.
+<a id="what-you-can-do"></a>
 
-~~~sh
-npm run verify:local
-npm run smoke
-npm run make
-npm run smoke:packaged
-~~~
+## Möglichkeiten
 
-make erstellt unter Windows eine Setup-EXE, unter Linux eine Ubuntu-DEB.
-Das Windows-Setup bietet Deutsch/Englisch und eine Wahl des Installationsordners;
-siehe [Windows-Installation](docs/WINDOWS_INSTALLER_DE.md). Die Ergebnisse sind
-nicht signierte Entwicklungspakete, keine Veröffentlichung. Linux benötigt
-zusätzlich fakeroot/dpkg und eine Anzeige, in der CI Xvfb.
-Die Plattformgrenzen beschreibt die [D1-Umsetzung](docs/D1_DE.md).
+- Auf Tastendruck, Bewegung, Fenstergriffstellungen und andere Gerätezustände reagieren.
+- Temperaturen und andere Messwerte, Zeitpläne, Sonnenaufgang und Sonnenuntergang nutzen.
+- Bedingungen, geordnete Aktionen, Wartezeiten, Szenen und wiederverwendbare Aktionsfolgen kombinieren.
+- Bis zu **acht Zigbee2MQTT-Netzwerke** an einem oder mehreren MQTT-Brokern verwalten.
+- Geräte aus verschiedenen Netzen in derselben Automation zusammenarbeiten lassen.
+- Vorhandene Automationen einlesen, neue Regeln erstellen und Änderungen vor der Übermittlung prüfen.
+- Erkennen, welche Regeln freigegeben sind und ob der Automatikbetrieb aktiv ist.
+- Auf **Deutsch oder Englisch** arbeiten, im hellen oder dunklen Design.
 
-<a id="features"></a>
+<a id="everyday-examples"></a>
 
-## Funktionen
+## Beispiele für den Alltag
 
-- Gemeinsame Anwendung für Windows 11 x64 und Ubuntu Desktop LTS x64.
-- Deutsch und Englisch über lokale Sprachkataloge, ohne Übersetzungsdienst.
-- Geräteereignisse, Uhr-/Sonnenzeiten, Bedingungen, Szenen und Aktionsfolgen.
-- Direkter MQTT-Zugang, getrennte Entwürfe, ausdrückliche Übermittlung und
-  systemübergreifende Aktionen.
-- Erweiterungsverwaltung, Systemstatus und zeitlich begrenzte Laufdiagnose.
+- Das Flurlicht bei Bewegung einschalten und nach einer Wartezeit ausschalten.
+- Mit einem Wandtaster eine Leuchte umschalten oder eine Aktionsfolge starten.
+- Eine Fenstergriffstellung in einer Heizungs- oder Lüftungsregel berücksichtigen.
+- Die Außenbeleuchtung bei Sonnenuntergang schalten.
+- Mit einem Taster in einem Zigbee-Netz eine Leuchte in einem anderen Netz steuern.
 
-<a id="project-documents"></a>
+<a id="keep-your-work-organized"></a>
 
-## Projektdokumentation
+## Deine Arbeit übersichtlich speichern
 
-Beim Verbinden werden gespeicherte Z2M-Automationen automatisch mit der lokalen
-Arbeit abgeglichen. Projekte verwenden `.z2map`; bestehende `.z2ma`-Dateien
-bleiben lesbar. Ausgewählte Regeln mit benötigten Aktionsfolgen lassen sich als
-`.z2mad` speichern und in der App, im Symcon-Browserdesigner oder in der Kachel
-zu einem gewählten Netz hinzufügen. Neue importierte Regeln bleiben
-ausgeschaltet. Siehe [Arbeitsstandabgleich](docs/adr/0006-draft-reconciliation-and-portable-files_DE.md).
+Speichere Verbindungen, Netze und Entwürfe zusammen als **Projekt (.z2map)**.
+Ausgewählte Automationen kannst du auch getrennt als **Entwurfsdatei (.z2mad)**
+speichern und einem anderen Projekt hinzufügen. Bestehende **.z2ma**-Projektdateien
+lassen sich weiterhin öffnen.
 
-- [Umsetzungsplan D0–D7](docs/DESKTOP_PLAN_DE.md)
-- [Projektkontext](PROJECT_CONTEXT_DE.md) und [Entwicklungsregeln](AGENTS_DE.md)
-- [Architektur](docs/ARCHITECTURE_DE.md) und [Entwicklungsbefehle](docs/DEVELOPMENT_DE.md)
-- [Automatische Versionierung](docs/VERSIONING_DE.md) und [Lokalisierung](docs/LOCALIZATION_DE.md)
-- [RC1-Vorbereitung und native Abnahme](docs/RC1_DE.md)
-- [Lokale Projekte und Zugangsdaten](docs/D2_DE.md)
-- [Gemeinsames Designer-Paket](packages/designer/README_DE.md)
-- [Gesamte Dokumentation auf Deutsch und Englisch](docs/README_DE.md)
+Beim Verbinden liest die App die in Z2M gespeicherten Automationen ein und führt
+sie mit deiner lokalen Arbeit zusammen. Bei widersprüchlichen Änderungen
+entscheidest du, welche Fassung du behalten möchtest. Sicherungen helfen dir,
+frühere Arbeitsstände wiederherzustellen. Neue Regeln bleiben bis zu deiner
+Freigabe ausgeschaltet.
 
-Das [Symcon-Produkt](https://github.com/Burki24/Symcon_Z2MAutomations) übernimmt
-unser geprüftes Designer-Paket mit festgelegter Version. Die Z2M-Erweiterung
-bleibt dort die maßgebliche Quelle. Keine der Anwendungen benötigt eine
-PHP-Laufzeit oder zur Laufzeit ein benachbartes Repository.
+<a id="requirements"></a>
+
+## Voraussetzungen
+
+- Ein Rechner mit **Windows 11 x64** oder **Ubuntu Desktop 24.04 LTS x64**.
+- Eine vorhandene **Zigbee2MQTT-Installation** mit den gewünschten Geräten.
+- Ein erreichbarer **MQTT-Broker**, seine Adresse, gegebenenfalls Zugangsdaten
+  und passende Zugriffsrechte.
+- Unsere kompatible **Z2M-Automations-Erweiterung** in jeder beteiligten
+  Zigbee2MQTT-Instanz. Die App bringt sie mit und bietet Installation und Updates an.
+- Für Automationen über getrennte Broker: eine MQTT-Bridge, die die benötigten
+  Nachrichten zwischen ihnen überträgt.
+- Unter Ubuntu ein verfügbarer Desktop-Schlüsselbund, wenn du Zugangsdaten
+  dauerhaft geschützt speichern möchtest.
+
+<a id="user-manual"></a>
+
+## Anwenderhandbuch
+
+Das [ausführliche Handbuch mit Bildern](docs/USER_GUIDE_DE.md) erklärt die
+Installation, deine erste Automation, den Umgang mit Entwürfen, Übermittlung
+und Aktivierung sowie die Fehlerbehebung. Die Bildschirmbilder passen zur
+jeweils gewählten Dokumentationssprache.
 
 <a id="license"></a>
 
 ## Lizenz
 
-[PolyForm Noncommercial 1.0.0](LICENSE). Vorhandene Urheberrechtshinweise des
-Designers bleiben erhalten. Fremdabhängigkeiten behalten ihre eigenen Lizenzen.
-Ein signiertes Installationspaket oder eine veröffentlichte Desktop-Version
-liegt noch nicht vor.
+Z2M-Automations steht unter der
+[PolyForm Noncommercial 1.0.0](LICENSE) für die nichtkommerzielle Nutzung bereit.
