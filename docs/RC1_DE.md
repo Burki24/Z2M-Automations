@@ -43,6 +43,21 @@ Installerprüfungen zu Aktualisierung, Rückkehr und Entfernung bleiben von dies
 automatisierten Desktop-Lauf getrennt. Signierung, Veröffentlichung und Stable-Freigabe
 bleiben gesonderte Entscheidungen.
 
+Nachprüfung zu CI-Lauf 44068759284: Der Überlauf der deutschen Überschrift bei
+360px wurde vor der Korrektur auf beiden Plattformen mit breiten Desktop-Schriften
+reproduziert. Der Textumbruch besteht jetzt 24 Kombinationen aus Sprache, Design,
+Schrift und Breite bei 360/600/1120px. Frische Quell- und Paketprüfungen bestehen
+unter Windows sowie unter Ubuntu mit `CI=true`, Xvfb und Software-Rendering; alle 36
+gepackten Handbuchdateien sind geprüft. Beide vollständigen `verify:local`-Läufe
+bestehen mit den obigen Testzahlen und der bildfreien Erweiterungsoberfläche.
+Die abschließenden Läufe wurden getrennt ausgeführt, nachdem eine erste Windows-
+Erweiterungsoberflächenprüfung beim Laden der Testseite während des VM-Tests ihre
+Frist überschritt. Die App-Testfrist bleibt bei 30 Sekunden. Der Tooltip-Test
+wechselt den Fokus ausdrücklich, statt einen bereits aktiven Button erneut zu
+fokussieren. Diese Nachprüfung baut Anwendungspakete mit `npm run package`;
+neue Installer-Artefakte und die Bestätigung durch die gehostete CI benötigen den
+nächsten Push des Eigentümers.
+
 <a id="candidate-identity-and-build-gates"></a>
 
 ## Kandidatenkennung und Build-Bedingungen

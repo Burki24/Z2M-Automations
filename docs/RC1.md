@@ -36,6 +36,18 @@ commit/push. Ubuntu 26.04 acceptance and installer upgrade/rollback/removal chec
 remain separate from this automated desktop run.
 Signing, publication and Stable promotion remain separate decisions.
 
+Follow-up for CI run 44068759284: the 360px German heading overflow was reproduced
+before correction on both platforms using wide desktop fonts. Text wrapping now
+passes 24 language/theme/font/width combinations at 360/600/1120px. Fresh source
+and packaged checks pass on Windows, and on Ubuntu with `CI=true`, Xvfb and
+software rendering; all 36 packaged handbook assets are verified. Both complete
+`verify:local` runs pass with the counts above and the capture-free extension UI.
+The final runs were serialized after an initial Windows extension-UI workspace
+load timeout while the VM was testing. The smoke deadline remains 30 seconds.
+The tooltip check explicitly changes focus instead of refocusing an already
+active button. This follow-up rebuilds application packages with `npm run package`;
+new installer artifacts and hosted-CI confirmation require the owner's next push.
+
 ## Candidate identity and build gates
 
 The final candidate requires the owner's source commit and push. The existing

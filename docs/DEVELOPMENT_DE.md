@@ -20,6 +20,16 @@ Viewers, Tooltips, erhaltene Eingaben und 360px-Layout. Nach verpflichtendem
 Hilfe-Prüfsummen; die Oberflächenprüfungen erzeugen keine Bilder. Native
 Desktop-/Schlüsselbundabnahme bleibt gesondert.
 
+Lauf 44068759284 zeigte einen Überlauf des deutschen Handbuchs bei 360px. Die
+lange Überschrift ist mit DejaVu Sans unter Linux oder Verdana unter Windows
+reproduzierbar breiter als ihr Textbereich. Handbuchtexte brechen lange Wörter
+jetzt um, ohne sie abzuschneiden. Der Hilfe-Test wartet auf die tatsächliche
+Fenstergröße und prüft Seiten- sowie Textblockbreiten bei 360/600/1120px in
+beiden Sprachen und Designs mit Standard- und breiter Schrift. Verborgene
+Windows-Testfenster schalten die Hintergrunddrosselung ab, damit sie sich wie
+sichtbare Hilfefenster verhalten; die CI-Grenze von 30 Sekunden bleibt bestehen.
+Die regulären Quell-, Paket- und Installationstests prüfen dies ohne Bildaufnahme.
+
 Native VM-Tests zeigten, dass 600ms für Test-RPCs mit echter Dateispeicherung
 der Erweiterung zu knapp waren. Die Laufzeit-Testdaten nutzen jetzt begrenzte
 2000ms; produktiv bleiben es 10000ms, sämtliche Stopp-/Wiederholungsprüfungen

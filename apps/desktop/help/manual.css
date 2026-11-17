@@ -1,6 +1,6 @@
 :root { color-scheme: light dark; font-family: system-ui, sans-serif; color: var(--ink); background: var(--page); }
 * { box-sizing: border-box; }
-body { margin: 0; line-height: 1.65; }
+body { margin: 0; line-height: 1.65; overflow-wrap: anywhere; }
 header { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.5rem; padding: .75rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--line); }
 header strong { margin-right: auto; }
 header form { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }

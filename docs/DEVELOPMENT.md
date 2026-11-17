@@ -16,6 +16,15 @@ Run these as `node scripts/smoke.mjs --no-capture` and
 and native packaging. The packaged gate checks every help asset hash; UI checks
 create no images. Native desktop/keyring acceptance remains separate.
 
+Run 44068759284 exposed overflow in the German handbook at 360px. The long
+heading is reproducibly wider than its text area with DejaVu Sans on Linux or
+Verdana on Windows. Handbook text now wraps long words without clipping them.
+The help smoke waits for the actual viewport and checks page and text-block
+widths at 360/600/1120px, in both languages/themes and with system/wide fonts.
+Hidden Windows test windows disable background throttling to match a visible
+help window; the 30-second CI deadline is unchanged. These checks run through
+the normal source, packaged and installed gates without image capture.
+
 Native VM tests exposed 600ms fixture RPC limits during real extension disk I/O.
 The runtime-control fixture now uses a bounded 2000ms budget; production remains
 at 10000ms and all stop/replay assertions are unchanged. The full smoke runner
