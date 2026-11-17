@@ -157,8 +157,10 @@ the app. The manual has a contents link, a text search and a language switch.
 Select an illustration to enlarge it; Escape or Close returns to the text.
 
 Pause over an important control, or focus it with the keyboard, to show a short
-explanation. Press Escape to dismiss a tooltip. Warnings about stopping operation
-remain visible in the page and confirmations; tooltips add guidance to them.
+explanation. App hints use the same typeface and size, including inside dialogs.
+You can move the pointer onto a hint to read it. Escape dismisses the hint while
+keeping its dialog open. Warnings about stopping operation remain visible in the
+page and confirmations; tooltips add guidance to them.
 
 <a id="project"></a>
 

@@ -37,8 +37,8 @@ systemweiten Aktualisierungs-/Entfernungsablauf.
 
 Sämtliche App- und Netzwerkprüfungen nutzen synthetische Projekte und isolierte
 MQTT-Partner. Keine echte Z2M-Installation, Regel oder reales Gerät wurde
-gesteuert. Die bisherige D7- und 0.99.0-Abnahme bleibt gültig. Nach Commit/Push
-des Eigentümers die saubere Matrix erneut prüfen. Ubuntu-26.04-Abnahme und
+gesteuert. Die bisherige D7- und 0.99.0-Abnahme bleibt gültig. Die nachfolgende
+saubere Matrix ist unten dokumentiert. Ubuntu-26.04-Abnahme und
 Installerprüfungen zu Aktualisierung, Rückkehr und Entfernung bleiben von diesem
 automatisierten Desktop-Lauf getrennt. Signierung, Veröffentlichung und Stable-Freigabe
 bleiben gesonderte Entscheidungen.
@@ -54,9 +54,59 @@ Die abschließenden Läufe wurden getrennt ausgeführt, nachdem eine erste Windo
 Erweiterungsoberflächenprüfung beim Laden der Testseite während des VM-Tests ihre
 Frist überschritt. Die App-Testfrist bleibt bei 30 Sekunden. Der Tooltip-Test
 wechselt den Fokus ausdrücklich, statt einen bereits aktiven Button erneut zu
-fokussieren. Diese Nachprüfung baut Anwendungspakete mit `npm run package`;
-neue Installer-Artefakte und die Bestätigung durch die gehostete CI benötigen den
-nächsten Push des Eigentümers.
+fokussieren. Diese erste Nachprüfung baute Anwendungspakete mit
+`npm run package`; der nachfolgende gehostete Lauf unten liefert die
+Installer-Nachweise.
+
+<a id="clean-ci-confirmation-on-2026-11-17"></a>
+
+## Bestätigung durch saubere CI am 17.11.2026
+
+[Lauf 44077203946](https://github.com/Burki24/Z2M-Automations/actions/runs/44077203946)
+bestand Windows und Ubuntu im ersten Versuch. Beide Jobs bauten Version 0.129.0
+aus Metadatencommit `9e17622a7c816b6d43d9c258ca8fc960827311c3` nach Quellcommit
+`ca644ddbcfa8d929376a6f4c015a9696b9070f07`. Beide Abhängigkeits-Audits melden
+null Befunde. Quellprüfungen sowie Tests gepackter und frisch installierter Apps
+bestanden, einschließlich Offline-Hilfe bei 360/600/1120px in DE/EN, Hell/Dunkel
+und mit System-/breiten Schriften. Alle 36 Handbuchdateien wurden in jedem Paket
+geprüft. EXE-/DEB-Uploads und beide Kandidatenmanifeste wurden heruntergeladen und
+abgeglichen: Die Manifeste nennen dieselbe Version und denselben Commit; Größen
+und SHA-256-Werte stimmen mit den Artefakten überein. Diese Tests zu Neuinstallation
+und Entfernung belegen keine Aktualisierung mit erhaltenen Anwenderdaten und
+ersetzen keine native Desktop-Abnahme.
+
+<a id="tooltip-follow-up-on-2026-11-17"></a>
+
+## Tooltip-Nachprüfung am 17.11.2026
+
+Der Eigentümer meldete uneinheitliche Anzeige und Schriftgrößen der Hinweise in
+0.129.0. Native Titelhinweise und ausführliche Hilfen nutzen jetzt einen gemeinsamen
+Desktop-Tooltip, auch bei neuen Elementen und in Dialogen. Nach einem Klick im
+selben Element erscheinen Hinweise per Maus wieder. Sprachabhängige Titeländerungen
+erhalten den letzten Wert und vorhandene Zugänglichkeitsbeschreibungen. Lange
+Hinweise halten den Abstand zum Fensterrand ein.
+
+Frische `verify:local`-Läufe bestehen unter Windows (253 bestanden, zwei
+Plattformprüfungen übersprungen) und Ubuntu 24.04.5 (252 bestanden, drei
+Plattform-/Wegwerf-CI-Prüfungen übersprungen), jeweils mit 255 Tests und der
+vollständigen bildfreien Erweiterungsoberflächenprüfung. Frische Quell- und
+Paketläufe bestehen auf beiden Plattformen; Ubuntu nutzt `CI=true`, Xvfb/X11,
+Software-Rendering und die Chromium-Sandbox. Beide Pakete prüfen alle 36
+Handbuchdateien. Quell-, Paket- und Installationstests verlangen
+`DESKTOP_TOOLTIPS_OK`: echte Maus-/Tastaturereignisse, Wiederanzeige nach Klick,
+deaktivierte Elemente, gebündelte Titeländerungen, Ausblenden, Dialogschriften
+und DE-/EN-Texte ohne Bilder.
+
+Ein erster Windows-Paketlauf überschritt nach erfolgreichen Tooltip-/Hilfeprüfungen
+die unveränderte 30-Sekunden-Frist. Die gemeinsame Maus-/Zeitlogik wird jetzt einmal
+geprüft, ergänzt um sprachabhängige Tastatur-/Titel-/Dialogprüfungen auf Deutsch.
+Der abschließende vollständige Windows-Paketlauf besteht in 25,3 Sekunden;
+Quellläufe und Ubuntu-Paketlauf bestehen ebenfalls die normale Frist. Weder
+Produktverzögerungen noch Testfrist wurden erhöht. Diese lokalen Builds behalten
+die Metadaten 0.129.0 bei und aktualisieren die installierte App nicht. Die
+Tooltip-Korrektur benötigt nach Commit/Push des Eigentümers eine frische gehostete
+Matrix. Tatsächliche Installer-Aktualisierungen und aktuelle native Desktop-Abnahme
+bleiben gesondert.
 
 <a id="candidate-identity-and-build-gates"></a>
 

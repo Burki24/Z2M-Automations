@@ -31,8 +31,8 @@ run verifies the built package, not its system-wide upgrade/removal lifecycle.
 
 All app and network checks use synthetic projects and isolated MQTT peers.
 No real Z2M installation, rule or device was controlled. The previous D7 and
-0.99.0 acceptance remains valid. Refresh the clean matrix after the owner's
-commit/push. Ubuntu 26.04 acceptance and installer upgrade/rollback/removal checks
+0.99.0 acceptance remains valid. The subsequent clean matrix is recorded below.
+Ubuntu 26.04 acceptance and installer upgrade/rollback/removal checks
 remain separate from this automated desktop run.
 Signing, publication and Stable promotion remain separate decisions.
 
@@ -45,8 +45,49 @@ software rendering; all 36 packaged handbook assets are verified. Both complete
 The final runs were serialized after an initial Windows extension-UI workspace
 load timeout while the VM was testing. The smoke deadline remains 30 seconds.
 The tooltip check explicitly changes focus instead of refocusing an already
-active button. This follow-up rebuilds application packages with `npm run package`;
-new installer artifacts and hosted-CI confirmation require the owner's next push.
+active button. This initial follow-up rebuilt application packages with
+`npm run package`; the subsequent hosted run below supplies installer evidence.
+
+## Clean CI confirmation on 2026-11-17
+
+[Run 44077203946](https://github.com/Burki24/Z2M-Automations/actions/runs/44077203946)
+passed Windows and Ubuntu on the first attempt. Both jobs built version 0.129.0
+from metadata commit `9e17622a7c816b6d43d9c258ca8fc960827311c3`, following source
+commit `ca644ddbcfa8d929376a6f4c015a9696b9070f07`. Both dependency audits report
+zero findings. Source, packaged and freshly installed app checks passed,
+including 360/600/1120px offline help in DE/EN, light/dark and system/wide fonts.
+All 36 handbook assets were verified in each package. EXE and DEB uploads and
+both candidate manifests were downloaded and checked: the manifests identify
+the same version/commit and their sizes and SHA-256 values match the artifacts.
+These fresh-install/removal checks do not establish upgrades with retained user
+data or replace native desktop acceptance.
+
+## Tooltip follow-up on 2026-11-17
+
+The owner reported inconsistent hint visibility and font sizes in 0.129.0.
+Native title hints and contextual help now use one desktop tooltip, including
+new controls and dialogs. Hover resumes after clicking within the same control;
+localized title updates preserve the latest value and existing accessibility
+descriptions. Long hints stay within the viewport margin.
+
+Fresh `verify:local` passes on Windows (253 pass, two platform skips) and Ubuntu
+24.04.5 (252 pass, three platform/disposable-CI skips), with 255 tests and the
+complete capture-free extension-update UI on each. Fresh source and packaged
+app runs pass on both platforms; Ubuntu uses `CI=true`, Xvfb/X11, software
+rendering and Chromium's sandbox. Both packages verify all 36 handbook assets.
+`DESKTOP_TOOLTIPS_OK` is required by source, packaged and installed smoke gates.
+It checks real mouse/key events, click/hover recovery, disabled controls, dynamic
+title batches, dismissal, dialog fonts and DE/EN localization without images.
+
+An initial Windows packaged run exceeded the unchanged 30-second deadline after
+passing the new tooltip/help assertions. The shared pointer/timing cases now run
+once, with additional localized keyboard/title/dialog assertions in German.
+The final complete Windows packaged run passes in 25.3 seconds; source and Ubuntu
+package runs also pass the normal deadline. No production delay or smoke timeout
+was increased. These local builds retain 0.129.0 metadata and do not update the
+installed app. The tooltip change needs a fresh hosted matrix after the owner's
+commit/push; actual installer upgrades and current native desktop acceptance
+remain separate.
 
 ## Candidate identity and build gates
 

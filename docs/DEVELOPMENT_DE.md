@@ -20,6 +20,17 @@ Viewers, Tooltips, erhaltene Eingaben und 360px-Layout. Nach verpflichtendem
 Hilfe-Prüfsummen; die Oberflächenprüfungen erzeugen keine Bilder. Native
 Desktop-/Schlüsselbundabnahme bleibt gesondert.
 
+Desktop-Titelhinweise und ausführliche Erklärungen nutzen jetzt einen gemeinsamen
+Tooltip mit einheitlicher Schrift. Dynamische Titel und Sprachbindungen werden
+ohne zweiten nativen Hinweis übernommen; vorhandene Zugänglichkeitsbeschreibungen
+bleiben erhalten. Nach einem Klick kann der Hinweis innerhalb desselben Elements
+wieder erscheinen. Verlassen beendet ausstehende Hinweise; nach Escape öffnen
+bloße Mausbewegungen innerhalb desselben Elements den Hinweis nicht erneut.
+Quell-, Paket- und Installationstests verlangen zusätzlich `DESKTOP_TOOLTIPS_OK`:
+echte Maus- und Tastaturereignisse, deaktivierte Elemente, verschachtelte Spans,
+Titeländerungen, mit der Maus erreichbare Hinweise und einheitliche
+Dialogschriften in DE/EN. Dabei entstehen keine Bilder.
+
 Lauf 44068759284 zeigte einen Überlauf des deutschen Handbuchs bei 360px. Die
 lange Überschrift ist mit DejaVu Sans unter Linux oder Verdana unter Windows
 reproduzierbar breiter als ihr Textbereich. Handbuchtexte brechen lange Wörter

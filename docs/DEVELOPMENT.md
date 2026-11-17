@@ -16,6 +16,15 @@ Run these as `node scripts/smoke.mjs --no-capture` and
 and native packaging. The packaged gate checks every help asset hash; UI checks
 create no images. Native desktop/keyring acceptance remains separate.
 
+Desktop title hints and mapped explanations now share one tooltip and font.
+Dynamic title updates and language bindings are adopted without retaining a
+second native popup; existing accessibility descriptions are preserved. Hover
+can resume inside a clicked control, pending hints cancel on leave, and Escape
+prevents pointer motion inside that control from reopening a dismissed hint.
+Source, packaged and installed smoke also require `DESKTOP_TOOLTIPS_OK`: real
+renderer mouse/key events, disabled controls, nested spans, title updates,
+hoverable popups and uniform dialog fonts in DE/EN. The checks create no images.
+
 Run 44068759284 exposed overflow in the German handbook at 360px. The long
 heading is reproducibly wider than its text area with DejaVu Sans on Linux or
 Verdana on Windows. Handbook text now wraps long words without clipping them.

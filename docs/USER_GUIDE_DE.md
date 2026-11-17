@@ -165,9 +165,11 @@ eine Textsuche und einen Sprachwechsel.
 Wähle eine Abbildung zum Vergrößern; Escape oder Schließen führt zum Text zurück.
 
 Verweile mit der Maus über einem wichtigen Steuerelement oder fokussiere es per
-Tastatur, um eine kurze Erklärung zu sehen. Escape blendet den Tooltip aus.
-Warnungen zum Betriebsstopp bleiben auf der Seite und in Bestätigungen sichtbar;
-Tooltips ergänzen diese Hinweise.
+Tastatur, um eine kurze Erklärung zu sehen. App-Hinweise nutzen dieselbe
+Schriftfamilie und Schriftgröße, auch innerhalb von Dialogen. Zum Lesen kannst
+du den Mauszeiger auf den Hinweis bewegen. Escape blendet den Hinweis aus und
+lässt seinen Dialog geöffnet. Warnungen zum Betriebsstopp bleiben auf der Seite
+und in Bestätigungen sichtbar; Tooltips ergänzen diese Hinweise.
 
 <a id="project"></a>
 

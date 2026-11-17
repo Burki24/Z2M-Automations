@@ -1,4 +1,5 @@
 import type {BrowserWindow, WebContents} from 'electron';
+import {smokeTooltips} from './smoke-tooltips.js';
 
 async function verifyHelpLayout(viewer: BrowserWindow): Promise<void> {
   try {
@@ -48,6 +49,7 @@ export async function smokeHelp(view: WebContents, current: () => BrowserWindow 
     for (let i=0;i<100 && document.documentElement.lang!=='en';i++) await new Promise(r=>setTimeout(r,20));
     return {previous, search: document.querySelector('#search').value, configuration: JSON.stringify((await window.z2maDesktop.snapshot()).configuration)};
   })()`);
+  await smokeTooltips(view);
   view.sendInputEvent({type: 'keyDown', keyCode: 'F1'});
   view.sendInputEvent({type: 'keyUp', keyCode: 'F1'});
   await wait(() => !!current() && current()!.webContents.getURL().includes('/help/en.html') && !current()!.webContents.isLoadingMainFrame());

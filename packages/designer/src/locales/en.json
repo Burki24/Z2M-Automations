@@ -20,6 +20,7 @@
     "desktop.tip.restore": "Recover a previously saved working copy. Review the restored draft before any separate transfer.",
     "desktop.tip.export": "Export the configuration as YAML. Save the project separately to keep its connections and all network drafts.",
     "desktop.tip.import": "Import YAML or JSON into the local draft after backup and confirmation. This can replace the draft; it does not transfer anything to Z2M.",
+    "desktop.tip.workingCopy": "Choose the local draft or compare it with the configuration stored in Zigbee2MQTT. Your local changes are preserved; conflicts require your choice.",
     "desktop.tip.new": "Create a rule in the local draft. New rules remain disabled until you explicitly release them.",
     "desktop.tip.check": "Check the whole draft against current device capabilities. A successful check prepares a separate transfer; it does not activate rules.",
     "desktop.tip.transfer": "Transfer the checked draft to the selected network after confirmation. A running network may be stopped. Resume previous operation only if explicitly selected and verification succeeds.",

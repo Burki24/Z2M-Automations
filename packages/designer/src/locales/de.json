@@ -20,6 +20,7 @@
     "desktop.tip.restore": "Stellt einen früher gespeicherten Arbeitsstand wieder her. Prüfe den Entwurf vor einer gesonderten Übermittlung.",
     "desktop.tip.export": "Exportiert die Konfiguration als YAML. Speichere das Projekt zusätzlich, um Verbindungen und Entwürfe aller Netze zu behalten.",
     "desktop.tip.import": "Importiert YAML oder JSON nach Sicherung und Bestätigung in den lokalen Entwurf. Dabei kann der Entwurf ersetzt werden; an Z2M wird nichts übertragen.",
+    "desktop.tip.workingCopy": "Wähle den lokalen Entwurf oder gleiche ihn mit der in Zigbee2MQTT gespeicherten Konfiguration ab. Deine lokalen Änderungen bleiben erhalten; bei Konflikten entscheidest du.",
     "desktop.tip.new": "Erstellt eine Regel im lokalen Entwurf. Neue Regeln bleiben bis zu deiner ausdrücklichen Freigabe ausgeschaltet.",
     "desktop.tip.check": "Prüft den gesamten Entwurf anhand aktueller Gerätedaten. Eine erfolgreiche Prüfung bereitet die gesonderte Übermittlung vor; sie aktiviert keine Regeln.",
     "desktop.tip.transfer": "Übermittelt den geprüften Entwurf nach Bestätigung an das gewählte Netz. Ein laufender Betrieb kann gestoppt werden. Eine Wiederaufnahme erfolgt nur bei ausdrücklicher Auswahl und erfolgreicher Prüfung.",
