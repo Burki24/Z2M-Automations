@@ -2,6 +2,31 @@
 
 **English | [Deutsch](DEVELOPMENT_DE.md)**
 
+Offline help is built from the committed DE/EN handbooks by `scripts/build-help.mjs`.
+Its deliberately limited Markdown converter escapes HTML and rejects foreign
+links. Both HTML files, 32 matching screenshots, local styles/scripts and an asset
+hash manifest are staged under `.build/renderer/help`, inside the packaged ASAR
+on both platforms. No runtime download or Markdown dependency is added.
+`tests/help.test.mjs` verifies chapters, exact image bytes, HTML safety and the
+fixed help IPC. The normal source, packaged and installed smoke gates now require
+`DESKTOP_HELP_OK`: actual Help/F1, language/search, all image loads, image
+enlargement, viewer isolation, tooltips, preserved input and a 360px layout.
+Run these as `node scripts/smoke.mjs --no-capture` and
+`node scripts/smoke-packaged.mjs --no-capture` after the mandatory `verify:local`
+and native packaging. The packaged gate checks every help asset hash; UI checks
+create no images. Native desktop/keyring acceptance remains separate.
+
+Native VM tests exposed 600ms fixture RPC limits during real extension disk I/O.
+The runtime-control fixture now uses a bounded 2000ms budget; production remains
+at 10000ms and all stop/replay assertions are unchanged. The full smoke runner
+retains its 30000ms CI default; a constrained local VM may explicitly set
+`Z2MA_SMOKE_TIMEOUT_MS=90000` (validated range 30000–120000). On deadline it
+terminates gracefully, then forcibly after five seconds if necessary. A real
+child-process regression checks reaping even when SIGTERM is ignored.
+For Xvfb, unset `WAYLAND_DISPLAY` and set `XDG_SESSION_TYPE=x11` so Electron does
+not select a locked native Wayland session. A direct GNOME desktop check requires
+an unlocked session; virtual-display success is not substituted for that check.
+
 RC preparation adds `npm run audit:dependencies` (runtime and development
 dependencies, moderate-or-higher findings fail) and a candidate identity/checksum
 step after platform acceptance in CI. Run the audit after a clean

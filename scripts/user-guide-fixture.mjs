@@ -49,7 +49,7 @@ export function guideModel(language, version) {
 
 export async function installGuideBridge(model, language) {
   localStorage.clear(); sessionStorage.clear();
-  localStorage.setItem('z2ma.language', language);
+  localStorage.setItem('z2ma.designer.language', language);
   window.guideModel = model;
   const copy = value => structuredClone(value);
   window.z2maDesktop = {

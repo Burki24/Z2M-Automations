@@ -4,6 +4,7 @@ import {readFileSync, writeFileSync, cpSync, mkdirSync, copyFileSync, rmSync} fr
 import {join} from 'node:path';
 import {root} from './build-designer.mjs';
 import {createHash} from 'node:crypto';
+import {buildHelp} from './build-help.mjs';
 
 // Fixed generated directory inside the workspace; never project/user storage.
 rmSync(join(root, 'apps/desktop/.build'), {recursive: true, force: true});
@@ -21,6 +22,7 @@ cpSync(join(root, 'packages/designer/dist/assets'), destination, {recursive: tru
 cpSync(join(root, 'apps/desktop/renderer'), destination, {recursive: true});
 const index = readFileSync(join(destination, 'index.html'), 'utf8').replace('src="designer.js"', 'src="desktop.js"').replace('</head>', '    <link rel="stylesheet" href="desktop-palette.css">\n    <link rel="stylesheet" href="desktop.css">\n</head>');
 writeFileSync(join(destination, 'index.html'), index);
+buildHelp(root, destination);
 copyFileSync(join(root, 'packages/designer/dist/manifest.json'), join(root, 'apps/desktop/.build/designer-package.json'));
 copyFileSync(join(root, 'version.json'), join(root, 'apps/desktop/.build/version.json'));
 copyFileSync(join(root, 'LICENSE'), join(root, 'apps/desktop/.build/LICENSE'));

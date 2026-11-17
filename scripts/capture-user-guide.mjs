@@ -25,6 +25,8 @@ if (!process.versions.electron) {
 } else {
   async function capture() {
   const {app, BrowserWindow, protocol, nativeTheme} = await import('electron');
+  // Deterministic documentation rasterization; does not change normal app rendering.
+  app.disableHardwareAcceleration();
   const {assetPath, csp, rendererPreferences} = require('../apps/desktop/.build/security.js');
   const {confirmationScript} = require('../apps/desktop/.build/confirmation.js');
   const {partnerOverview} = require('../apps/desktop/.build/partner-overview.js');
@@ -69,6 +71,7 @@ if (!process.versions.electron) {
       await waitFor("document.querySelector('#desktop-nav-automations') && document.querySelector('#entry-list .entry') && document.querySelector('#desktop-theme')");
       const take = async (name, selector) => {
         await pause(160);
+        await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
         const state = await evaluate(`({language:document.documentElement.lang, picker:document.querySelector('#designer-language')?.value, width:innerWidth,height:innerHeight})`);
         if (state.language !== language || state.picker !== language) throw new Error('Screenshot language mismatch.');
         let rectangle;
@@ -82,7 +85,11 @@ if (!process.versions.electron) {
         console.log('GUIDE_CAPTURE ' + language + '/' + name);
       };
       const step = async name => { await evaluate(`document.querySelector('#desktop-nav-${name}').click()`); await pause(80); };
+      window.setContentSize(1920, 1280);
+      await waitFor('innerWidth===1920 && innerHeight===1280');
       await take('01-workspace');
+      window.setContentSize(1600, 1100);
+      await waitFor('innerWidth===1600 && innerHeight===1100');
       for (const [page, name] of [['project', '02-project'], ['broker', '03-broker'], ['system', '04-systems'], ['connection', '05-read-inventory'], ['draft', '06-working-copy']]) {
         await step(page);
         if (page === 'broker') await evaluate("document.querySelector('#project-brokerChoice').value='example-a'; document.querySelector('#project-brokerChoice').dispatchEvent(new Event('change'))");

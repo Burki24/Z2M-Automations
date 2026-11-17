@@ -73,9 +73,10 @@ async function setup(t, {delay = 0, systems = 1, enabled = true, stored = true, 
     otherIds.push(id);
     await projects.command({action: 'system', system: {id, name: baseTopic, brokerId: broker.id, baseTopic}});
   }
+  // The real extension persists to disk; allow bounded VM I/O without changing the 10s production timeout.
   const reader = new MqttReader(vault, debug, async (project, epoch, system, stored, current) => {
     if (current()) projects.observe(project, epoch, system, stored);
-  }, undefined, 600);
+  }, undefined, 2000);
   t.after(() => reader.close());
   reader.reconcile(projects.data(), projects.generation());
   await reader.connectBroker(broker.id);

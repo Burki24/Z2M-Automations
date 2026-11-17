@@ -4,6 +4,15 @@
 
 **Deutsch | [English](README.md)**
 
+Die Aktualisierung auf 0.125.0 nutzt Software-Rendering ausschließlich im
+freigegebenen Aufnahmewerkzeug, um abgeschnittene Zeichen zu vermeiden. Die
+Testdaten setzen den tatsächlichen Sprachschlüssel vor dem App-Import; dadurch
+übernimmt das erste englische Bild keine deutsche Oberfläche. Der Arbeitsbereich
+wird mit 1920×1280 aufgenommen, damit der gesamte Beispielablauf hineinpasst;
+weitere Bildabmessungen stehen einzeln im Manifest. Das Rendering der normalen
+App bleibt unverändert. Dieselben Bilder werden mit den Offline-Handbüchern
+ausgeliefert.
+
 Dies sind genehmigte Aufnahmen des tatsächlichen gemeinsamen Desktop-Renderers
 und seiner Bestätigungsvorlage mit isolierten synthetischen Darstellungsdaten.
 Echte Broker, Geräte, private Projekte, Zugangsdaten-Dialoge oder Desktop wurden

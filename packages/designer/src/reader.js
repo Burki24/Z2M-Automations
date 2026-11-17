@@ -193,7 +193,7 @@ import {installNativeEmbedding} from './embedding.js';
             html += section(t("ui.1.when.91055bf0"), 'when', entry.triggers.map((trigger, index) => card('triggers', index, trigger.type === 'device' ? t("ui.device.event.704e02c3") : trigger.type === 'sun' ? t("ui.solar.event.63a4e157") : t("ui.time.317f0a69"), triggerSummary(trigger))).join(`<div class="or-label">${t("ui.or.43e40606")}</div>`));
             html += `<div class="flow-connector"></div>` + section(t("ui.2.only.if.d315c02f"), 'condition', entry.conditions.length ? entry.conditions.map((condition, index) => card('conditions', index, condition.type === 'device_value' ? t("ui.device.condition.b046563c") : condition.type === 'weekday' ? t("ui.weekdays.b73421c5") : t("ui.time.window.85f012d6"), conditionSummary(condition), condition.start_only ? t("ui.only.at.start.cc0a97a5") : '')).join('') : `<p class="field-help">${t("ui.no.additional.conditions.008dbb31")}</p>`) + `<div class="flow-connector"></div>`;
         }
-        html += section(`${entry.kind === 'sequence' ? '' : '3 · '}DANN`, 'action', entry.actions.map((action, index) => card('actions', index, t("ui.step.b4fefd27", {p1: index + 1}), actionSummary(action), action.delay_seconds ? t("ui.wait.seconds.first.c3ce31af", {p1: action.delay_seconds}) : t("ui.run.immediately.81aa8578"))).join(''));
+        html += section(`${entry.kind === 'sequence' ? '' : '3 · '}${t('ui.flow.then')}`, 'action', entry.actions.map((action, index) => card('actions', index, t("ui.step.b4fefd27", {p1: index + 1}), actionSummary(action), action.delay_seconds ? t("ui.wait.seconds.first.c3ce31af", {p1: action.delay_seconds}) : t("ui.run.immediately.81aa8578"))).join(''));
         bindHTML($('#flow'), () => html);
     }
 

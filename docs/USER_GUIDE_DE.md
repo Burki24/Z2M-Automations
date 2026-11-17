@@ -3,7 +3,7 @@
 **Deutsch | [English](USER_GUIDE.md)**
 
 Für Z2M-Automations für Windows und Z2M-Automations für Linux.
-Bildreferenz: Anwendung **0.120.0**, mitgelieferte Erweiterung **0.2.4**.
+Bildreferenz: Anwendung **0.125.0**, mitgelieferte Erweiterung **0.2.4**.
 
 Dieses Handbuch führt von der Installation bis zur laufenden Automation.
 Für normale Regeln sind keine Programmierkenntnisse erforderlich. Vorausgesetzt
@@ -156,6 +156,18 @@ Mit Tab / Umschalt+Tab wechselst du den Fokus. Enter oder die Leertaste bedienen
 geeignete Steuerelemente, Escape bricht unterstützte Dialoge ab.
 Die Fokusmarkierung zeigt das per Tastatur bediente Element.
 **Abbrechen** übernimmt eine Formularänderung nicht.
+
+Wähle **Hilfe · F1** oder drücke **F1**, um das vollständig mitgelieferte Handbuch
+auch ohne Internetzugang zu öffnen. Es startet beim Kapitel zum aktuellen Schritt;
+bei einem geöffneten Regelformular erklärt es den Editor. Deine unfertigen
+Eingaben bleiben in der App erhalten. Das Handbuch bietet einen Inhaltslink,
+eine Textsuche und einen Sprachwechsel.
+Wähle eine Abbildung zum Vergrößern; Escape oder Schließen führt zum Text zurück.
+
+Verweile mit der Maus über einem wichtigen Steuerelement oder fokussiere es per
+Tastatur, um eine kurze Erklärung zu sehen. Escape blendet den Tooltip aus.
+Warnungen zum Betriebsstopp bleiben auf der Seite und in Bestätigungen sichtbar;
+Tooltips ergänzen diese Hinweise.
 
 <a id="project"></a>
 

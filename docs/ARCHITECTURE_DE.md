@@ -4,6 +4,14 @@
 
 **Deutsch | [English](ARCHITECTURE.md)**
 
+Die Offline-Hilfe wird mit dem Renderer bereitgestellt, einschließlich beider
+Handbücher und ihrer sprachlich passenden Bilder. Ein fester Hilfe-IPC akzeptiert
+nur Sprache und bekanntes Kapitel, keine URLs, Dateipfade oder Steuerbefehle.
+Der getrennte Viewer läuft in einer Sandbox ohne Preload oder Anwendungszugang,
+blockiert externe Navigation und nutzt die Desktop-Palette. Hilfe/F1 erhält den
+Editor; Tooltips per Maus und Tastatur ergänzen Erklärungen, während Warnungen
+zum Betriebsstopp sichtbar bleiben.
+
 Stand: D1-/D2-Umsetzung und Windows-/Ubuntu-CI sind abgeschlossen. D3 mit lesendem
 MQTT, D4 mit lokaler Bearbeitung und D5 mit Installation und Speicherung haben
 die Plattform-CI bestanden. D6 ergänzt Laufzeitsteuerung im Hauptprozess;

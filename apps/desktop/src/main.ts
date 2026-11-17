@@ -27,6 +27,8 @@ import {DraftExchange} from './draft-exchange.js';
 import {DraftValidationError} from './draft-feedback.js';
 import {ExtensionTransfer, bundledExtension} from './extension-transfer.js';
 import {smokeDrafts} from './smoke-drafts.js';
+import {smokeHelp} from './smoke-help.js';
+import {helpURL, allowedHelpNavigation, type HelpRequest} from './help.js';
 
 if (process.platform === 'linux') app.setDesktopName('z2m-automations.desktop');
 
@@ -42,6 +44,7 @@ const metadata: {version: string} = JSON.parse(readFileSync(join(__dirname, 'ver
 const debug = new Diagnostics();
 const workspace = new OfflineWorkspace(debug, process.platform, metadata.version);
 let window: BrowserWindow | null = null;
+let manual: BrowserWindow | null = null;
 let language: 'de' | 'en' = 'en';
 let projects: ProjectService;
 let reader: MqttReader;
@@ -86,6 +89,25 @@ function snapshot(): unknown {
 function handle(channel: Channel, payload: unknown): unknown {
   if (!validPayload(channel, payload)) { debug.record('rejected'); throw new Error('Invalid desktop request.'); }
   switch (channel) {
+    case 'help': {
+      const request = payload as HelpRequest;
+      if (!window) throw new Error('Help unavailable.');
+      if (!manual || manual.isDestroyed()) {
+        manual = new BrowserWindow({parent: window, width: 1120, height: 850, minWidth: 360, minHeight: 400,
+          show: !smoke, autoHideMenuBar: true, webPreferences: {...rendererPreferences}});
+        manual.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
+        manual.webContents.on('will-navigate', (event, url) => { if (!allowedHelpNavigation(url)) event.preventDefault(); });
+        manual.webContents.on('will-redirect', event => event.preventDefault());
+        manual.webContents.on('will-attach-webview', event => event.preventDefault());
+        manual.on('closed', () => { manual = null; });
+      }
+      const viewer = manual;
+      return viewer.loadURL(helpURL(request)).then(() => {
+        if (!smoke && !viewer.isDestroyed()) { viewer.show(); viewer.focus(); }
+        debug.record('helpOpened', undefined, request.language);
+        return {ok: true};
+      });
+    }
     case 'snapshot': return snapshot();
     case 'select-system': if (typeof payload === 'string') {
       if (!projects.active) return workspace.select(payload);
@@ -225,9 +247,11 @@ async function network(command: NetworkCommand): Promise<unknown> {
 async function open(): Promise<void> {
   Menu.setApplicationMenu(null);
   const assets = new Set(readdirSync(assetsRoot, {recursive: true}).filter((name): name is string => typeof name === 'string').map(name => name.replaceAll('\\', '/')));
-  const mime: Record<string, string> = {'.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json'};
+  const mime: Record<string, string> = {'.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json'};
   protocol.handle('z2ma', request => {
-    const name = assetPath(request.url, request.method, assets);
+    // Electron retains fragments for custom-scheme requests; only handbook navigation permits them.
+    const resource = allowedHelpNavigation(request.url) ? request.url.replace(/#.*$/, '') : request.url;
+    const name = assetPath(resource, request.method, assets);
     if (!name || !mime[extname(name)]) return new Response(null, {status: 404});
     const headers = {'Content-Type': mime[extname(name)] + '; charset=utf-8', 'Content-Security-Policy': csp, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store'};
     return new Response(request.method === 'HEAD' ? null : readFileSync(join(assetsRoot, name)), {headers});
@@ -242,6 +266,7 @@ async function open(): Promise<void> {
     title: 'Z2M-Automations ' + (process.platform === 'win32' ? 'for Windows' : 'for Linux'),
     webPreferences: {...rendererPreferences, preload: join(__dirname, 'preload.js')}});
   const view = window.webContents;
+  window.once('closed', () => { manual?.destroy(); });
   language = app.getLocale().startsWith('de') ? 'de' : 'en';
   const vault = new Credentials(join(app.getPath('userData'), 'credentials'), osProtection(safeStorage, process.platform), process.platform);
   const reviewDialog = (key: string, detail?: string, notice = false): Promise<boolean> => window
@@ -451,7 +476,7 @@ async function open(): Promise<void> {
         if (value !== 'system') await wait(() => matchMedia('(prefers-color-scheme: ' + value + ')').matches);
       }
       if (typeof require !== 'undefined' || typeof process !== 'undefined') throw new Error('Node exposed');
-      if (Object.keys(bridge).sort().join(',') !== 'credential,designer,diagnostics,language,network,project,recording,selectSystem,snapshot,theme') throw new Error('Unexpected bridge');
+      if (Object.keys(bridge).sort().join(',') !== 'credential,designer,diagnostics,help,language,network,project,recording,selectSystem,snapshot,theme') throw new Error('Unexpected bridge');
       const first = await bridge.snapshot();
       const before = JSON.stringify(first.configuration);
       await bridge.recording('start');
@@ -492,6 +517,7 @@ async function open(): Promise<void> {
       return {systems: 2, languages: ['en','de'], preserved: true, isolated: true, debug: true};
     })()`);
     console.log('DESKTOP_SMOKE_OK ' + JSON.stringify(result));
+    await smokeHelp(view, () => manual);
     await smokeProjects(view);
     await smokeNetwork(view, Number(process.env['Z2MA_SMOKE_MQTT_PORT']));
     await smokeDrafts(view, join(app.getPath('userData'), 'synthetic-automations.yaml'), smokeCaptures);

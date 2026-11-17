@@ -1,6 +1,6 @@
 {
-  "version": "0.120.0",
-  "designer": "3deb84bb554590e8fa47c456ebff2dd86bff32f33e9c612992e330cc23c6f61e",
+  "version": "0.125.0",
+  "designer": "56b65d17a212ce7f1d2d78ce544218f4daa79aa11e9671930ca9680ff4ec330d",
   "platform": "win32",
   "viewport": [
     1600,
@@ -11,226 +11,226 @@
     {
       "language": "de",
       "file": "images/de/01-workspace.png",
-      "width": 1600,
-      "height": 1100,
-      "bytes": 63132
+      "width": 1920,
+      "height": 1280,
+      "bytes": 73311
     },
     {
       "language": "de",
       "file": "images/de/02-project.png",
       "width": 1600,
       "height": 1100,
-      "bytes": 30692
+      "bytes": 32071
     },
     {
       "language": "de",
       "file": "images/de/03-broker.png",
       "width": 1600,
       "height": 1100,
-      "bytes": 42173
+      "bytes": 43888
     },
     {
       "language": "de",
       "file": "images/de/04-systems.png",
       "width": 797,
       "height": 233,
-      "bytes": 5071
+      "bytes": 5217
     },
     {
       "language": "de",
       "file": "images/de/05-read-inventory.png",
       "width": 1600,
       "height": 1100,
-      "bytes": 33842
+      "bytes": 35523
     },
     {
       "language": "de",
       "file": "images/de/06-working-copy.png",
       "width": 1600,
       "height": 1100,
-      "bytes": 40048
+      "bytes": 41414
     },
     {
       "language": "de",
       "file": "images/de/07-new-automation.png",
       "width": 900,
       "height": 1060,
-      "bytes": 24231
+      "bytes": 24587
     },
     {
       "language": "de",
       "file": "images/de/13-motion-trigger.png",
       "width": 900,
       "height": 1060,
-      "bytes": 24732
+      "bytes": 25337
     },
     {
       "language": "de",
       "file": "images/de/14-absence-duration.png",
       "width": 900,
       "height": 1060,
-      "bytes": 25302
+      "bytes": 25895
     },
     {
       "language": "de",
       "file": "images/de/15-remote-action.png",
       "width": 827,
       "height": 624,
-      "bytes": 14597
+      "bytes": 14962
     },
     {
       "language": "de",
       "file": "images/de/16-merge-conflict.png",
       "width": 1600,
       "height": 1100,
-      "bytes": 50756
+      "bytes": 52399
     },
     {
       "language": "de",
       "file": "images/de/08-check-draft.png",
       "width": 1600,
       "height": 411,
-      "bytes": 18866
+      "bytes": 20041
     },
     {
       "language": "de",
       "file": "images/de/09-transfer.png",
       "width": 1600,
       "height": 614,
-      "bytes": 29331
+      "bytes": 30558
     },
     {
       "language": "de",
       "file": "images/de/10-operation.png",
       "width": 1600,
       "height": 1100,
-      "bytes": 44430
+      "bytes": 46089
     },
     {
       "language": "de",
       "file": "images/de/11-release-rules.png",
       "width": 1600,
       "height": 1100,
-      "bytes": 43468
+      "bytes": 45202
     },
     {
       "language": "de",
       "file": "images/de/12-transfer-confirmation.png",
       "width": 540,
       "height": 430,
-      "bytes": 12458
+      "bytes": 12591
     },
     {
       "language": "en",
       "file": "images/en/01-workspace.png",
-      "width": 1600,
-      "height": 1100,
-      "bytes": 62693
+      "width": 1920,
+      "height": 1280,
+      "bytes": 68572
     },
     {
       "language": "en",
       "file": "images/en/02-project.png",
       "width": 1600,
       "height": 1100,
-      "bytes": 29846
+      "bytes": 31243
     },
     {
       "language": "en",
       "file": "images/en/03-broker.png",
       "width": 1600,
       "height": 1100,
-      "bytes": 39569
+      "bytes": 41421
     },
     {
       "language": "en",
       "file": "images/en/04-systems.png",
       "width": 797,
       "height": 233,
-      "bytes": 4836
+      "bytes": 4987
     },
     {
       "language": "en",
       "file": "images/en/05-read-inventory.png",
       "width": 1600,
       "height": 1100,
-      "bytes": 33285
+      "bytes": 35005
     },
     {
       "language": "en",
       "file": "images/en/06-working-copy.png",
       "width": 1600,
       "height": 1100,
-      "bytes": 37497
+      "bytes": 38926
     },
     {
       "language": "en",
       "file": "images/en/07-new-automation.png",
       "width": 900,
       "height": 1060,
-      "bytes": 22814
+      "bytes": 23140
     },
     {
       "language": "en",
       "file": "images/en/13-motion-trigger.png",
       "width": 900,
       "height": 1060,
-      "bytes": 23481
+      "bytes": 24047
     },
     {
       "language": "en",
       "file": "images/en/14-absence-duration.png",
       "width": 900,
       "height": 1060,
-      "bytes": 24002
+      "bytes": 24572
     },
     {
       "language": "en",
       "file": "images/en/15-remote-action.png",
       "width": 827,
       "height": 624,
-      "bytes": 13270
+      "bytes": 13638
     },
     {
       "language": "en",
       "file": "images/en/16-merge-conflict.png",
       "width": 1600,
       "height": 1100,
-      "bytes": 47417
+      "bytes": 49079
     },
     {
       "language": "en",
       "file": "images/en/08-check-draft.png",
       "width": 1600,
       "height": 411,
-      "bytes": 18290
+      "bytes": 19509
     },
     {
       "language": "en",
       "file": "images/en/09-transfer.png",
       "width": 1600,
       "height": 587,
-      "bytes": 26586
+      "bytes": 27834
     },
     {
       "language": "en",
       "file": "images/en/10-operation.png",
       "width": 1600,
       "height": 1100,
-      "bytes": 41897
+      "bytes": 43523
     },
     {
       "language": "en",
       "file": "images/en/11-release-rules.png",
       "width": 1600,
       "height": 1100,
-      "bytes": 41125
+      "bytes": 42893
     },
     {
       "language": "en",
       "file": "images/en/12-transfer-confirmation.png",
       "width": 540,
       "height": 430,
-      "bytes": 11117
+      "bytes": 11172
     }
   ]
 }

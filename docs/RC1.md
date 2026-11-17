@@ -6,6 +6,36 @@ Scope: Z2M-Automations for Windows (Windows 11 x64) and Z2M-Automations for
 Linux (Ubuntu Desktop 24.04 LTS x64). Ubuntu 26.04 acceptance is separate.
 RC1 is an acceptance stage, not a second application-version authority.
 
+## Offline help and focused verification on 2026-11-17
+
+The app now ships both complete 20-chapter handbooks and 32 localized images.
+Help/F1 opens the relevant chapter without Internet access, with search, language
+switching and image enlargement. Hover/focus tooltips explain key controls;
+operation-stop warnings remain in the page and confirmations. The illustrated
+reference is 0.125.0; local verification installers use the existing 0.127.0
+metadata. These dirty-tree builds are verification material, not the final RC.
+
+| Check | Windows 11 x64 | Ubuntu 24.04.5 x64, Hyper-V |
+| --- | --- | --- |
+| Mandatory local verification | 255 tests: 253 pass, two Ubuntu-only skips; complete capture-free UI passes | 255 tests: 252 pass, Windows-only and two disposable-CI-only APT skips; complete capture-free UI passes |
+| Native package | EXE built; packaged runtime/dependency and help checks pass | DEB built; packaged runtime/dependency and help checks pass under Xvfb/X11 and native GNOME/Wayland |
+| Offline delivery | All 36 handbook assets verified inside ASAR | Same 36 assets verified; extracted DEB ASAR equals the tested package |
+| Native desktop session | Source and packaged app workflows pass | Complete automated packaged-app run passes in the unlocked GNOME/Wayland session, including Help/F1, keyboard focus, protected test credentials and save on close |
+
+The final Ubuntu desktop run used `Z2MA_SMOKE_TIMEOUT_MS=90000 node
+scripts/smoke-packaged.mjs --no-capture` directly in the active Wayland session,
+without Xvfb or a sandbox bypass. It exited with status zero and all required
+workflow markers; the session remained unlocked throughout. Source hashes match
+the reviewed local files. The previously installed app was left in place; this
+run verifies the built package, not its system-wide upgrade/removal lifecycle.
+
+All app and network checks use synthetic projects and isolated MQTT peers.
+No real Z2M installation, rule or device was controlled. The previous D7 and
+0.99.0 acceptance remains valid. Refresh the clean matrix after the owner's
+commit/push. Ubuntu 26.04 acceptance and installer upgrade/rollback/removal checks
+remain separate from this automated desktop run.
+Signing, publication and Stable promotion remain separate decisions.
+
 ## Candidate identity and build gates
 
 The final candidate requires the owner's source commit and push. The existing

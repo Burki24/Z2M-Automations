@@ -2,6 +2,13 @@
 
 **English | [Deutsch](README_DE.md)**
 
+The 0.125.0 refresh uses software rendering only in the authorized capture tool
+to avoid clipped glyphs. The fixture sets the actual language-preference key
+before importing the app, preventing a first English frame from reusing German
+UI text. The workspace is captured at 1920×1280 so the complete sample flow fits;
+other image dimensions are recorded individually in the manifest. Runtime app
+rendering is unchanged. These same image files ship in the offline handbooks.
+
 These are authorized captures of the actual shared desktop renderer and its
 confirmation template, using isolated synthetic presentation data. No real
 broker, device, private project, credential dialog or desktop was captured.

@@ -8,6 +8,41 @@ Umfang: Z2M-Automations for Windows (Windows 11 x64) und Z2M-Automations for Lin
 (Ubuntu Desktop 24.04 LTS x64). Ubuntu-26.04-Abnahme ist getrennt.
 RC1 ist eine Abnahmestufe, keine zweite maßgebliche Quelle der Anwendungsversion.
 
+<a id="offline-help-and-focused-verification-on-2026-11-17"></a>
+
+## Offline-Hilfe und gezielte Prüfung am 17.11.2026
+
+Die App liefert beide vollständigen Handbücher mit jeweils 20 Kapiteln und
+insgesamt 32 sprachlich passenden Bildern mit. Hilfe/F1 öffnet ohne Internet
+das passende Kapitel mit Suche, Sprachwechsel und Bildvergrößerung. Tooltips
+per Maus/Fokus erklären zentrale Funktionen; Warnungen zum Betriebsstopp bleiben
+auf der Seite und in Bestätigungen. Die Bildreferenz ist 0.125.0; lokale
+Prüfpakete nutzen die vorhandenen Metadaten 0.127.0. Diese Builds aus dem
+geänderten Arbeitsbaum dienen der Prüfung und sind noch nicht der endgültige RC.
+
+| Prüfung | Windows 11 x64 | Ubuntu 24.04.5 x64, Hyper-V |
+| --- | --- | --- |
+| Lokale Pflichtprüfung | 255 Tests: 253 bestanden, zwei Ubuntu-Prüfungen übersprungen; vollständiger bildfreier Oberflächentest bestanden | 255 Tests: 252 bestanden, Windows-Prüfung und zwei ausschließlich für wegwerfbare CI-Runner vorgesehene APT-Prüfungen übersprungen; vollständiger bildfreier Oberflächentest bestanden |
+| Natives Paket | EXE gebaut; Laufzeit-, Abhängigkeits- und Hilfeprüfung des Pakets bestanden | DEB gebaut; Laufzeit-, Abhängigkeits- und Hilfeprüfung des Pakets unter Xvfb/X11 und nativem GNOME/Wayland bestanden |
+| Offline-Auslieferung | Alle 36 Handbuchdateien im ASAR geprüft | Dieselben 36 Dateien geprüft; ASAR des entpackten DEB entspricht dem geprüften Paket |
+| Native Desktop-Sitzung | Arbeitsabläufe aus Quellen und Paket bestanden | Vollständiger automatisierter Paketlauf in der entsperrten GNOME-/Wayland-Sitzung bestanden, einschließlich Hilfe/F1, Tastaturfokus, geschützter Test-Zugangsdaten und Speichern beim Beenden |
+
+Der abschließende Ubuntu-Desktop-Lauf nutzte `Z2MA_SMOKE_TIMEOUT_MS=90000 node
+scripts/smoke-packaged.mjs --no-capture` direkt in der aktiven Wayland-Sitzung,
+ohne Xvfb oder Umgehung der Sandbox. Er endete mit Status null und allen
+erforderlichen Ablaufbestätigungen; die Sitzung blieb durchgehend entsperrt.
+Die Quellprüfsummen stimmen mit den lokal geprüften Dateien überein. Die bisher
+installierte App blieb bestehen; dieser Lauf prüft das gebaute Paket, nicht dessen
+systemweiten Aktualisierungs-/Entfernungsablauf.
+
+Sämtliche App- und Netzwerkprüfungen nutzen synthetische Projekte und isolierte
+MQTT-Partner. Keine echte Z2M-Installation, Regel oder reales Gerät wurde
+gesteuert. Die bisherige D7- und 0.99.0-Abnahme bleibt gültig. Nach Commit/Push
+des Eigentümers die saubere Matrix erneut prüfen. Ubuntu-26.04-Abnahme und
+Installerprüfungen zu Aktualisierung, Rückkehr und Entfernung bleiben von diesem
+automatisierten Desktop-Lauf getrennt. Signierung, Veröffentlichung und Stable-Freigabe
+bleiben gesonderte Entscheidungen.
+
 <a id="candidate-identity-and-build-gates"></a>
 
 ## Kandidatenkennung und Build-Bedingungen

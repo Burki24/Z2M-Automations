@@ -7,6 +7,7 @@ import {installNetwork} from './network.js';
 import {validationSummary} from './draft-review.js';
 import {installDraftExchange} from './drafts.js';
 import {installDesktopWorkspace} from './desktop-workspace.js';
+import {installHelp} from './help.js';
 
 const bridge = window.z2maDesktop;
 let editorState = Promise.resolve();
@@ -126,6 +127,7 @@ try {
     await import('./reader.js');
     workspace.mountDesigner();
     await installTheme();
+    installHelp(bridge);
     const view = await bridge.snapshot();
     const caption = document.querySelector('.brand-copy strong') ?? document.querySelector('.brand strong');
     if (caption) bindText(caption, () => 'Z2M-Automations ' + t(view.desktop.platform === 'win32' ? 'desktop.windows' : 'desktop.linux') + ' · ' + view.desktop.version);

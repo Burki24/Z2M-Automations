@@ -11,6 +11,14 @@ Hauptbranch main. Produktausgaben: Z2M-Automations for Windows / for Linux.
 
 ## Aktueller Stand
 
+Der Desktop liefert vollständige Offline-HTML-Handbücher auf Deutsch und Englisch
+mit ihren 32 sprachlich passenden Abbildungen mit. Hilfe/F1 öffnet das Kapitel zum
+aktuellen Schritt in einem getrennten lokalen Fenster mit Inhalt, Suche und
+Bildvergrößerung. Lokalisierte Tooltips per Maus und Tastatur erklären wichtige
+Funktionen, ohne Betriebswarnungen auszublenden. Die regulären Quell-, Paket- und
+Installationstests prüfen die Hilfe bildfrei; die Paketprüfung kontrolliert alle
+Handbuchdateien anhand ihres Prüfsummenmanifests.
+
 Der geführte Windows-Installer verwendet das bestehende App-Icon in einer eigenen
 Start- und Abschluss-/Deinstallationsseitenleiste sowie einen größeren linken
 Logokopf auf den übrigen Seiten. Native deutsche/englische Texte,

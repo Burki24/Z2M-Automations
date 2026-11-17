@@ -4,6 +4,34 @@
 
 **Deutsch | [English](DEVELOPMENT.md)**
 
+Die Offline-Hilfe wird durch `scripts/build-help.mjs` aus den eingecheckten
+DE-/EN-Handbüchern erzeugt. Der bewusst begrenzte Markdown-Konverter maskiert
+HTML und weist fremde Links ab. Beide HTML-Dateien, 32 passende Bildschirmbilder,
+lokale Stile/Skripte und ein Datei-Prüfsummenmanifest liegen unter
+`.build/renderer/help` im paketierten ASAR beider Plattformen. Es gibt weder
+Laufzeitdownload noch neue Markdown-Abhängigkeit. `tests/help.test.mjs` prüft
+Kapitel, exakte Bilddateien, HTML-Sicherheit und den festen Hilfe-IPC. Die
+regulären Quell-, Paket- und Installationstests verlangen nun `DESKTOP_HELP_OK`:
+echte Hilfe/F1, Sprache/Suche, alle Bildladevorgänge, Vergrößerung, Trennung des
+Viewers, Tooltips, erhaltene Eingaben und 360px-Layout. Nach verpflichtendem
+`verify:local` und nativer Paketierung ausführen:
+`node scripts/smoke.mjs --no-capture` und
+`node scripts/smoke-packaged.mjs --no-capture`. Die Paketprüfung kontrolliert alle
+Hilfe-Prüfsummen; die Oberflächenprüfungen erzeugen keine Bilder. Native
+Desktop-/Schlüsselbundabnahme bleibt gesondert.
+
+Native VM-Tests zeigten, dass 600ms für Test-RPCs mit echter Dateispeicherung
+der Erweiterung zu knapp waren. Die Laufzeit-Testdaten nutzen jetzt begrenzte
+2000ms; produktiv bleiben es 10000ms, sämtliche Stopp-/Wiederholungsprüfungen
+bleiben bestehen. Der gesamte App-Test behält in der CI seine 30000ms-Grenze;
+eine langsamere lokale VM kann ausdrücklich `Z2MA_SMOKE_TIMEOUT_MS=90000`
+setzen (geprüfter Bereich 30000–120000). Nach Fristablauf wird zunächst regulär
+und nötigenfalls nach fünf Sekunden erzwungen beendet. Ein echter Kindprozess-Test
+prüft die Beendigung auch bei ignoriertem SIGTERM. Für Xvfb `WAYLAND_DISPLAY`
+entfernen und `XDG_SESSION_TYPE=x11` setzen, damit Electron keine gesperrte native
+Wayland-Sitzung auswählt. Die direkte GNOME-Desktop-Prüfung benötigt eine entsperrte
+Sitzung; Erfolg auf einer virtuellen Anzeige ersetzt diese Prüfung nicht.
+
 Die RC-Vorbereitung ergänzt `npm run audit:dependencies` für Laufzeit- und
 Entwicklungsabhängigkeiten; Befunde ab mittlerem Schweregrad lassen die Prüfung
 scheitern. Außerdem folgt nach Plattformabnahme in der CI ein Schritt für

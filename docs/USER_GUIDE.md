@@ -3,7 +3,7 @@
 **English | [Deutsch](USER_GUIDE_DE.md)**
 
 For Z2M-Automations for Windows and Z2M-Automations for Linux.
-Illustrated reference: application **0.120.0**, bundled extension **0.2.4**.
+Illustrated reference: application **0.125.0**, bundled extension **0.2.4**.
 
 This manual takes you from installation to a running automation. No programming
 is needed for ordinary rules. You need an existing Zigbee2MQTT installation and
@@ -149,6 +149,16 @@ MQTT values, topics or file contents.
 Use Tab / Shift+Tab to move focus, Enter or Space for appropriate controls and
 Escape to cancel supported dialogs. A highlighted focus outline shows which
 control receives keyboard input. Closing a form with Cancel does not apply it.
+
+Choose **Help · F1** or press **F1** to open the complete manual included with the
+app, even without Internet access. It opens at the chapter for your current step;
+while a rule form is open, it explains the editor. Your unfinished input stays in
+the app. The manual has a contents link, a text search and a language switch.
+Select an illustration to enlarge it; Escape or Close returns to the text.
+
+Pause over an important control, or focus it with the keyboard, to show a short
+explanation. Press Escape to dismiss a tooltip. Warnings about stopping operation
+remain visible in the page and confirmations; tooltips add guidance to them.
 
 <a id="project"></a>
 

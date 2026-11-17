@@ -87,6 +87,7 @@ Das [ausführliche Handbuch mit Bildern](docs/USER_GUIDE_DE.md) erklärt die
 Installation, deine erste Automation, den Umgang mit Entwürfen, Übermittlung
 und Aktivierung sowie die Fehlerbehebung. Die Bildschirmbilder passen zur
 jeweils gewählten Dokumentationssprache.
+Das vollständige Handbuch ist auch offline in der App über **Hilfe · F1** erreichbar.
 
 <a id="license"></a>
 

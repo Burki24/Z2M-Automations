@@ -136,3 +136,11 @@ body:has(.desktop-link-dialog[open]) { overflow: hidden; }
   border: 1px solid var(--line); border-radius: .5rem; background: var(--surface-soft);
 }
 .desktop-read-catalog .mqtt-overview:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.desktop-tooltip {
+    position: fixed; z-index: 10000; max-width: min(23rem, calc(100vw - 16px));
+    padding: .65rem .8rem; border: 1px solid var(--line-strong); border-radius: .4rem;
+    color: var(--ink); background: var(--surface); box-shadow: 0 4px 16px var(--shadow);
+    font-size: .9rem; line-height: 1.5; overflow-wrap: anywhere;
+}
+.desktop-tooltip[hidden] { display: none; }
+#desktop-help-feedback:empty { display: none; }

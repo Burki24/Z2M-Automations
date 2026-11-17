@@ -4,6 +4,7 @@ import {join, sep} from 'node:path';
 import {existsSync} from 'node:fs';
 import {listPackage, extractFile} from '@electron/asar';
 import {posix} from 'node:path';
+import {createHash} from 'node:crypto';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const binary = join(root, 'apps/desktop/out', 'Z2M-Automations-' + process.platform + '-' + process.arch, 'Z2M-Automations' + (process.platform === 'win32' ? '.exe' : ''));
@@ -30,6 +31,12 @@ function verifyDependencies(manifestPath) {
 }
 verifyDependencies('package.json');
 console.log('PACKAGED_DEPENDENCIES_OK ' + checked.size);
+const manual = JSON.parse(extractFile(archive, '.build/renderer/help/manifest.json'.split('/').join(sep)).toString('utf8'));
+for (const asset of manual.assets) {
+  const bytes = extractFile(archive, ('.build/renderer/help/' + asset.file).split('/').join(sep));
+  if (createHash('sha256').update(bytes).digest('hex') !== asset.sha256) throw new Error('Missing or altered packaged handbook asset: ' + asset.file);
+}
+console.log('PACKAGED_HELP_OK ' + manual.assets.length + ' offline handbook assets');
 const child = spawn(process.execPath, [join(root, 'scripts/smoke.mjs'), ...process.argv.slice(2)], {windowsHide: true, env: {...process.env, Z2MA_SMOKE_BINARY: binary}, stdio: 'inherit'});
 child.on('error', () => { process.exitCode = 1; });
 child.on('exit', code => { process.exitCode = code ?? 1; });

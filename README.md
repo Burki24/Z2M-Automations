@@ -69,6 +69,7 @@ help you recover earlier work, and new rules stay disabled until you release the
 The [illustrated user manual](docs/USER_GUIDE.md) explains installation, your
 first automation, working with drafts, transfer and activation, and troubleshooting.
 Its screenshots match the selected documentation language.
+The app also includes the complete manual offline, accessible through **Help · F1**.
 
 ## License
 

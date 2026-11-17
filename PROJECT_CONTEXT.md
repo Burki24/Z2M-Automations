@@ -7,6 +7,13 @@ primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 ## Current state
 
+The desktop now bundles complete offline DE/EN HTML handbooks and their 32
+localized illustrations. Help/F1 opens the chapter for the current step in an
+isolated local window, with contents, search and image enlargement. Localized
+hover/keyboard tooltips explain key controls without hiding operation warnings.
+The ordinary source, packaged and installed smoke gates exercise help without
+capture; the package gate verifies every handbook asset against its hash manifest.
+
 The Windows assisted installer uses the existing app icon in a branded welcome
 and finish/uninstall sidebar, with a larger left-aligned header on the other
 pages. German/English native text, scope/elevation and directory choices remain
