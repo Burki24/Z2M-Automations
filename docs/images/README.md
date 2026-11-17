@@ -1,5 +1,7 @@
 # User-guide screenshots
 
+**English | [Deutsch](README_DE.md)**
+
 These are authorized captures of the actual shared desktop renderer and its
 confirmation template, using isolated synthetic presentation data. No real
 broker, device, private project, credential dialog or desktop was captured.

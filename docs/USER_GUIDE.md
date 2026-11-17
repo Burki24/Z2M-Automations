@@ -1,6 +1,7 @@
 # Z2M-Automations — user manual
 
 **English | [Deutsch](USER_GUIDE_DE.md)**
+
 For Z2M-Automations for Windows and Z2M-Automations for Linux.
 Illustrated reference: application **0.120.0**, bundled extension **0.2.4**.
 
@@ -39,6 +40,7 @@ your operating system and are described separately below.
 20. [Completion checklist and glossary](#checklist)
 
 <a id="concepts"></a>
+
 ## 1. What the app does and the terms you need
 
 The app edits rules and sends them to our extension inside Zigbee2MQTT.
@@ -75,6 +77,7 @@ number is not proof that the local content is newer. Use the built-in read and
 merge functions instead of deciding which version to keep from those numbers.
 
 <a id="installation"></a>
+
 ## 2. Install and start
 
 Use the package supplied for your platform. The reference environments are
@@ -116,6 +119,7 @@ of your downloaded package. A desktop keyring problem is different from an
 incorrect MQTT password; see [troubleshooting](#troubleshooting).
 
 <a id="interface"></a>
+
 ## 3. Find your way around the interface
 
 ![English automation workspace: numbered steps at left, selected network above, rule list, flow and properties](images/en/01-workspace.png)
@@ -147,6 +151,7 @@ Escape to cancel supported dialogs. A highlighted focus outline shows which
 control receives keyboard input. Closing a form with Cancel does not apply it.
 
 <a id="project"></a>
+
 ## 4. Step 1: create, open and save a project
 
 ![English project page with project name, save button and further project actions](images/en/02-project.png)
@@ -177,6 +182,7 @@ Portable projects do not contain broker passwords or private TLS keys. If you
 move a project to another computer, supply that computer's credentials separately.
 
 <a id="broker"></a>
+
 ## 5. Step 2: configure a broker and credentials
 
 ![English broker setup: existing broker, server address, port, TLS and credential settings](images/en/03-broker.png)
@@ -218,6 +224,7 @@ use the TLS-material controls in the connection area. Imported material stays
 in the main process for that project session and is not exported in a project.
 
 <a id="systems"></a>
+
 ## 6. Step 3: assign a Z2M network
 
 ![English system assignment: named networks, owning broker and base topic](images/en/04-systems.png)
@@ -243,6 +250,7 @@ Partner permissions are needed only when rules use another network's devices.
 First get one network working, then follow [the two-network chapter](#networks).
 
 <a id="connection"></a>
+
 ## 7. Step 4: connect and read the inventory
 
 ![English connection page with confirmed inventory, refresh action, device counts and extension section](images/en/05-read-inventory.png)
@@ -276,6 +284,7 @@ catalog data are missing, the transfer must stop at preflight and the existing
 automatic operation continues.
 
 <a id="drafts"></a>
+
 ## 8. Working copies, automatic merging and conflicts
 
 ![English working-copy page separating local draft and stored Z2M configuration](images/en/06-working-copy.png)
@@ -329,6 +338,7 @@ not silently roll your local work back.
 summaries before choosing a version. The other, independent rules are retained.
 
 <a id="editor"></a>
+
 ## 9. Build a rule: When, Only if, Then
 
 ![English new-automation dialog with name, trigger kind, device, channel, comparison and minimum duration](images/en/07-new-automation.png)
@@ -401,6 +411,7 @@ offer On, Off and Toggle. Do not type a translated word into raw YAML; MQTT
 values such as ON, OFF and TOGGLE remain protocol values.
 
 <a id="motion"></a>
+
 ## 10. Example: light on motion and off after 30 seconds
 
 Use two rules so the switch-on and switch-off events remain easy to understand.
@@ -457,6 +468,7 @@ rule again. The brightness sensor's last valid reading determines the condition;
 it is not a new measurement command.
 
 <a id="examples"></a>
+
 ## 11. Examples: button, measurement, window handle and sunset
 
 ### A button toggles a light
@@ -498,6 +510,7 @@ These examples provide configuration patterns. Choose devices and thresholds
 suitable for your own installation, then test them under supervision.
 
 <a id="check"></a>
+
 ## 12. Step 7: check the draft and correct findings
 
 ![English checked draft showing a ready result and navigation to transfer](images/en/08-check-draft.png)
@@ -522,6 +535,7 @@ partner catalog is unavailable, obtain it on that network and check again. The
 existing automatic operation should continue while this prerequisite is missing.
 
 <a id="transfer"></a>
+
 ## 13. Step 8: transfer and resume previous operation
 
 ![English transfer page with target, content counts and transfer action](images/en/09-transfer.png)
@@ -563,6 +577,7 @@ restart** in Operation. One concerns this transfer; the other is the stored
 restart preference.
 
 <a id="operation"></a>
+
 ## 14. Operation: release, start, test and stop
 
 ![English Operation page showing network runtime and the confirmed number of enabled rules](images/en/10-operation.png)
@@ -613,6 +628,7 @@ Closing or uninstalling the app does not stop the extension. To stop automations
 send and confirm the appropriate stop command while connected.
 
 <a id="networks"></a>
+
 ## 15. Automations across two networks
 
 Example: a button belongs to **House**, while **Terrace / Lighting** belongs to
@@ -666,6 +682,7 @@ automations. Its receiver-specific start action makes this explicit.
 An unavailable or unknown remote value must not be treated as a passed condition.
 
 <a id="files"></a>
+
 ## 16. Project files, draft files, backups and recovery
 
 | File | Purpose | Important boundary |
@@ -708,6 +725,7 @@ versions. Do not blindly overwrite the file. Restore a project into a copy first
 when investigating a problem; opening it does not automatically roll Z2M back.
 
 <a id="advanced"></a>
+
 ## 17. Action sequences and advanced settings
 
 ### Reusable action sequences
@@ -736,6 +754,7 @@ For ordinary first rules, keep the defaults until the basic event, target and
 operation behavior has been tested.
 
 <a id="updates"></a>
+
 ## 18. Update the app or the Z2M extension
 
 ### Update the application
@@ -789,6 +808,7 @@ Retain your saved projects and backups. Stop the intended Z2M operation explicit
 before disconnecting if you want those automations to stop.
 
 <a id="troubleshooting"></a>
+
 ## 19. Troubleshooting and diagnostics
 
 | What you see | Check first | What to do |
@@ -819,6 +839,7 @@ material before sharing it. Do not publish credentials or complete private
 projects just to report a simple UI issue.
 
 <a id="checklist"></a>
+
 ## 20. Completion checklist and glossary
 
 ### A first working network

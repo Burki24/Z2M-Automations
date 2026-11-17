@@ -1,8 +1,10 @@
 # Z2M-Automations
 
+**English | [Deutsch](README_DE.md)**
+
 A standalone Zigbee2MQTT automation designer for **Windows and Ubuntu Linux**.
-The shared designer will manage up to eight systems on one or more MQTT brokers.
-Automations will run in our own Z2M extension, independently of the application.
+The shared designer manages up to eight systems on one or more MQTT brokers.
+Automations run in our own Z2M extension, independently of the application.
 
 **Current state:** D6 operation passed Windows and Ubuntu CI. D7 installed beta acceptance
 is complete for Windows and Ubuntu Desktop 24.04 under Hyper-V. See the
@@ -38,7 +40,7 @@ is unsigned development material, not a release. Linux additionally needs
 fakeroot/dpkg and a display (Xvfb for CI). See the platform limitations in
 [the D1 implementation note](docs/D1.md).
 
-## Planned scope
+## Features
 
 - Shared Windows 11 x64 and Ubuntu Desktop LTS x64 application.
 - German and English through local JSON catalogs; no translation service.
@@ -61,6 +63,7 @@ remain disabled. See [workspace reconciliation](docs/adr/0006-draft-reconciliati
 - [RC1 preparation and native acceptance](docs/RC1.md)
 - [Local projects and credential storage](docs/D2.md)
 - [Shared designer package](packages/designer/README.md)
+- [All documentation in English and German](docs/README.md)
 
 The [Symcon product](https://github.com/Burki24/Symcon_Z2MAutomations) consumes
 our pinned designer package. Its Z2M extension remains canonical there; neither

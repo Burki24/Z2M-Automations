@@ -1,5 +1,7 @@
 # Architecture
 
+**English | [Deutsch](ARCHITECTURE_DE.md)**
+
 Status: D1/D2 implementation and Windows/Ubuntu CI are complete. D3 read-only
 MQTT, D4 local editing and D5 installation and storage passed platform CI.
 D6 adds main-process runtime control while execution stays in the extension.

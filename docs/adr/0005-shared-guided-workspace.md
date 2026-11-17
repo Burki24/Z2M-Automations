@@ -1,5 +1,7 @@
 # ADR 0005: Shared guided workspace for desktop and Symcon
 
+**English | [Deutsch](0005-shared-guided-workspace_DE.md)**
+
 - Date: 2026-11-13
 - Status: Implemented locally; native Symcon acceptance after updating remains separate.
 

@@ -1,9 +1,25 @@
 # Project context: Z2M-Automations
 
-As of 2026-11-16. Repository Burki24/Z2M-Automations; working branch dev,
+**English | [Deutsch](PROJECT_CONTEXT_DE.md)**
+
+As of 2026-11-17. Repository Burki24/Z2M-Automations; working branch dev,
 primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 ## Current state
+
+The Windows assisted installer uses the existing app icon in a branded welcome
+and finish/uninstall sidebar, with a larger left-aligned header on the other
+pages. German/English native text, scope/elevation and directory choices remain
+standard. Committed language-neutral BMP artwork has an optional Windows-only
+regenerator; neither platform build gains a generation dependency. See
+[Windows installation](docs/WINDOWS_INSTALLER.md).
+
+All first-party Markdown documentation now has complete English/German pairs,
+including the root README, technical guides, milestone records and ADRs. English
+remains authoritative. Reciprocal language links and a documentation index expose
+both versions. The capture-free `check:docs` gate runs in local verification and
+desktop CI; it checks pairs, navigation, local links and manual image mapping.
+See [the documentation index](docs/README.md).
 
 User documentation now has matching English and German handbooks with 20
 chapters and 16 app-only screenshots per language, referenced to 0.120.0.

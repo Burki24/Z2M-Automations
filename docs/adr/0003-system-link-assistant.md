@@ -1,5 +1,7 @@
 # ADR 0003: Read-only assistance for connecting Z2M systems
 
+**English | [Deutsch](0003-system-link-assistant_DE.md)**
+
 - Date: 2026-11-11
 - Status: Implemented for the standalone desktop app.
 

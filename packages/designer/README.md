@@ -1,5 +1,7 @@
 # Shared designer
 
+**English | [Deutsch](README_DE.md)**
+
 The shared rule editor includes restart_policy (abort, resume, resume_expired)
 with German/English labels and lossless prefill. It edits only the local draft;
 execution and durable waiting-run recovery remain owned by the Z2M extension.

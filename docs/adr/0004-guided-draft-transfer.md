@@ -1,5 +1,7 @@
 # ADR 0004: Common draft check and guided desktop transfer
 
+**English | [Deutsch](0004-guided-draft-transfer_DE.md)**
+
 - Date: 2026-11-12
 - Status: Implemented for the standalone app; owner-reported workflow acceptance
   completed with application 0.99.0 on 2026-11-13.

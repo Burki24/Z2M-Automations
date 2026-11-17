@@ -1,5 +1,7 @@
 # RC1 preparation
 
+**English | [Deutsch](RC1_DE.md)**
+
 Scope: Z2M-Automations for Windows (Windows 11 x64) and Z2M-Automations for
 Linux (Ubuntu Desktop 24.04 LTS x64). Ubuntu 26.04 acceptance is separate.
 RC1 is an acceptance stage, not a second application-version authority.

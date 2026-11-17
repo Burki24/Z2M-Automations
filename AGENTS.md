@@ -1,5 +1,7 @@
 # Z2M-Automations
 
+**English | [Deutsch](AGENTS_DE.md)**
+
 ## Entry points and scope
 
 - Read `PROJECT_CONTEXT.md`, `docs/DESKTOP_PLAN.md`, `docs/ARCHITECTURE.md`,
@@ -15,10 +17,15 @@
 
 ## Documentation language
 
-- English is the primary and authoritative language for all repository
-  documentation: READMEs, project context, plans, ADRs, development guidelines,
-  code comments and API documentation. Write new documentation in English and
-  keep existing documentation in English when updating it.
+- English is the primary and authoritative language for repository
+  documentation. Maintain a complete German companion with the suffix
+  `_DE.md` for every first-party Markdown document, including READMEs, project
+  context, plans, ADRs and development guidelines. Both versions must offer
+  prominent reciprocal language links. Keep both versions and their local
+  links current together.
+- Keep code comments, technical identifiers, commands and API contracts in
+  English. Original third-party notices and license texts retain their source
+  language and terms.
 - Use English technical identifiers, commit subjects and commit descriptions.
 - This documentation policy does not remove localization requirements. The
   application must still support German and English through language catalogs;

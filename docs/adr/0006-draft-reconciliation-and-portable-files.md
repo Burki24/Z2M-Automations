@@ -1,5 +1,7 @@
 # ADR 0006: Reconcile connected workspaces and separate project/draft files
 
+**English | [Deutsch](0006-draft-reconciliation-and-portable-files_DE.md)**
+
 - Date: 2026-11-15
 - Status: Implemented; live and platform acceptance remain separate.
 

@@ -1,5 +1,7 @@
 # Development
 
+**English | [Deutsch](DEVELOPMENT_DE.md)**
+
 RC preparation adds `npm run audit:dependencies` (runtime and development
 dependencies, moderate-or-higher findings fail) and a candidate identity/checksum
 step after platform acceptance in CI. Run the audit after a clean
@@ -66,8 +68,19 @@ encoding, official JSON style (20 files) and PHP CS Fixer (164 files) pass.
 Platform CI and installed/live acceptance remain separate.
 
 Use Node 24.20.0 and npm 11 on Windows 11 x64 or Ubuntu Desktop LTS x64.
-All repository documentation and commit messages are English. Localized UI text
-belongs in the local DE/EN JSON catalogs. The user alone commits and pushes.
+English repository documentation is authoritative, with complete German `_DE.md`
+companions and reciprocal language links. Update both versions together. Code
+comments, technical identifiers and commit messages stay English. Localized UI
+text belongs in the local DE/EN JSON catalogs. The user alone commits and pushes.
+
+`npm run check:docs` is part of `npm run check` and therefore of `verify:local`
+and both desktop CI jobs. It checks complete language pairs, prominent reciprocal
+links, translated heading structure, case-sensitive local paths/anchors and the
+manuals' language-specific screenshot mapping and manifest dimensions/sizes.
+Its isolated regression fixtures reject missing translations, broken navigation,
+omitted sections, wrong file case, missing anchors, mixed-language images and
+stale image metadata without capturing any images. It does not assess translation
+meaning or image rendering quality. See the [documentation index](README.md).
 
 The shared guided shell and Symcon presentation adapter are canonical under
 `packages/designer/src`; the desktop workspace entry point re-exports the shell.

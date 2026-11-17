@@ -1,5 +1,7 @@
 # D0: dependency-free designer localization
 
+**English | [Deutsch](LOCALIZATION_DE.md)**
+
 As of 2026-11-07. Canonical sources now live in packages/designer/src after
 the D1 extraction. Symcon consumes pinned, verified artifacts. The desktop
 loads the same catalogs locally; installed-app acceptance remains separate.

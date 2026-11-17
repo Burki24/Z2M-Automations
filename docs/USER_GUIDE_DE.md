@@ -1,6 +1,7 @@
 # Z2M-Automations — Anwenderhandbuch
 
 **Deutsch | [English](USER_GUIDE.md)**
+
 Für Z2M-Automations für Windows und Z2M-Automations für Linux.
 Bildreferenz: Anwendung **0.120.0**, mitgelieferte Erweiterung **0.2.4**.
 
@@ -41,6 +42,7 @@ gesondert beschrieben.
 20. [Abschlussprüfung und Glossar](#checklist)
 
 <a id="concepts"></a>
+
 ## 1. Aufgabe des Programms und wichtige Begriffe
 
 Die App bearbeitet Regeln und überträgt sie an unsere Erweiterung in
@@ -78,6 +80,7 @@ Zusammenführen der App, statt die gewünschte Fassung anhand dieser Zahlen
 auszuwählen.
 
 <a id="installation"></a>
+
 ## 2. Installieren und starten
 
 Verwende das Paket für dein Betriebssystem. Referenzumgebungen sind Windows 11 x64
@@ -121,6 +124,7 @@ deines heruntergeladenen Pakets. Ein Schlüsselbundproblem ist etwas anderes als
 ein falsches MQTT-Passwort; siehe [Fehlerbehebung](#troubleshooting).
 
 <a id="interface"></a>
+
 ## 3. Die Oberfläche verstehen
 
 ![Deutscher Arbeitsbereich mit Arbeitsschritten links, Netzauswahl oben sowie Regelliste, Ablauf und Eigenschaften](images/de/01-workspace.png)
@@ -154,6 +158,7 @@ Die Fokusmarkierung zeigt das per Tastatur bediente Element.
 **Abbrechen** übernimmt eine Formularänderung nicht.
 
 <a id="project"></a>
+
 ## 4. Schritt 1: Projekt anlegen, öffnen und speichern
 
 ![Deutsche Projektseite mit Projektname, Speichern und weiteren Projektaktionen](images/de/02-project.png)
@@ -188,6 +193,7 @@ Portable Projekte enthalten keine Broker-Passwörter oder privaten TLS-Schlüsse
 Auf einem anderen Computer musst du dessen Zugangsdaten gesondert hinterlegen.
 
 <a id="broker"></a>
+
 ## 5. Schritt 2: Broker und Zugangsdaten einrichten
 
 ![Deutsche Brokereinrichtung mit Serveradresse, Port, TLS und Zugangseinstellungen](images/de/03-broker.png)
@@ -232,6 +238,7 @@ TLS-Einstellungen im Verbindungsbereich. Importiertes Material bleibt im
 Hauptprozess für diese Projektsitzung und wird nicht in Projekte exportiert.
 
 <a id="systems"></a>
+
 ## 6. Schritt 3: Z2M-Netz zuordnen
 
 ![Deutsche Systemzuordnung mit Netznamen, zugehörigem Broker und Basistopic](images/de/04-systems.png)
@@ -259,6 +266,7 @@ nutzen. Richte zuerst ein Netz vollständig ein und folge anschließend dem
 [Kapitel zu zwei Netzen](#networks).
 
 <a id="connection"></a>
+
 ## 7. Schritt 4: Verbinden und Bestand lesen
 
 ![Deutsche Verbindungsseite mit bestätigtem Gerätekatalog, Bestandslesen, Geräteanzahl und Erweiterungsbereich](images/de/05-read-inventory.png)
@@ -294,6 +302,7 @@ Partner-Gerätedaten, muss die Übertragung bereits vor dem Betriebsstopp anhalt
 Der bisherige Automatikbetrieb läuft währenddessen weiter.
 
 <a id="drafts"></a>
+
 ## 8. Arbeitsstände, automatisches Zusammenführen und Konflikte
 
 ![Deutsche Arbeitsstandauswahl mit getrenntem lokalem Entwurf und gespeichertem Z2M-Stand](images/de/06-working-copy.png)
@@ -352,6 +361,7 @@ unbemerkt zurücksetzen.
 bevor du eine Fassung wählst. Andere unabhängige Regeln bleiben erhalten.
 
 <a id="editor"></a>
+
 ## 9. Eine Regel aufbauen: Wenn, Nur wenn, Dann
 
 ![Deutsches Formular für eine neue Automation mit Name, Auslöserart, Gerät, Kanal, Vergleich und Mindestdauer](images/de/07-new-automation.png)
@@ -430,6 +440,7 @@ setzen die Auswahl Ein, Aus oder Umschalten. Schreibe keine übersetzten
 Bedienwörter in rohe YAML-Werte: ON, OFF und TOGGLE bleiben Protokollwerte.
 
 <a id="motion"></a>
+
 ## 10. Beispiel: Licht bei Bewegung, nach 30 Sekunden ausschalten
 
 Zwei Regeln machen Ein- und Ausschalten gut nachvollziehbar.
@@ -486,6 +497,7 @@ teste erneut. Maßgeblich ist der letzte gültige Sensorwert; die Bedingung ford
 keine neue Messung an.
 
 <a id="examples"></a>
+
 ## 11. Beispiele: Taster, Messwert, Fenstergriff und Sonnenuntergang
 
 ### Taster schaltet Licht um
@@ -527,6 +539,7 @@ Die Beispiele zeigen Konfigurationsmuster. Wähle passende Geräte und Grenzwert
 für deine eigene Anlage und überprüfe das Ergebnis beaufsichtigt.
 
 <a id="check"></a>
+
 ## 12. Schritt 7: Entwurf prüfen und Fehler korrigieren
 
 ![Deutsche Entwurfsprüfung mit bereitem Ergebnis und Wechsel zur Übermittlung](images/de/08-check-draft.png)
@@ -553,6 +566,7 @@ Während diese Voraussetzung fehlt, soll der bisherige Automatikbetrieb
 weiterlaufen.
 
 <a id="transfer"></a>
+
 ## 13. Schritt 8: Übermitteln und bisherigen Betrieb fortsetzen
 
 ![Deutsche Übermittlungsseite mit Ziel, Inhaltsanzahl und Übermittlungsaktion](images/de/09-transfer.png)
@@ -594,6 +608,7 @@ fortsetzen** im Bereich Betrieb. Die eine Wahl betrifft diese Übertragung, die
 andere die gespeicherte Einstellung für einen späteren Neustart.
 
 <a id="operation"></a>
+
 ## 14. Betrieb: Freigeben, starten, testen und stoppen
 
 ![Deutsche Betriebsseite mit Netzzustand und bestätigter Anzahl freigegebener Regeln](images/de/10-operation.png)
@@ -649,6 +664,7 @@ Sende und bestätige den passenden Stoppbefehl im verbundenen Zustand, wenn
 Automationen beendet werden sollen.
 
 <a id="networks"></a>
+
 ## 15. Automationen über zwei Z2M-Netze
 
 Beispiel: Ein Taster gehört zu **Haus**, die **Terrasse / Beleuchtung** zu
@@ -704,6 +720,7 @@ das ausdrücklich sichtbar. Ein fehlender oder unbekannter entfernter Wert darf
 nicht als erfüllte Bedingung behandelt werden.
 
 <a id="files"></a>
+
 ## 16. Projektdateien, Entwurfsdateien, Sicherung und Wiederherstellung
 
 | Datei | Zweck | Wichtige Grenze |
@@ -748,6 +765,7 @@ beide Fassungen. Überschreibe sie nicht ungeprüft. Öffne zur Untersuchung zun
 eine Kopie einer Sicherung; das Öffnen setzt Z2M nicht automatisch zurück.
 
 <a id="advanced"></a>
+
 ## 17. Aktionsfolgen und weitere Einstellungen
 
 ### Wiederverwendbare Aktionsfolgen
@@ -779,6 +797,7 @@ Lasse bei ersten einfachen Regeln die Voreinstellungen bestehen, bis Auslöser,
 Zielgerät und Betrieb grundsätzlich getestet sind.
 
 <a id="updates"></a>
+
 ## 18. App oder Z2M-Erweiterung aktualisieren
 
 ### Anwendung aktualisieren
@@ -835,6 +854,7 @@ Wenn Automationen beendet werden sollen, stoppe den betreffenden Z2M-Betrieb
 ausdrücklich vor dem Trennen der Verbindung.
 
 <a id="troubleshooting"></a>
+
 ## 19. Fehlerbehebung und Diagnose
 
 | Beobachtung | Zuerst prüfen | Vorgehen |
@@ -866,6 +886,7 @@ Prüfe exportiertes Material vor dem Teilen. Veröffentliche keine Zugangsdaten
 oder vollständigen privaten Projekte für eine einfache Oberflächenfrage.
 
 <a id="checklist"></a>
+
 ## 20. Abschlussprüfung und Glossar
 
 ### Ein erstes funktionierendes Netz

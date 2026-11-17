@@ -1,5 +1,7 @@
 # Automatic application versioning
 
+**English | [Deutsch](VERSIONING_DE.md)**
+
 The independent application starts at `0.1.0`. Its canonical metadata lives in
 `version.json`; it does not continue the Symcon library's version sequence.
 
