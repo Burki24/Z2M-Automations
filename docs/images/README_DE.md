@@ -18,6 +18,17 @@ Windows lieferte die Aufnahmeumgebung. Dies sind gemeinsame Anwendungsansichten,
 keine Nachweise nativer Ubuntu-Installations-/Schlüsselbunddialoge oder echter
 Ausführung. Unterschiede der Betriebssysteme beschreiben die Handbücher.
 
+Die Haupt-READMEs verwenden ein [englisches](readme-hero-en.png) und ein
+[deutsches](readme-hero-de.png) Titelbild. Diese KI-generierten Kompositionen
+basieren auf dem freigegebenen deutschen Motiv und genehmigten App-Aufnahmen im
+dunklen Design mit synthetischen Daten in der jeweils passenden Oberflächensprache.
+Ihre Renderer-Referenz ist Anwendung 0.121.0. Es sind Werbemotive, keine unveränderten
+Bildschirmaufnahmen oder Nachweise für natives Ubuntu-Verhalten. Das freigegebene
+deutsche Motiv bleibt unverändert; die englische Fassung lokalisiert Texte und
+Monitoransicht. Angaben zur Erzeugung und Datei-Prüfsummen stehen in
+[readme-hero-provenance.json](readme-hero-provenance.json).
+Das Manifest der Handbuchaufnahmen bleibt getrennt.
+
 <a id="regenerate-after-permission"></a>
 
 ## Nach Freigabe neu erstellen

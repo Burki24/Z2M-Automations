@@ -15,6 +15,16 @@ Windows supplied the capture environment. These are shared application views,
 not evidence of native Ubuntu installation/keyring dialogs or live execution.
 Native OS differences are described in the handbooks.
 
+The main READMEs use [English](readme-hero-en.png) and
+[German](readme-hero-de.png) title artwork. These are AI-generated compositions
+based on the approved German design and authorized dark-theme app captures with
+synthetic data, using the matching UI language. Their renderer reference is
+application 0.121.0. They are promotional artwork, not unmodified screenshots or
+evidence of native Ubuntu behavior. The approved German artwork is preserved
+unchanged; the English edition localizes its captions and monitor view. Generation
+details and file hashes are in [readme-hero-provenance.json](readme-hero-provenance.json).
+The user-guide screenshot manifest remains separate.
+
 ## Regenerate after permission
 
 Before any future capture, obtain explicit permission for that documentation task

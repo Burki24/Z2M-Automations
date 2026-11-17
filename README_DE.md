@@ -4,6 +4,8 @@
 
 **Deutsch | [English](README.md)**
 
+![Z2M-Automations für Windows und Ubuntu: visueller Automationsdesigner, verbundene Zigbee2MQTT-Netzwerke, Projekte und Entwürfe sowie Ausführung in Zigbee2MQTT](docs/images/readme-hero-de.png)
+
 Ein eigenständiger Designer für Zigbee2MQTT-Automationen unter **Windows und
 Ubuntu Linux**. Die gemeinsame Oberfläche verwaltet bis zu acht Systeme an einem
 oder mehreren MQTT-Brokern. Die Automationen laufen unabhängig von der
@@ -76,7 +78,7 @@ ausgeschaltet. Siehe [Arbeitsstandabgleich](docs/adr/0006-draft-reconciliation-a
 - [RC1-Vorbereitung und native Abnahme](docs/RC1_DE.md)
 - [Lokale Projekte und Zugangsdaten](docs/D2_DE.md)
 - [Gemeinsames Designer-Paket](packages/designer/README_DE.md)
-- [Gesamte Dokumentation auf Deutsch und Englisch](docs/README.md)
+- [Gesamte Dokumentation auf Deutsch und Englisch](docs/README_DE.md)
 
 Das [Symcon-Produkt](https://github.com/Burki24/Symcon_Z2MAutomations) übernimmt
 unser geprüftes Designer-Paket mit festgelegter Version. Die Z2M-Erweiterung

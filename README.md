@@ -2,6 +2,8 @@
 
 **English | [Deutsch](README_DE.md)**
 
+![Z2M-Automations for Windows and Ubuntu: visual automation designer, connected Zigbee2MQTT networks, projects and drafts, and execution in Zigbee2MQTT](docs/images/readme-hero-en.png)
+
 A standalone Zigbee2MQTT automation designer for **Windows and Ubuntu Linux**.
 The shared designer manages up to eight systems on one or more MQTT brokers.
 Automations run in our own Z2M extension, independently of the application.
