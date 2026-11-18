@@ -8,8 +8,9 @@ Diese Erklärung gilt für die Desktop-App Z2M-Automations für Windows und Linu
 Verantwortlich für die hier beschriebene Datenverarbeitung durch den Herausgeber
 ist Burkhard Kneiseler.
 
-Postanschrift: [Zur Veröffentlichung bestimmte Postanschrift ergänzen]  
-Datenschutz-E-Mail: [Zur Veröffentlichung bestimmte E-Mail-Adresse ergänzen]
+Postanschrift: Am Espenpfuhl 55a, 12355 Berlin, Deutschland
+
+Datenschutz-E-Mail: [datenschutz@kneiseler.de](mailto:datenschutz@kneiseler.de)
 
 ## In der App verarbeitete Daten
 
