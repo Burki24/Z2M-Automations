@@ -58,7 +58,7 @@ export function installOperationFlags(workspace, {operation, automatic, activate
     bindText(count, () => known ? t('desktop.flags.count', {enabled: formatNumber(enabled), total: formatNumber(total), count: total}) : t('desktop.flags.unknown'));
     count.dataset.tone = known && !enabled ? 'warning' : '';
     const blocked = system?.transferPending || system?.updatePending;
-    bindText(reason, () => blocked ? t('desktop.flags.confirmFirst') : known && total && !enabled ? t('desktop.flags.none') : '');
+    bindText(reason, () => blocked ? t('desktop.flags.confirmFirst') : known && !enabled && runtime.peers?.length ? t('operation.receiver.help') : known && total && !enabled ? t('desktop.flags.none') : '');
     reason.dataset.tone = blocked || known && total && !enabled ? 'warning' : '';
     panel.hidden = !system;
     let entry = entries.get(key);

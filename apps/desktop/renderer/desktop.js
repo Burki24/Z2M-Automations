@@ -7,6 +7,7 @@ import {installNetwork} from './network.js';
 import {validationSummary} from './draft-review.js';
 import {installDraftExchange} from './drafts.js';
 import {installDesktopWorkspace} from './desktop-workspace.js';
+import {installHelp} from './help.js';
 
 const bridge = window.z2maDesktop;
 let editorState = Promise.resolve();
@@ -36,7 +37,7 @@ installTransport({kind: 'desktop', request: async (input, init = {}) => {
         value = {ok: true};
     }
     else if (route === '/language' && method === 'POST') value = await bridge.language(JSON.parse(init.body));
-    else if (['/create', '/edit', '/sequence', '/manage', '/permissions', '/permissions-status'].includes(route) && method === (route === '/permissions-status' ? 'GET' : 'POST')) {
+    else if (['/create', '/edit', '/sequence', '/manage', '/permissions', '/permissions-status', '/draft-sync', '/draft-sync-status', '/draft-files'].includes(route) && method === (route.endsWith('-status') ? 'GET' : 'POST')) {
         const headers = new Headers(init.headers);
         const result = await bridge.designer({route: route.slice(1), systemId: headers.get('X-Z2MA-System-ID'),
             generation: Number(headers.get('X-Z2MA-Generation')), fingerprint: headers.get('X-Z2MA-Fingerprint'), payload: method === 'POST' ? JSON.parse(init.body) : {}});
@@ -126,6 +127,7 @@ try {
     await import('./reader.js');
     workspace.mountDesigner();
     await installTheme();
+    installHelp(bridge);
     const view = await bridge.snapshot();
     const caption = document.querySelector('.brand-copy strong') ?? document.querySelector('.brand strong');
     if (caption) bindText(caption, () => 'Z2M-Automations ' + t(view.desktop.platform === 'win32' ? 'desktop.windows' : 'desktop.linux') + ' · ' + view.desktop.version);

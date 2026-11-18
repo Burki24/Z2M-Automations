@@ -47,5 +47,5 @@ const manifest = {format: 1, name: '@z2ma/designer', version: JSON.parse(readFil
   license: 'PolyForm-Noncommercial-1.0.0', content: createHash('sha256').update(JSON.stringify(assets)).digest('hex'), assets};
 write(join(target, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 copy(join(root, 'packages/designer/LICENSE'), join(target, 'LICENSE'));
-write(join(target, 'package.json'), JSON.stringify({name: manifest.name, version: manifest.version, license: manifest.license, private: true}, null, 2) + '\n');
+write(join(target, 'package.json'), JSON.stringify({name: manifest.name, version: manifest.version, type: 'module', license: manifest.license, private: true}, null, 2) + '\n');
 console.log('Shared designer built: ' + names.length + ' assets; ' + manifest.content.slice(0, 12));

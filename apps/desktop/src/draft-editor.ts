@@ -3,14 +3,15 @@ import type {ProjectService} from './project-service.js';
 import type {MqttReader} from './mqtt-reader.js';
 import {exact, validId, type ProjectSystem, type Configuration} from './project.js';
 import {editorDevices, editorSystems, checkCapabilities, checkedDocument, digestPattern, uniqueTopic, type Entry} from './draft-validation.js';
+import {canonical} from './draft-merge.js';
 
-const routes = ['create', 'edit', 'sequence', 'manage', 'permissions-status', 'permissions', 'import', 'export', 'adopt', 'editor-state', 'check-draft'] as const;
+const routes = ['create', 'edit', 'sequence', 'manage', 'permissions-status', 'permissions', 'import', 'export', 'draft-files', 'adopt', 'draft-sync', 'draft-sync-status', 'editor-state', 'check-draft'] as const;
 export interface DesignerCommand {route: typeof routes[number]; systemId: string; generation: number; fingerprint: string; payload: Entry}
 export const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export function validDesignerCommand(value: unknown): value is DesignerCommand {
   return exact(value, ['route', 'systemId', 'generation', 'fingerprint', 'payload']) && routes.includes(value['route'] as DesignerCommand['route'])
     && validId(value['systemId']) && Number.isSafeInteger(value['generation']) && typeof value['fingerprint'] === 'string' && digestPattern.test(value['fingerprint'])
-    && value['payload'] !== null && typeof value['payload'] === 'object' && !Array.isArray(value['payload']) && Buffer.byteLength(JSON.stringify(value)) <= 131072;
+    && value['payload'] !== null && typeof value['payload'] === 'object' && !Array.isArray(value['payload']) && Buffer.byteLength(JSON.stringify(value)) <= (value['route'] === 'draft-files' ? 4194304 : 131072);
 }
 export class DraftEditor {
   private replies = new Map<string, {signature: string; reply: Entry}>();
@@ -27,7 +28,8 @@ export class DraftEditor {
   }
   view(system: ProjectSystem): Entry {
     const configuration = system.configuration; const context = this.context(system);
-    const editable = this.reader.source(system.id) === 'draft';
+    const editable = this.reader.source(system.id) === 'draft' && this.projects.isDraftReady(system.id);
+    const sync = this.projects.draftSync(system.id);
     const sections = Object.fromEntries(configuration.automations.map(rule => [rule['id'], {triggers: true, conditions: true, actions: true}]));
     return {devices: editorDevices(this.projects.data(), system, this.reader), deviceSystems: editorSystems(this.projects.data(), system, this.reader), createContext: context,
       createAllowed: editable && configuration.automations.length < 100, editAllowed: editable,
@@ -35,12 +37,18 @@ export class DraftEditor {
       manageAllowed: editable, permissionsAllowed: editable && Boolean(uniqueTopic(this.projects.data(), system.baseTopic))
         && system.baseTopic.length <= 128 && /^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/.test(system.baseTopic), editSections: sections,
       sequenceSections: Object.fromEntries(configuration.sequences.map(sequence => [sequence['id'], true])),
-      workspaceContext: {systemId: system.id, generation: this.projects.generation() + 1, fingerprint: context}};
+      workspaceContext: {systemId: system.id, generation: this.projects.generation() + 1, fingerprint: context},
+      draftBase: system.baseline?.configuration ? system.baseline : null,
+      draftSyncAllowed: true, draftSync: {systemId: system.id, generation: this.projects.generation() + 1, fingerprint: context,
+        operation: sync.operation, phase: sync.phase, pending: sync.phase === 'reading', canStart: this.reader.connected(system.brokerId) && sync.phase !== 'reading',
+        canReplace: sync.phase === 'conflict', canRestore: Boolean(sync.before && sync.after === canonical(system.configuration)),
+        baseRevision: sync.baseRevision, remoteRevision: sync.remoteRevision, counts: sync.counts, permissionsChanged: sync.conflicts.some(item => item.kind === 'permissions'),
+        conflicts: sync.conflicts, error: sync.error, source: sync.source ?? 'z2m', automatic: false, canOffline: true}};
   }
   system(command: DesignerCommand): ProjectSystem {
     if (!this.projects.active) throw new Error('noProject');
     const system = this.projects.data().systems.find(system => system.id === command.systemId);
-    const requiresDraftView = command.route !== 'adopt' && command.route !== 'export';
+    const requiresDraftView = command.route !== 'adopt' && command.route !== 'export' && command.route !== 'draft-files';
     if (!system || command.generation !== this.projects.generation() + 1 || requiresDraftView && this.reader.source(system.id) !== 'draft'
       || command.fingerprint !== this.context(system)) throw new Error('draftStale');
     return system;
@@ -102,6 +110,7 @@ export class DraftEditor {
     const cached = key ? this.replies.get(key) : null;
     if (cached) { if (cached.signature !== signature) throw new Error('draftStale'); return structuredClone(cached.reply); }
     const system = this.system(command); const configuration = structuredClone(system.configuration);
+    if (['create', 'edit', 'sequence', 'manage', 'permissions'].includes(command.route) && !this.projects.isDraftReady(system.id)) throw new Error('draftInitialRead');
     if (command.route === 'permissions-status') {
       if (!exact(payload, [])) throw new Error('invalidRequest');
       return {ok: true, permissions: this.permissionView(system)};
@@ -146,5 +155,8 @@ export class DraftEditor {
     this.projects.replaceDraft(system.id, configuration);
     this.reader.reconcile(this.projects.data(), this.projects.generation());
     this.reader.view(system.id, 'draft');
+  }
+  showDraft(systemId: string): void {
+    this.reader.reconcile(this.projects.data(), this.projects.generation()); this.reader.view(systemId, 'draft');
   }
 }

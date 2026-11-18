@@ -7,10 +7,59 @@ export function selectedSystemName(data) {
         || data?.module?.baseTopic || data?.module?.name || '';
 }
 
+export function deviceSystemName(data, baseTopic = '') {
+    const id = data?.workspaceContext?.systemId;
+    const systems = data?.workspace?.systems ?? [];
+    const local = id ? systems.find(system => (system.systemId ?? system.binding?.systemId) === id) : undefined;
+    const topic = baseTopic || local?.binding?.baseTopic || data?.module?.baseTopic || '';
+    const matches = baseTopic ? systems.filter(system => system.binding?.baseTopic === baseTopic) : [];
+    const name = baseTopic ? (matches.length === 1 ? matches[0].name : '') : data?.desktop?.systemName || local?.name || '';
+    return name && topic && name !== topic ? `${name} · ${topic}` : name || topic || t('ui.unknown.a418e69e');
+}
+
 /* Explicit system identity accompanies every local draft write. */
 export function systemHeaders(data) {
     const context = data?.workspaceContext;
     return context ? {'X-Z2MA-System-ID': context.systemId, 'X-Z2MA-Generation': String(context.generation), 'X-Z2MA-Fingerprint': context.fingerprint} : {};
+}
+
+class RetryableViewRead extends Error {
+    constructor(stage, reason, status = 0) { super('view_changed'); this.stage = stage; this.reason = reason; this.status = status; }
+}
+
+export async function checkViewResponse(response, stage = 'data') {
+    if (response.ok) return;
+    if ([408, 425, 429, 502, 503, 504].includes(response.status)) throw new RetryableViewRead(stage, 'unavailable', response.status);
+    if (response.status === 409) {
+        let result;
+        try { result = await response.json(); } catch { /* A malformed reply is not a confirmed transient conflict. */ }
+        if (['stale_workspace', 'stale_system', 'busy'].includes(result?.error)) throw new RetryableViewRead(stage, result.error, 409);
+    }
+    throw new Error(response.status === 403 ? 'access' : 'transport');
+}
+
+/* Recover complete GET snapshots, including pages, within a bounded contention window. */
+export async function loadSystemView(read, {wait = ms => new Promise(resolve => setTimeout(resolve, ms)), now = Date.now, onRetry = () => {}, ...options} = {}) {
+    const delays = [250, 500, 1000, 2000, 2000];
+    const deadline = now() + 10000;
+    for (let attempt = 0; ; attempt++) {
+        options.signal?.throwIfAborted();
+        try { return await loadSystemDevices(await read(), options); }
+        catch (error) {
+            if (!(error instanceof RetryableViewRead)) throw error;
+            const delay = delays[attempt];
+            const retry = delay !== undefined && now() + delay < deadline && !options.signal?.aborted;
+            console.warn(retry ? 'Z2MA_VIEW_READ_RETRY' : 'Z2MA_VIEW_READ_FAILED',
+                {stage: error.stage, reason: error.reason, status: error.status, attempt: attempt + 1});
+            if (!retry) throw error;
+            onRetry({attempt: attempt + 1, delay});
+            await wait(delay);
+            if (now() >= deadline) {
+                console.warn('Z2MA_VIEW_READ_FAILED', {stage: error.stage, reason: error.reason, status: error.status, attempt: attempt + 1});
+                throw error;
+            }
+        }
+    }
 }
 
 export async function loadSystemDevices(data, {token, signal, base = location.href, request = fetch, onProgress = () => {}}) {
@@ -26,11 +75,13 @@ export async function loadSystemDevices(data, {token, signal, base = location.hr
         try {
             const response = await request(endpoint, {headers: {'X-Z2MA-Read-Token': token, ...systemHeaders(data), 'X-Z2MA-Workspace-Fingerprint': data.workspace?.fingerprint ?? '', 'X-Z2MA-Offset': String(offset)},
                 signal: controller.signal, credentials: 'same-origin', cache: 'no-store', redirect: 'error'});
-            if (!response.ok) throw new Error('catalog');
+            await checkViewResponse(response, 'devices');
             page = localizeResponse(await response.json());
         } finally { clearTimeout(timeout); signal?.removeEventListener('abort', abort); }
-        if (page.workspaceContext?.systemId !== data.workspaceContext.systemId || page.workspaceContext.fingerprint !== data.workspaceContext.fingerprint
-            || page.devicePage?.offset !== offset || page.devicePage.total !== data.devicePage.total || !Array.isArray(page.devices) || !page.devices.length) throw new Error('catalog');
+        if (page.workspaceContext?.systemId !== data.workspaceContext.systemId || page.workspaceContext.generation !== data.workspaceContext.generation
+            || page.devicePage?.offset !== offset || !Array.isArray(page.devices) || !page.devices.length) throw new Error('catalog');
+        if (page.workspaceContext.fingerprint !== data.workspaceContext.fingerprint || page.devicePage.total !== data.devicePage.total)
+            throw new RetryableViewRead('devices', 'snapshot_changed');
         data.devices.push(...page.devices); data.devicePage = page.devicePage;
     }
     return data;

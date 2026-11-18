@@ -26,6 +26,9 @@ module.exports = {
   makers: [
     new WindowsMaker({oneClick: false, perMachine: false, allowElevation: true,
       installerIcon: windowsIcon, uninstallerIcon: windowsIcon,
+      installerHeader: path.join(__dirname, 'installer', 'header.bmp'),
+      installerSidebar: path.join(__dirname, 'installer', 'sidebar.bmp'),
+      uninstallerSidebar: path.join(__dirname, 'installer', 'sidebar.bmp'),
       include: path.join(__dirname, 'installer.nsh'),
       allowToChangeInstallationDirectory: true, installerLanguages: ['de_DE', 'en_US'],
       displayLanguageSelector: true, runAfterFinish: true, deleteAppDataOnUninstall: false,

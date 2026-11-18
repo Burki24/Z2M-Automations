@@ -215,6 +215,31 @@ test('legacy discrete capabilities and numerical units are read without inventin
   assert.equal(parsed.devices[0].properties.find(property => property.id === 'action').access, 1);
   assert.equal(parsed.devices[0].properties.find(property => property.id === 'temperature').unit, '°C');
 });
+
+test('typed sensor units and window-handle states survive empty legacy choice lists', () => {
+  const fixture = remoteFixture().editor; const sensor = fixture.devices[0];
+  sensor.triggers = []; sensor.actions = []; sensor.numeric = [];
+  sensor.properties = [
+    {property: 'position', type: 'enum', access: 1, label: 'Position', endpoint: '', values: ['up', 'right', 'down', 'left']},
+    {property: 'temperature', type: 'numeric', access: 1, label: 'Temperature', endpoint: '', values: [], unit: '°C'}];
+  const parsed = editorData(fixture).devices[0].properties;
+  assert.deepEqual(parsed[0].values, ['up', 'right', 'down', 'left']);
+  assert.equal(parsed[0].access, 1);
+  assert.equal(parsed[1].unit, '°C');
+  sensor.properties[1].unit = 'invalid\u0000unit';
+  assert.equal(editorData(fixture).devices[0].properties[1].unit, undefined);
+});
+
+test('a bounded catalog failure is explicit and cannot confirm an incomplete inventory', async t => {
+  const peer = await startPeer({reply: ({operation, response, publish}) => {
+    publish(operation === 'editor' ? {...response, status: 'error', error: {code: 'catalog_limit'}} : response);
+  }});
+  t.after(() => peer.close()); const project = projectFor([peer]); const {reader} = readerFor(t, project);
+  await reader.connectBroker(project.brokers[0].id);
+  await waitFor(() => reader.state().systems[0].error === 'catalogLimit');
+  assert.equal(reader.state().systems[0].fresh, false);
+  assert.equal(reader.current(project.systems[0].id), null);
+});
 test('a missing subscription acknowledgement has a bounded timeout and sends no read request', async t => {
   const peer = await startPeer({acknowledge: false}); t.after(() => peer.close()); const project = projectFor([peer]); const {reader} = readerFor(t, project, {timeout: 120});
   await reader.connectBroker(project.brokers[0].id); await waitFor(() => reader.state().brokers[0].error === 'timeout');

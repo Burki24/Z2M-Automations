@@ -1,5 +1,7 @@
 # Shared designer
 
+**English | [Deutsch](README_DE.md)**
+
 The shared rule editor includes restart_policy (abort, resume, resume_expired)
 with German/English labels and lossless prefill. It edits only the local draft;
 execution and durable waiting-run recovery remain owned by the Z2M extension.
@@ -26,7 +28,10 @@ including printf placeholders. It is adapter data; no PHP interpreter is needed
 to build or run the desktop. Keep native message changes and catalog keys in
 sync when subsequently updating that adapter.
 
-transport.js is the product boundary: the web adapter retains the existing fetch
-contract; the desktop installs a fixed, read-only IPC adapter before reader.js.
-The D1 desktop offers synthetic examples only and hides unsupported management
-capabilities. Later milestones implement actual local projects and MQTT.
+transport.js is the product boundary: the web adapter retains its authenticated
+fetch contract; the desktop installs a fixed IPC adapter before reader.js. Each
+backend validates its own local editing, file, reconciliation and explicit control
+requests. draft-merge.js provides the pure identity-based merge and portable
+container functions; the desktop build stages their exact bodies for main-process
+use. draft-files.js and draft-sync.js provide the shared DE/EN controls. Native
+file dialogs, general file access, credentials and MQTT remain outside the renderer.

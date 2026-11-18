@@ -9,7 +9,6 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     const state = async () => (await bridge.network({action: 'status', id: ''})).state;
     const navigate = key => document.querySelector('#desktop-nav-' + key).click();
     let project = (await bridge.project({action: 'status'})).state.project;
-    const draft = JSON.stringify(project.systems[0].configuration);
     assert((await state()).brokers.every(broker => broker.state === 'disconnected'), 'automatic connection on open');
     const broker = {...project.brokers[0], host: '127.0.0.1', port: ${port}, tls: false};
     assert((await bridge.project({action: 'broker', broker})).ok, 'synthetic broker setup');
@@ -17,17 +16,32 @@ export async function smokeNetwork(view: WebContents, port: number): Promise<voi
     navigate('connection');
     const catalog = document.querySelector('#mqtt-catalog');
     assert(catalog?.hidden, 'the catalog lists wait for a confirmed read');
+    assert(document.querySelector('#issues').hidden && !document.querySelector('#symcon-open-device-refresh'),
+      'the app has no duplicate Symcon navigation warning in step 4');
+    assert(!document.querySelector('#desktop-view-connection [data-step="connection"]'), 'the connection page never links to itself');
+    assert(document.querySelector('#mqtt-connect').classList.contains('primary'), 'connecting is the primary action before a read');
     const projectState = (await bridge.project({action: 'status'})).state;
     const mode = projectState.protectedAvailable ? 'credentials' : 'anonymous';
     if (mode === 'credentials') assert((await bridge.credential({brokerId: broker.id, mode: 'protected', source: 'manual'})).ok, 'save protected automatic connection credentials');
     assert((await bridge.network({action: 'autoConnect', id: broker.id, mode})).ok, 'choose a local automatic connection mode');
+    const localView = await bridge.snapshot();
+    const localFile = {format: 'z2m-automations-draft', version: 1, system: {id: project.systems[0].id, name: 'Synthetic', baseTopic: project.systems[0].baseTopic}, base: null,
+      configuration: {schema_version: 1, revision: 1, sequences: [], mesh_peers: [], automations: [{id: 'unsent-smoke', name: 'Unsent before connection', enabled: true,
+        retrigger: 'ignore', restart_policy: 'abort', triggers: [{type: 'time', at: '18:00:00', timezone: 'UTC'}], conditions: [],
+        actions: [{type: 'set', target: {type: 'device', id: '0x0000000000000002'}, values: {state: 'ON'}}]}]}};
+    const imported = await bridge.designer({route: 'draft-files', systemId: localView.workspaceContext.systemId, generation: localView.workspaceContext.generation,
+      fingerprint: localView.workspaceContext.fingerprint, payload: {requestId: crypto.randomUUID(), action: 'import', file: localFile, choices: {}}});
+    assert(imported.ok && imported.state.applied, 'prepare an unsent draft before the first connection');
     assert((await bridge.project({action: 'save'})).ok, 'save the configured project');
     navigate('project'); document.querySelector('#project-open').click();
     await wait(async () => (await state()).systems[0].fresh);
     assert((await bridge.project({action: 'status'})).state.autoConnect[broker.id].mode === mode, 'the connection preference survives project reopen');
     navigate('connection');
     project = (await bridge.project({action: 'status'})).state.project;
-    assert(JSON.stringify(project.systems[0].configuration) === draft, 'remote replaced local draft');
+    assert(project.systems[0].configuration.automations.some(rule => rule.name === 'Synthetic remote rule')
+      && project.systems[0].configuration.automations.some(rule => rule.id === 'unsent-smoke' && !rule.enabled), 'connection must merge existing and unsent automations');
+    assert(project.systems[0].baseline.configuration.automations.some(rule => rule.name === 'Synthetic remote rule'), 'the accepted base content is persisted');
+    const draft = JSON.stringify(project.systems[0].configuration);
     assert(project.systems[0].stored.yaml.startsWith('# Synthetic source'), 'exact source not retained');
     const id = project.systems[0].id;
     await wait(() => document.querySelector('#desktop-connection').dataset.connected === 'true');

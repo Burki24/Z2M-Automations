@@ -53,7 +53,7 @@ test('reject unsupported versions, secret fields, bad references, duplicate bind
   const eight = structuredClone(source);
   eight.systems = Array.from({length: 8}, (_, index) => ({...structuredClone(source.systems[0]), id: randomUUID(), baseTopic: 'system' + index}));
   assert.equal(validProject(eight), true);
-  for (const mutate of [p => p.version = 2, p => p.password = 'PRIVATE', p => p.brokers[0].username = 'PRIVATE',
+  for (const mutate of [p => p.version = 3, p => p.password = 'PRIVATE', p => p.brokers[0].username = 'PRIVATE',
     p => p.systems[0].brokerId = randomUUID(), p => p.brokers[0].host = 'mqtt://user:password@host',
     p => p.systems.push({...p.systems[0], id: randomUUID()}), p => p.systems[0].configuration.session = 'PRIVATE',
     p => p.systems[0].baseTopic = 'invalid/#', p => p.systems = Array.from({length: 9}, (_, i) => ({...p.systems[0], id: randomUUID(), baseTopic: 'topic' + i}))]) {
@@ -193,6 +193,8 @@ test('project service cancels safely, rejects malformed opens and restores backu
   await service.command({action: 'restore'}); assert.deepEqual(service.data(), original); assert.equal(service.isDirty(), true);
   assert.equal(parseProject(await readFile(path)).name, 'Unsaved');
   const systemId = service.data().systems[0].id;
+  await assert.rejects(service.command({action: 'draft', systemId, operation: 'new', name: 'Local draft', ruleId: ''}), /draftInitialRead/);
+  await service.resolveDraftSync(systemId, '', 'offline');
   await service.command({action: 'draft', systemId, operation: 'new', name: 'Local draft', ruleId: ''});
   const rule = service.data().systems[0].configuration.automations[0]; assert.equal(rule.enabled, false);
   await service.command({action: 'draft', systemId, operation: 'copy', name: 'Copy', ruleId: rule.id});
@@ -214,6 +216,7 @@ test('broker changes invalidate associated baselines while preserving drafts and
   assert.equal(service.data().systems[0].baseline, null);
   assert.equal(service.data().systems[0].id, project.systems[0].id);
   assert.deepEqual(service.data().systems[0].configuration, project.systems[0].configuration);
+  await service.resolveDraftSync(project.systems[0].id, '', 'offline');
   await service.command({action: 'draft', systemId: project.systems[0].id, operation: 'copy', name: 'Disabled copy', ruleId: 'existing-rule'});
   assert.equal(service.data().systems[0].configuration.automations[0].enabled, true);
   assert.equal(service.data().systems[0].configuration.automations[1].enabled, false);

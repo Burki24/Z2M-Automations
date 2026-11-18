@@ -1,5 +1,7 @@
 # ADR 0005: Shared guided workspace for desktop and Symcon
 
+**English | [Deutsch](0005-shared-guided-workspace_DE.md)**
+
 - Date: 2026-11-13
 - Status: Implemented locally; native Symcon acceptance after updating remains separate.
 
@@ -32,9 +34,25 @@ and field and can open that field in the common editor. Step 8 captures explicit
 consent, obtains fresh operating status, stops operation/restart intent/remaining
 runs when necessary, revalidates and stores once through the existing scoped
 native protocol. Cached GET polling is bounded and never replays a mutation.
-Starting operation remains a separate action. Native enabled flags and runtime
+Starting operation remains separate by default. A per-transfer, unchecked option
+can resume previously confirmed active operation only after successful storage,
+fresh readback and activation checks. It preserves the saved restart preference
+and never grants a new rule permission or replays interrupted single runs.
+Missing confirmation prevents activation; an ambiguous activation is never
+automatically repeated. Native enabled flags and runtime
 backup semantics remain native; the desktop backup dialog and disabled-content
 policy are not silently imposed on Symcon.
+
+The native adapter exposes the confirmed `resumeStatus` separately from the
+saved restart preference. `stopped` confirms a disarmed durable intent while
+preserving that preference; the guided transfer may then validate and store.
+An enabled preference alone does not indicate active restart intent. Missing or
+still armed confirmation after a stop prevents storage without replaying it.
+
+After a successful transfer, the shared reader may restart one failed complete
+GET snapshot on an explicit temporary availability or stale-snapshot response.
+Catalog pages from different snapshots are never combined. Access failures and
+foreign bindings remain terminal; mutations are outside this recovery path.
 
 The native Operation page can change a rule's local enabled flag through the
 existing authenticated edit endpoint. Checking and transmission remain explicit.
@@ -42,6 +60,15 @@ Stored enabled counts require a matching confirmed document. A local checkbox
 does not establish an effective permission in Z2M.
 
 ## Verification
+
+The shared readiness panel projects confirmed receiver operation from each
+adapter's system overview. It resolves remote condition/action/sequence references
+by unique base topic and navigates by stable system ID to the existing Operation
+page. Preparation explains permissions, destination activation and source
+activation. Each start retains its existing explicit confirmation and native
+authority; no group start, command replay or automatic upload is introduced.
+Confirmations identify the saved released rules, including a separate explanation
+for partner-only reception with no local rules enabled.
 
 Use synthetic PHP kernel/MQTT peers and headless browser/tile fixtures. Verify
 assignment rights and session scope changes, exact local edits, field correction,

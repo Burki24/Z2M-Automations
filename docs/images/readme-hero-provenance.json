@@ -1,0 +1,36 @@
+{
+  "formatVersion": 1,
+  "createdOn": "2026-11-17",
+  "purpose": "Localized README title artwork",
+  "generationMode": "Built-in imagegen editing",
+  "source": {
+    "applicationVersion": "0.121.0",
+    "capturePlatform": "Windows",
+    "theme": "dark",
+    "data": "Isolated synthetic example project",
+    "scope": "Authorized app-renderer views only, separately captured in German and English"
+  },
+  "note": "These are generated promotional compositions with localized monitor views, not unmodified application screenshots or native Ubuntu acceptance evidence.",
+  "images": [
+    {
+      "language": "de",
+      "file": "readme-hero-de.png",
+      "width": 1672,
+      "height": 941,
+      "bytes": 1970352,
+      "sha256": "e59a29bf2497891dd14d2007b99655830bda0c435a055d3ff891f1341ad97519",
+      "basis": "User-approved final German title artwork, copied unchanged",
+      "promptSummary": "Warm charcoal and sage photographic desk scene with the original application logo and an authorized German dark app capture. Explain visual triggers, conditions and actions; communication across up to eight Zigbee2MQTT networks on one or more brokers; saving projects and drafts together or separately; storing and running automations directly in Zigbee2MQTT while the app is closed."
+    },
+    {
+      "language": "en",
+      "file": "readme-hero-en.png",
+      "width": 1672,
+      "height": 941,
+      "bytes": 1922746,
+      "sha256": "9a4230af1bb94fb5fe27746ac64659cebc71b834fa83e3f7de17dcefd2c13a4d",
+      "basis": "English localization of the approved German title artwork using the authorized English dark app capture",
+      "prompt": "Create the English-language edition of the approved German README title image in reference image 1. This is a precise localization and screen replacement, not a redesign. Preserve the photographic warm dark desktop scene, camera view, monitor position and perspective, plants, lamp, keyboard, mouse, mug, illuminated cube, charcoal and sage palette, logo, product name, four feature icons, and overall layout of image 1. Keep the exact original magenta/white/forest-green application logo at the upper left. Landscape 16:9 composition matching image 1.\n\nReplace the German screen on the monitor with the actual English dark application capture in reference image 2, fitted naturally to the same monitor screen with readable, faithful software UI. The screen should show the English application header and navigation, the three-column automation workspace and the purple WHEN, gold ONLY IF, and sage THEN sections. Correct the small remaining German section label \"DANN\" in the supplied English screen to \"THEN\". Do not invent a new software UI. Do not add UI elements or cover the screen with marketing captions.\n\nReplace ALL large German marketing copy with the following exact English copy, maintaining the hierarchy and generous legibility. Use natural line breaks so nothing is cropped and no text overlaps the monitor or icons:\n\nMain title: \"Z2M-Automations\"\nSage tagline: \"Your Zigbee. Your automations.\"\nPlatform line: \"For Windows and Ubuntu.\"\n\nFeature 1 heading: \"Visual automation designer\"\nFeature 1 detail: \"Triggers · Conditions · Actions\"\n\nFeature 2 heading: \"Up to 8 Zigbee2MQTT networks\"\nFeature 2 details on two lines:\n\"Networks can communicate with each other.\"\n\"On one or more MQTT brokers.\"\n\nFeature 3 heading: \"Projects and drafts\"\nFeature 3 detail: \"Save together or separately.\"\n\nFeature 4 heading: \"Directly in Zigbee2MQTT\"\nFeature 4 details on two lines:\n\"Store and run automations there.\"\n\"Even when the app is closed.\"\n\nKeep heading weight bold white, descriptions white, tagline sage green. No extra labels, badges, watermarks, release claims, German marketing words or device identifiers beyond the synthetic software capture. Preserve the excellent visual balance of the approved German composition. This is the final project README hero artwork."
+    }
+  ]
+}

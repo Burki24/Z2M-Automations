@@ -1,9 +1,109 @@
 # Project context: Z2M-Automations
 
-As of 2026-11-13. Repository Burki24/Z2M-Automations; working branch dev,
+**English | [Deutsch](PROJECT_CONTEXT_DE.md)**
+
+As of 2026-11-17. Repository Burki24/Z2M-Automations; working branch dev,
 primary branch main. Product editions: Z2M-Automations for Windows / for Linux.
 
 ## Current state
+
+The desktop now bundles complete offline DE/EN HTML handbooks and their 32
+localized illustrations. Help/F1 opens the chapter for the current step in an
+isolated local window, with contents, search and image enlargement. Localized
+hover/keyboard tooltips explain key controls without hiding operation warnings.
+The ordinary source, packaged and installed smoke gates exercise help without
+capture; the package gate verifies every handbook asset against its hash manifest.
+
+The Windows assisted installer uses the existing app icon in a branded welcome
+and finish/uninstall sidebar, with a larger left-aligned header on the other
+pages. German/English native text, scope/elevation and directory choices remain
+standard. Committed language-neutral BMP artwork has an optional Windows-only
+regenerator; neither platform build gains a generation dependency. See
+[Windows installation](docs/WINDOWS_INSTALLER.md).
+
+All first-party Markdown documentation now has complete English/German pairs,
+including the root README, technical guides, milestone records and ADRs. English
+remains authoritative. Reciprocal language links and a documentation index expose
+both versions. The capture-free `check:docs` gate runs in local verification and
+desktop CI; it checks pairs, navigation, local links and manual image mapping.
+See [the documentation index](docs/README.md).
+
+User documentation now has matching English and German handbooks with 20
+chapters and 16 app-only screenshots per language, referenced to 0.120.0.
+They cover first setup, example rules, draft reconciliation/files, transfer
+resume, releases, cross-network receivers, updates and troubleshooting. Captures
+use isolated fictional data and the real shared renderer; they establish no
+live-system result or native Ubuntu-dialog evidence. See docs/USER_GUIDE.md,
+docs/USER_GUIDE_DE.md and docs/images/README.md.
+
+RC1 preparation fixes the eight moderate build/packaging audit findings with
+upstream ASAR/glob updates and a version-scoped minimatch override. Runtime
+dependencies remain pinned. The CI matrix now audits the full dependency tree
+before packaging and emits commit/version-bound installer and designer checksums
+after acceptance checks. RC1 requires the owner's source commit/push and a fresh
+matrix; current local metadata is not a final candidate identity. See
+[RC1 preparation](docs/RC1.md).
+
+The shared guided transfer validates the draft and required partner catalogs
+before stopping operation. Missing partner data leave execution unchanged;
+conditions and action sequences are included. Final validation and store guards
+remain in place. Desktop transfers already check fresh partner data before stop,
+including after confirmation; regression tests cover that boundary.
+
+Transient module-view contention now uses a bounded GET recovery loop with
+localized waiting feedback. Up to five retries start within ten seconds; previous
+read warnings stay hidden while recovery is pending. Control requests are not
+replayed and persistent failures remain visible. Both browser and tile exercise
+several post-store read failures and DE/EN waiting states without capture.
+
+Connected reads now reconcile the fresh Z2M document, local work and the actual
+last accepted base content. Independent additions/edits/deletions merge; divergent
+versions require per-entry choices. Open input is preserved and local recovery
+is backed up before applying changes. New networks require an initial read or
+explicit offline editing. No read or file operation controls Z2M execution.
+
+The default project extension is `.z2map` with format 2; format 1 and `.z2ma`
+remain readable. Shared `.z2mad` files carry selected rules, needed sequences and
+source identity. Both adapters support adding files to a chosen existing network;
+native project snapshots include assigned drafts without broker credentials or
+native authority. See [ADR 0006](docs/adr/0006-draft-reconciliation-and-portable-files.md).
+
+The catalog correction separates typed device properties from the extension's
+legacy 1,024-choice budget. Later window handles and sensors keep their readable
+states, enum values and numeric units; oversized catalogs fail explicitly instead
+of silently omitting devices. Source kinds filter channels, not device names:
+buttons can expose battery measurements and radar sensors illuminance. Both
+languages now explain this distinction in the shared form.
+
+The app bundles canonical Extension `0.2.4`, build `3f8a06859635`, from Symcon
+commit `2db85997a2a317bee6c59e96d78c050b8c579095`, with verified artifact and schema
+checksums. Existing installations need the explicit extension update and a fresh
+device-catalog read to receive the corrected metadata. No live system was changed.
+
+Step 8 now offers **Resume previous operation afterwards**, unchecked for each
+transfer in the app, Symcon browser designer and tile. Only previously confirmed
+active operation may resume, after revalidation, verified storage and independent
+fresh status/readback. Checked permissions and the previous restart preference
+are preserved; new disabled rules stay disabled. Interrupted single runs and
+uncertain control requests are never replayed. The shared implementation is
+pinned into Symcon; no extension/schema change or live deployment is required.
+
+The shared designer now explains required receiver operation for cross-system
+conditions and actions, including sequences. Confirmed stopped, unknown and
+active destinations have separate text/color states and direct Operation-page
+navigation with a return path. Start preparation and saved rule-name previews
+make activation explicit. Desktop receivers with saved partner permissions may
+activate without enabling local rules. No automatic multi-system control or
+runtime/schema changes were introduced. See [D6](docs/D6.md).
+
+Local verification passes 230 tests, with two native Linux APT checks skipped
+on Windows, plus the complete capture-free extension-update UI suite including
+receiver navigation, desktop palette states and partner-only start controls.
+The complete capture-free Electron smoke also passes with unsent local rules,
+automatic connection reconciliation, editing, export, reopen and save on close.
+The pinned Symcon adaptation passes its full offline suite (279 JavaScript
+tests), capture-free browser/tile acceptance and structure/style checks.
+New platform CI and practical acceptance after updating remain separate.
 
 The owner completed the three workflow acceptance cases with app 0.99.0.
 The accepted numbered workspace is now shared with the Symcon browser designer
@@ -56,6 +156,13 @@ unverified. D4 passed Windows and Ubuntu CI in run 42553084613. D5 passed both j
 Native Linux keyring/dialog evidence remains open. See docs/D2.md and docs/D3.md.
 
 ## Versioning and next work
+
+Desktop CI now calls application metadata generation as a prerequisite and passes
+the resulting immutable commit to both platform jobs. This replaces parallel
+versioning and packaging, which could produce installers with an older version.
+The checked handoff and failure gates are described in [versioning](docs/VERSIONING.md#build-order-and-immutable-checkout).
+Local Git fixtures cover retries and concurrent source changes; a new GitHub run
+after the user's push remains required to confirm the complete ordered pipeline.
 
 The automatic metadata action on Symcon_ModuleCI/main is operational. Run
 42367039704 passed; bot commit 744fc251503047068bed507a6f84cd4457cf6cb8 set

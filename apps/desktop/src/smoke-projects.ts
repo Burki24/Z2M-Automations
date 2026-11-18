@@ -152,6 +152,12 @@ export async function smokeProjects(view: WebContents): Promise<void> {
       assert(stored.ok && stored.state.credentials[brokerId] === 'protected', 'OS-protected credential round trip');
       assert((await bridge.credential({brokerId, mode: 'remove'})).ok, 'remove protected credential');
     }
+    const beforeOffline = await bridge.snapshot();
+    assert(!beforeOffline.editAllowed, 'new network waits for its first complete read');
+    document.dispatchEvent(new Event('z2ma-project-changed')); navigate('automations');
+    await wait(() => document.querySelector('#draft-offline') && !document.querySelector('#draft-offline').hidden, 'explicit offline choice');
+    document.querySelector('#draft-offline').click();
+    await wait(async () => (await bridge.snapshot()).editAllowed, 'explicit offline editing');
     const snapshot = await bridge.snapshot();
     assert(!snapshot.status.mqttConnected && !snapshot.status.executing && !snapshot.capabilities.operationControls && snapshot.editAllowed, 'offline isolation');
     document.dispatchEvent(new Event('z2ma-project-changed'));

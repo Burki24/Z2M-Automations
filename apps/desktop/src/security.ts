@@ -3,6 +3,7 @@ import {channels, type Channel, type LanguageChange} from './contracts.js';
 import {exact, validId, validBroker, text} from './project.js';
 import {validNetworkCommand} from './mqtt-reader.js';
 import {validDesignerCommand} from './draft-editor.js';
+import {validHelpRequest} from './help.js';
 
 export const entryURL = 'z2ma://app/index.html';
 export const csp = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
@@ -32,6 +33,7 @@ export function languageChange(value: unknown): value is LanguageChange {
 }
 export function validPayload(channel: Channel, value: unknown): boolean {
   switch (channel) {
+    case 'help': return validHelpRequest(value);
     case 'snapshot': case 'diagnostics': return value === undefined;
     case 'select-system': return validId(value);
     case 'theme': return value === 'system' || value === 'light' || value === 'dark';

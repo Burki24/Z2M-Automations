@@ -29,7 +29,7 @@ async function setup(t, options = {}) {
     reply({operation, request, response, publish}) {
       if (operation === 'install') {
         assert.equal(request.name, 'z2m-automations.mjs');
-        assert.equal(hash(request.code), '56878a00be9671c8f470f3f3c8ad3be014d8f9a08a4ad807e4f0ec42f548867f');
+        assert.equal(hash(request.code), '57f3f32b26772dfaa3ea637110e6ab52e48b67e6073375aa0179711cb3e0b0bd');
         installed = true;
         Object.assign(fixture.status, {session: randomUUID(), extension_build: bundledExtension.build, extension_version: bundledExtension.version});
         if (options.absent) {
@@ -120,6 +120,53 @@ test('remote conditions recheck catalogs, receiver grants and extension versions
   assert.equal(await s.command('validate'), 'transferValidated');
   assert.equal(s.count('/request/validate'), 1);
   assert.ok(otherPeer.publications.every(packet => /\/request\/(status|editor)$/.test(packet.topic)), 'The other broker is read-only during validation');
+});
+
+for (const dependency of ['action', 'condition', 'sequence']) test('missing partner data preserve running operation before validation and after confirmation: ' + dependency, async t => {
+  const source = remoteFixture(); const target = remoteFixture('Other system');
+  source.editor.configuration.mesh_peers = ['other'];
+  target.editor.configuration.mesh_peers = ['synthetic'];
+  for (const fixture of [source, target]) {
+    const yaml = JSON.stringify(fixture.editor.configuration);
+    Object.assign(fixture.status, {checksum: hash(yaml), extension_version: bundledExtension.version});
+    Object.assign(fixture.editor, fixture.status, {yaml});
+  }
+  const otherPeer = await startPeer({systems: new Map([['other', target]])});
+  t.after(() => otherPeer.close());
+  const s = await setup(t, {fixture: source});
+  const broker = {id: randomUUID(), name: 'Other broker', host: '127.0.0.1', port: otherPeer.port, tls: false};
+  const id = randomUUID();
+  await s.projects.command({action: 'broker', broker});
+  await s.projects.command({action: 'system', system: {id, name: 'Other system', brokerId: broker.id, baseTopic: 'other'}});
+  const draft = s.system().configuration;
+  const action = {type: 'toggle', target: {type: 'device', id: '0x0000000000000002', system: 'other'}, property: 'state'};
+  if (dependency === 'condition') draft.automations[0].conditions = [{type: 'device_value', system: 'other', device: '0x0000000000000001', property: 'occupancy', operator: 'eq', value: true}];
+  else if (dependency === 'sequence') {
+    draft.sequences = [{id: 'remote_steps', name: 'Synthetic remote steps', actions: [action]}];
+    draft.automations[0].actions = [{type: 'sequence', sequence_id: 'remote_steps'}];
+  } else draft.automations[0].actions = [action];
+  s.projects.replaceDraft(s.id, draft);
+  s.reader.reconcile(s.projects.data(), s.projects.generation());
+  await s.reader.connectBroker(broker.id);
+  for (let attempt = 0; !s.reader.connected(broker.id) && attempt < 100; attempt++) await new Promise(resolve => setTimeout(resolve, 20));
+  source.status.executing = source.editor.executing = true;
+  await s.reader.refresh(s.id); await s.reader.refresh(id);
+  const before = structuredClone(source);
+  const devices = target.editor.devices;
+  target.editor.devices = [];
+  await assert.rejects(s.command('validate'), /draftCapability/);
+  assert.equal(s.count('/request/validate'), 0, 'missing partner data fail before remote validation');
+  target.editor.devices = devices;
+  await s.command('validate');
+  s.dialogs.confirm = async () => { target.editor.devices = []; return {accepted: true, resume: true}; };
+  await assert.rejects(s.command('store'), /draftCapability/);
+  assert.equal(s.count('/request/deactivate'), 0, 'even data lost after confirmation must not stop operation');
+  assert.equal(s.count('/request/store'), 0);
+  assert.equal(s.count('/request/activate'), 0);
+  assert.equal(s.count('/request/validate'), 1, 'no control or validation request is replayed');
+  assert.deepEqual(source, before, 'running state, stored configuration, grants and enabled rules are preserved');
+  assert.deepEqual(s.system().configuration, draft, 'local work is preserved');
+  assert.ok(otherPeer.publications.every(packet => /\/request\/(status|editor)$/.test(packet.topic)), 'the partner stays read-only');
 });
 
 test('D5 validates the exact disabled bytes, backs up the prior state and confirms storage independently', async t => {

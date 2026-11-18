@@ -1,4 +1,6 @@
 import {t, bindText, formatNumber} from './localization.js';
+import {installDraftSync} from './draft-sync.js';
+import {installDraftFiles} from './draft-files.js';
 
 export function installDraftExchange(bridge, workspace) {
   function card(key) {
@@ -17,6 +19,12 @@ export function installDraftExchange(bridge, workspace) {
   const read = workspace.link(stored.controls, 'connection', 'desktop.steps.readStored');
   let busy = false;
   let view;
+  const updateSync = installDraftSync({getData: () => view, actions: workspace.actions, reload: async () => {
+    document.dispatchEvent(new Event('z2ma-project-changed')); return true;
+  }});
+  const updateFiles = installDraftFiles({getData: () => view, parent: workspace.pages.draft, reload: async () => {
+    document.dispatchEvent(new Event('z2ma-project-changed')); return true;
+  }});
   const buttons = new Map();
   function update() {
     const revision = view?.status.storedRevision;
@@ -62,6 +70,6 @@ export function installDraftExchange(bridge, workspace) {
       bindText(stored.feedback, '');
     }
     view = event.detail;
-    update();
+    update(); updateSync(); updateFiles();
   });
 }

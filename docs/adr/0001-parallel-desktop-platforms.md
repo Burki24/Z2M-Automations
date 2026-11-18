@@ -1,5 +1,7 @@
 # ADR 0001: Shared desktop application for Windows and Linux
 
+**English | [Deutsch](0001-parallel-desktop-platforms_DE.md)**
+
 - Date: 2026-11-07
 - Status: Confirmed; D1 offline foundation and Windows/Ubuntu CI complete on
   2026-11-08. Later milestones and native installed-app acceptance remain open.

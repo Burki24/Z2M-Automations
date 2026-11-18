@@ -1,4 +1,5 @@
 import {spawn} from 'node:child_process';
+import {smokeDeadline, watchSmokeProcess} from './smoke-deadline.mjs';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {mkdtempSync, readFileSync, rmSync} from 'node:fs';
@@ -9,6 +10,7 @@ import {parse} from 'yaml';
 import {startPeer, remoteFixture} from '../tests/support/mqtt-peer.mjs';
 import {extractFile} from '@electron/asar';
 const require = createRequire(import.meta.url);
+const timeoutMs = smokeDeadline(process.env.Z2MA_SMOKE_TIMEOUT_MS);
 const binary = process.env.Z2MA_SMOKE_BINARY || require('electron');
 const args = process.env.Z2MA_SMOKE_BINARY ? ['--smoke-test'] : [fileURLToPath(new URL('../apps/desktop', import.meta.url)), '--smoke-test'];
 const noCapture = process.argv.includes('--no-capture');
@@ -59,16 +61,19 @@ const child = spawn(binary, args, {windowsHide: true, env: environment, stdio: [
 let output = ''; let timedOut = false;
 child.stdout.on('data', data => { process.stdout.write(data); output = (output + data).slice(-32768); });
 child.stderr.on('data', data => process.stderr.write(data));
-const timeout = setTimeout(() => { timedOut = true; child.kill(); process.exitCode = 1; }, 30000);
+const cancelDeadline = watchSmokeProcess(child, timeoutMs, () => {
+  timedOut = true; process.exitCode = 1;
+  console.error('Desktop smoke exceeded its ' + timeoutMs + 'ms deadline; terminating the isolated test application.');
+});
 function cleanup() {
   // Only remove the exact temporary profile created by this process.
   if (!resolve(profile).startsWith(resolve(tmpdir()) + sep + 'z2ma-smoke-')) throw new Error('Unexpected smoke profile path.');
   try { rmSync(profile, {recursive: true, force: true, maxRetries: 10, retryDelay: 100}); }
   catch { console.error('Temporary smoke profile cleanup is pending OS lock release.'); }
 }
-child.on('error', async error => { clearTimeout(timeout); console.error(error.message); await peer.close(); cleanup(); process.exitCode = 1; });
+child.on('error', async error => { cancelDeadline(); console.error(error.message); await peer.close(); cleanup(); process.exitCode = 1; });
 child.on('exit', async code => {
-  clearTimeout(timeout);
+  cancelDeadline();
   let saved = false;
   if (code === 0 && !timedOut) {
     try {
@@ -86,5 +91,5 @@ child.on('exit', async code => {
   process.exitCode = !timedOut && saved && readOnly && validations.length === 1
     && (!noCapture || output.includes('DESKTOP_CAPTURE_DISABLED'))
     && validations[0].topic === 'synthetic/symcon/automations/request/validate'
-    && code === 0 && output.includes('DESKTOP_SMOKE_OK') && output.includes('DESKTOP_PROJECTS_OK') && output.includes('DESKTOP_MQTT_OK') && output.includes('DESKTOP_DRAFTS_OK') && output.includes('DESKTOP_CROSS_SYSTEM_OK') && output.includes('DESKTOP_LAYOUT_OK') ? 0 : 1;
+    && code === 0 && output.includes('DESKTOP_SMOKE_OK') && output.includes('DESKTOP_HELP_OK') && output.includes('DESKTOP_TOOLTIPS_OK') && output.includes('DESKTOP_PROJECTS_OK') && output.includes('DESKTOP_MQTT_OK') && output.includes('DESKTOP_DRAFTS_OK') && output.includes('DESKTOP_CROSS_SYSTEM_OK') && output.includes('DESKTOP_LAYOUT_OK') ? 0 : 1;
 });

@@ -1,5 +1,7 @@
 # ADR 0002: Portable local projects and a separate credential vault
 
+**English | [Deutsch](0002-local-projects-and-credential-boundary_DE.md)**
+
 - Date: 2026-11-08
 - Status: Implemented for D2; platform acceptance is tracked in [D2](../D2.md).
 

@@ -3,7 +3,7 @@ import {t, bindText, bindAttribute, formatNumber} from './localization.js';
 const orderedSteps = ['project', 'broker', 'system', 'connection', 'draft', 'automations', 'review', 'transfer'];
 const pageKeys = [...orderedSteps, 'operation'];
 
-export function installGuidedWorkspace({prefix = 'desktop', partnerActions = '#desktop-partner-actions'} = {}) {
+export function installGuidedWorkspace({prefix = 'desktop', partnerActions = '#desktop-partner-actions', onStepChange = () => {}} = {}) {
   document.body.classList.add('guided-foundation');
   const shell = document.createElement('div'); shell.className = 'desktop-shell';
   const nav = document.createElement('nav'); nav.className = 'desktop-steps';
@@ -97,6 +97,7 @@ export function installGuidedWorkspace({prefix = 'desktop', partnerActions = '#d
     sections.get(key).section.scrollTop = sections.get(key).body.scrollTop = 0;
     window.scrollTo(0, 0);
     if (focus) sections.get(key).title.focus({preventScroll: true});
+    onStepChange(key);
     return true;
   }
 

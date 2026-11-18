@@ -99,9 +99,10 @@ async function verifyDrafts(view: WebContents, exportPath: string): Promise<void
       actions: [{type: 'set', target: {type: 'device', id: '0x0000000000000002'}, values: {state: 'ON', brightness: 100}}]}});
     assert(result.ok, JSON.stringify(result));
     const after = await bridge.snapshot(); const created = after.configuration.automations.find(rule => rule.id === result.state.ruleId);
-    assert(created && !created.enabled && !after.configuration.automations.some(rule => rule.name === 'Synthetic remote rule'), 'new draft replaced source or enabled rule');
+    assert(created && !created.enabled && data.configuration.automations.every(rule => after.configuration.automations.some(item => item.id === rule.id)), 'creating a draft preserves all existing and unsent rules');
     assert(!(await command('create', {rule: {}})).ok, 'stale/invalid editor accepted');
     await refreshView('render-created-rule');
+    document.querySelector('#categories [data-area="time"]').click();
     await wait(() => [...document.querySelectorAll('#entry-list .entry')].some(element => element.textContent.includes('D4 smoke rule')), 'show-created-rule');
     [...document.querySelectorAll('#entry-list .entry')].find(element => element.textContent.includes('D4 smoke rule')).click();
     await wait(() => document.querySelector('#entry-title').textContent === 'D4 smoke rule', 'select-created-rule');
@@ -381,7 +382,8 @@ async function verifyDrafts(view: WebContents, exportPath: string): Promise<void
   const yaml = importDraft(await readFile(exportPath));
   const added = yaml.automations.find(rule => rule['name'] === 'Form smoke rule');
   const actions = added?.['actions'];
-  if (yaml.automations.length !== 3 || !yaml.automations.some(rule => rule['name'] === 'D4 preserved input')
+  if (yaml.automations.length !== 5 || !yaml.automations.some(rule => rule['name'] === 'D4 preserved input')
+    || !yaml.automations.some(rule => rule['id'] === 'unsent-smoke') || !yaml.automations.some(rule => rule['name'] === 'Synthetic remote rule')
     || !yaml.automations.some(rule => rule['name'] === 'Concurrent draft') || added?.['enabled'] !== false
     || !Array.isArray(actions) || (actions[0] as {sequence_id?: string} | undefined)?.sequence_id !== yaml.sequences[0]?.['id']) {
     throw new Error('Exported YAML lost the existing rule, new disabled rule or sequence');
@@ -459,9 +461,15 @@ async function verifyDrafts(view: WebContents, exportPath: string): Promise<void
       && saved.actions[0].type === 'set' && saved.actions[0].values.state === 'TOGGLE',
       'draft must retain stable device and system identities');
     await wait(() => document.querySelector('#entry-title').textContent === saved.name, 'select-cross-system-draft');
+    const networkLabel = part => document.querySelector('.flow-card[data-part="' + part + '"] .card-network')?.textContent;
+    const deviceParts = [['triggers:0', local], ['conditions:0', other], ['conditions:1', other], ['actions:0', other]];
+    const ownsNetworks = prefix => deviceParts.every(([part, owner]) => networkLabel(part) === prefix + ': ' + owner.name
+      + (owner.name === owner.baseTopic ? '' : ' · ' + owner.baseTopic));
+    assert(ownsNetworks('Z2M-Netzwerk'), 'flow cards must identify each local or remote device network');
     document.querySelector('#edit-automation-button').click();
     await wait(() => document.querySelector('#edit-dialog').open, 'reopen-cross-system-draft');
     set(document.querySelector('#designer-language'), 'en');
+    assert(ownsNetworks('Z2M network'), 'network labels must follow the language without changing device ownership');
     assert(field('conditions', 'system').value === other.baseTopic && field('conditions', 'device').value === other.id + ':0x0000000000000001'
       && field('conditions', 'type', 1).value === 'measurement' && field('conditions', 'system', 1).value === other.baseTopic
       && field('actions', 'system').value === other.baseTopic && field('actions', 'target').value === other.id + ':0x0000000000000002'
@@ -476,6 +484,6 @@ async function verifyDrafts(view: WebContents, exportPath: string): Promise<void
     }
     await refreshView('restore-after-cross-system-device-check');
   })()`);
-  console.log('DESKTOP_CROSS_SYSTEM_OK condition/action/system-picker/ownership/alphabetical/reopen/language');
+  console.log('DESKTOP_CROSS_SYSTEM_OK condition/action/system-picker/ownership/network-labels/alphabetical/reopen/language');
   console.log('DESKTOP_DRAFTS_OK local/editor/status/measurement/sunrise/sunset/reload/language/sequence/yaml-export/scoped-review/correction/separate-transfer');
 }

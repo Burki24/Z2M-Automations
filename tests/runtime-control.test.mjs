@@ -17,11 +17,12 @@ const {Diagnostics} = require('../apps/desktop/.build/diagnostics.js');
 const {RuntimeControl} = require('../apps/desktop/.build/runtime-control.js');
 const {ExtensionTransfer} = require('../apps/desktop/.build/extension-transfer.js');
 
-async function setup(t, {delay = 0, systems = 1, enabled = true, stored = true, extensionClass = Extension, brightness = false} = {}) {
+async function setup(t, {delay = 0, systems = 1, enabled = true, stored = true, extensionClass = Extension, brightness = false, peers = []} = {}) {
   const base = 'synthetic/runtime';
   const directory = await mkdtemp(join(tmpdir(), 'z2ma-runtime-'));
   const fixture = remoteFixture();
   const configuration = {...fixture.editor.configuration, revision: 1};
+  configuration.mesh_peers = peers;
   configuration.automations[0].enabled = enabled;
   if (delay) configuration.automations[0].actions[0].delay_seconds = delay;
   const [sensor, light] = fixture.editor.devices.map(({id, name}) => ({ID: id, ieeeAddr: id, name, isDevice: () => true}));
@@ -29,10 +30,10 @@ async function setup(t, {delay = 0, systems = 1, enabled = true, stored = true, 
   light.exposes = () => [{type: 'binary', property: 'state', access: 7, value_on: 'ON', value_off: 'OFF'},
     ...(brightness ? [{type: 'numeric', property: 'brightness', access: 7, value_min: 0, value_max: 254, value_step: 1}] : [])];
   const effects = [];
-  let receive, state, send, suppress, rejected;
+  let receive, state, send, suppress, rejected, intercept;
   const zigbee = {devicesIterator: () => [sensor, light].values(), groupsIterator: () => [].values(),
     resolveEntity: id => [sensor, light].find(device => device.ID === id)};
-  const extension = new extensionClass(zigbee, {publish: async (topic, bytes) => {
+  const extension = new extensionClass(zigbee, {isConnected: () => true, subscribe: async () => {}, unsubscribe: async () => {}, publish: async (topic, bytes) => {
     if (!topic.endsWith('/response/' + suppress)) send?.(JSON.parse(bytes), base + '/' + topic);
   }}, {get: () => ({})}, null, {
     onMQTTMessage: (_owner, handler) => { receive = handler; },
@@ -51,6 +52,7 @@ async function setup(t, {delay = 0, systems = 1, enabled = true, stored = true, 
   const siblings = Array.from({length: systems - 1}, (_, index) => [base + '-' + index, remoteFixture()]);
   const peer = await startPeer({systems: new Map([[base, fixture], ...siblings]), reply({base: topic, operation, request, response, publish}) {
     if (topic !== base) { publish(); return; }
+    intercept?.(operation, request);
     if (operation === rejected) { publish({...response, status: 'error'}); return; }
     send = publish;
     void receive({topic: base + '/symcon/automations/request/' + operation, message: JSON.stringify(request)});
@@ -71,9 +73,10 @@ async function setup(t, {delay = 0, systems = 1, enabled = true, stored = true, 
     otherIds.push(id);
     await projects.command({action: 'system', system: {id, name: baseTopic, brokerId: broker.id, baseTopic}});
   }
+  // The real extension persists to disk; allow bounded VM I/O without changing the 10s production timeout.
   const reader = new MqttReader(vault, debug, async (project, epoch, system, stored, current) => {
     if (current()) projects.observe(project, epoch, system, stored);
-  }, undefined, 600);
+  }, undefined, 2000);
   t.after(() => reader.close());
   reader.reconcile(projects.data(), projects.generation());
   await reader.connectBroker(broker.id);
@@ -89,8 +92,41 @@ async function setup(t, {delay = 0, systems = 1, enabled = true, stored = true, 
   return {base, otherIds, command, extension, reader, id, effects, event, review, projects, peer, debug, directory,
     restart: async () => { await extension.stop(); await extension.start(); await reader.refresh(id); },
     reject: operation => { rejected = operation; },
+    onRequest: callback => { intercept = callback; },
     suppress: operation => { suppress = operation; }};
 }
+
+test('activation confirmation identifies the saved released rules and cancellation sends no start', async t => {
+  const s = await setup(t);
+  let reviewed;
+  s.review.confirm = async (action, review) => { reviewed = {action, review}; return false; };
+  assert.equal(await s.command('activate', {resume: true}), 'transferCanceled');
+  assert.equal(reviewed.action, 'activate');
+  assert.deepEqual(reviewed.review.enabledRules, s.reader.current(s.id).configuration.automations.filter(rule => rule.enabled).map(rule => rule.name));
+  assert.equal(reviewed.review.enabledRules.length, reviewed.review.enabled);
+  assert.equal(s.extension.status().executing, false);
+  assert.equal(s.peer.publications.some(packet => packet.topic.endsWith('/request/activate')), false);
+});
+
+test('a saved partner receiver can activate without releasing a local automation', async t => {
+  const s = await setup(t, {enabled: false, peers: ['synthetic/partner']});
+  let reviewed;
+  s.review.confirm = async (_action, review) => { reviewed = review; return true; };
+  assert.equal(await s.command('activate', {resume: false}), 'runtimeConfirmed');
+  assert.equal(reviewed.enabled, 0);
+  assert.deepEqual(reviewed.enabledRules, []);
+  assert.equal(s.extension.status().executing, true);
+  assert.equal(s.extension.status().mesh_ready, true);
+  assert.equal(s.extension.status().enabled_count, 0);
+  assert.equal(s.effects.length, 0);
+});
+
+test('a network with neither released rules nor saved partner permissions cannot start', async t => {
+  const s = await setup(t, {enabled: false});
+  s.review.confirm = async () => assert.fail('No activation confirmation is offered without rules or receivers');
+  await assert.rejects(s.command('activate', {resume: false}), /runtimeNoEnabled/);
+  assert.equal(s.extension.status().executing, false);
+});
 
 test('one draft check automatically preserves enabled flags when only switches changed', async t => {
   const s = await setup(t, {enabled: false});
@@ -249,6 +285,85 @@ test('the common check stores changed switches while leaving operation stopped',
   assert.equal(s.extension.status().executing, false);
   assert.equal(s.count('deactivate'), 0);
   assert.equal(s.count('activate'), 0);
+});
+
+for (const recovery of [false, true]) test('opt-in transfer resumes the checked existing rules and preserves restart preference ' + recovery, async t => {
+  const s = await guided(t, {systems: recovery ? 1 : 8});
+  const draft = structuredClone(s.projects.data().systems[0].configuration);
+  draft.automations.push({...structuredClone(draft.automations[0]), id: 'new_rule', name: 'New disabled rule', enabled: false});
+  s.projects.replaceDraft(s.id, draft);
+  await s.command('activate', {resume: recovery});
+  s.dialogs.confirm = async (_action, review) => {
+    assert.equal(review.resumeAllowed, true);
+    assert.deepEqual(review.resumeRules, ['Edited synthetic rule']);
+    return {accepted: true, resume: true};
+  };
+  await s.check();
+  assert.equal(await s.send(), 'transferStored');
+  assert.equal(s.extension.status().executing, true);
+  assert.equal(s.extension.status().resume_enabled, recovery);
+  assert.equal(s.extension.status().enabled_count, 1);
+  await s.reader.refresh(s.id);
+  assert.equal(s.reader.current(s.id).configuration.automations.find(rule => rule.id === 'new_rule').enabled, false);
+  assert.equal(s.projects.data().systems[0].stored.configuration.automations.find(rule => rule.id === 'new_rule').enabled, false);
+  assert.deepEqual(s.peer.publications.map(packet => packet.topic.split('/request/')[1]).filter(operation => ['activate', 'deactivate', 'store'].includes(operation)),
+    ['activate', 'deactivate', 'store', 'activate']);
+});
+
+test('a checked resume choice cannot start a network that was already stopped', async t => {
+  const s = await guided(t);
+  s.dialogs.confirm = async (_action, review) => { assert.equal(review.resumeAllowed, false); return {accepted: true, resume: true}; };
+  await s.check(); await s.send();
+  assert.equal(s.extension.status().executing, false);
+  assert.equal(s.count('activate'), 0);
+});
+
+test('cancelling an opt-in transfer confirmation leaves the running network unchanged', async t => {
+  const s = await guided(t); await s.command('activate', {resume: true});
+  s.dialogs.confirm = async () => ({accepted: false, resume: true});
+  await s.check(); assert.equal(await s.send(), 'transferCanceled');
+  assert.equal(s.extension.status().executing, true);
+  assert.equal(s.count('store'), 0); assert.equal(s.count('deactivate'), 0);
+});
+
+test('an opted-in transfer never resumes after failed validation or unconfirmed readback', async t => {
+  for (const phase of ['validation', 'readback']) {
+    const s = await guided(t); await s.command('activate', {resume: true});
+    s.dialogs.confirm = async () => ({accepted: true, resume: true});
+    await s.check();
+    if (phase === 'validation') s.reject('validate');
+    else s.onRequest(operation => { if (operation === 'store') s.suppress('editor'); });
+    await assert.rejects(s.send());
+    assert.equal(s.extension.status().executing, false);
+    assert.equal(s.count('activate'), 1, 'only the initial pre-transfer start was sent');
+    if (phase === 'readback') {
+      s.suppress(undefined);
+      assert.equal(await s.transfer.command('checkTransfer', s.id), 'transferStored');
+      assert.equal(s.count('activate'), 1, 'later reconciliation only reads the saved state');
+    }
+  }
+});
+
+test('a lost resume reply is independently confirmed without sending another start', async t => {
+  const s = await guided(t); await s.command('activate', {resume: false});
+  s.dialogs.confirm = async () => ({accepted: true, resume: true});
+  await s.check(); s.suppress('activate');
+  assert.equal(await s.send(), 'transferStored');
+  assert.equal(s.extension.status().executing, true);
+  assert.equal(s.count('activate'), 2);
+});
+
+test('an uncertain resume stays observable and reconciliation cannot repeat activation', async t => {
+  const s = await guided(t); await s.command('activate', {resume: true});
+  s.dialogs.confirm = async () => ({accepted: true, resume: true});
+  await s.check(); s.onRequest(operation => { if (operation === 'activate') s.suppress('status'); });
+  await assert.rejects(s.send(), /transferResumeUncertain/);
+  assert.equal(s.transfer.transferPending(s.id), true);
+  assert.equal(s.count('activate'), 2);
+  s.suppress(undefined);
+  assert.equal(await s.transfer.command('checkTransfer', s.id), 'transferStored');
+  assert.equal(s.transfer.transferPending(s.id), false);
+  assert.equal(s.count('activate'), 2);
 });
 
 test('unchanged configuration needs no write even with a different local revision', async t => {

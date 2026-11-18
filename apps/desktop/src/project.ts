@@ -1,20 +1,21 @@
 import {randomUUID, createHash} from 'node:crypto';
+import type {DraftBaseline} from './draft-merge.js';
 const createChecksum = (yaml: string): string => createHash('sha256').update(yaml, 'utf8').digest('hex');
 
 export type Json = null | boolean | number | string | Json[] | {[key: string]: Json};
 export interface Configuration {schema_version: 1; revision: number; automations: {[key: string]: Json}[]; sequences: {[key: string]: Json}[]; mesh_peers: string[]}
 export interface Broker {id: string; name: string; host: string; port: number; tls: boolean}
 export interface StoredConfiguration {revision: number; checksum: string | null; yaml: string | null; configuration: Configuration}
-export interface ProjectSystem {id: string; name: string; brokerId: string; baseTopic: string; baseline: {revision: number; checksum: string} | null; configuration: Configuration; stored?: StoredConfiguration}
-export interface Project {format: 'z2m-automations-project'; version: 1; id: string; name: string; brokers: Broker[]; systems: ProjectSystem[]}
-export const maximumProjectBytes = 2 * 1024 * 1024;
+export interface ProjectSystem {id: string; name: string; brokerId: string; baseTopic: string; baseline: DraftBaseline | null; configuration: Configuration; stored?: StoredConfiguration}
+export interface Project {format: 'z2m-automations-project'; version: 1 | 2; id: string; name: string; brokers: Broker[]; systems: ProjectSystem[]}
+export const maximumProjectBytes = 8 * 1024 * 1024;
 export const validId = (value: unknown): value is string => typeof value === 'string' && /^(?:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|example-[ab])$/.test(value);
 export const text = (value: unknown, max = 160): value is string => typeof value === 'string' && value.trim().length > 0 && value.length <= max && !/[\u0000-\u001f]/.test(value);
 export function exact(value: unknown, keys: string[]): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 }
 export function emptyConfiguration(): Configuration { return {schema_version: 1, revision: 1, automations: [], sequences: [], mesh_peers: []}; }
-export function newProject(name: string): Project { return {format: 'z2m-automations-project', version: 1, id: randomUUID(), name, brokers: [], systems: []}; }
+export function newProject(name: string): Project { return {format: 'z2m-automations-project', version: 2, id: randomUUID(), name, brokers: [], systems: []}; }
 function json(value: unknown, depth = 0): boolean {
   if (depth > 16) return false;
   if (value === null || typeof value === 'boolean') return true;
@@ -45,7 +46,7 @@ export function validBroker(value: unknown): value is Broker {
 }
 export function validProject(value: unknown): value is Project {
   if (!exact(value, ['format', 'version', 'id', 'name', 'brokers', 'systems']) || value['format'] !== 'z2m-automations-project'
-    || value['version'] !== 1 || !validId(value['id']) || !text(value['name']) || !Array.isArray(value['brokers']) || value['brokers'].length > 8
+    || ![1, 2].includes(Number(value['version'])) || !Number.isInteger(value['version']) || !validId(value['id']) || !text(value['name']) || !Array.isArray(value['brokers']) || value['brokers'].length > 8
     || !value['brokers'].every(validBroker) || !Array.isArray(value['systems']) || value['systems'].length > 8) return false;
   const brokers = value['brokers'] as Broker[];
   const systems = value['systems'];
@@ -61,7 +62,8 @@ export function validProject(value: unknown): value is Project {
     if (bindings.has(binding)) return false;
     bindings.add(binding);
     const base = system['baseline'];
-    return base === null || (exact(base, ['revision', 'checksum']) && Number.isSafeInteger(base['revision']) && Number(base['revision']) > 0
+    return base === null || (exact(base, ['revision', 'checksum', ...(base && typeof base === 'object' && Object.hasOwn(base, 'configuration') ? ['configuration'] : [])]) && Number.isSafeInteger(base['revision']) && Number(base['revision']) > 0
+      && (!Object.hasOwn(base, 'configuration') || validConfiguration(base['configuration'], true))
       && typeof base['checksum'] === 'string' && /^[a-f0-9]{64}$/.test(base['checksum']));
   });
 }
@@ -78,11 +80,11 @@ export function parseProject(bytes: Buffer): Project {
   try {
     const value: unknown = JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(bytes));
     if (!validProject(value)) throw new Error();
-    return value;
+    return {...value, version: 2};
   } catch { throw new Error('invalidProject'); }
 }
 export function projectBytes(project: Project): Buffer {
-  const bytes = Buffer.from(JSON.stringify(project, null, 2) + '\n');
+  const bytes = Buffer.from(JSON.stringify({...project, version: 2}, null, 2) + '\n');
   parseProject(bytes);
   return bytes;
 }

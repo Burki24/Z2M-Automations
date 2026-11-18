@@ -1,9 +1,25 @@
 # Windows installer with a selectable directory
 
+**English | [Deutsch](WINDOWS_INSTALLER_DE.md)**
+
 The Windows package now uses an assisted NSIS installer through the pinned
 `electron-forge-maker-nsis` 26.18.0. This replaces Squirrel.Windows: its fixed
 per-user installation path did not meet the requested directory selection.
 Ubuntu continues using the existing Forge Debian maker.
+
+Setup has a branded welcome page and matching finish/uninstall artwork: a large
+app icon in a warm dark left sidebar. The intermediate pages, including the
+installation-scope and directory choices, use a larger left-hand logo header.
+The artwork contains only the product name, so the same images work in German
+and English while the wizard text remains natively localized. Native buttons,
+installation permissions and directory selection keep their standard behavior.
+
+The committed 24-bit BMP assets in `apps/desktop/installer` use NSIS's recommended
+150x57 header and 164x314 sidebar sizes with aspect-preserving DPI scaling.
+Regenerate them on Windows from the existing app icon with
+`./scripts/build-installer-artwork.ps1`. This draws artwork without screen
+capture. Windows builds consume the committed bitmaps; neither platform build
+requires an additional graphics tool or PowerShell generation step.
 
 Run `Z2M-Automations-<version>-Windows-x64-Setup.exe`, select German or English,
 then choose whether to install for the current user or all users. Windows
@@ -59,6 +75,19 @@ The German completion title needs three lines at the standard wizard width.
 Our small `installer.nsh` include reserves that title height for installation
 and uninstallation, using NSIS Modern UI's supported three-line setting. The
 stock localized text and the content area below it are preserved.
+
+Branding verification on 2026-11-17: the actual Windows setup build succeeds.
+A separate build with an isolated test application ID exercises the same
+artwork/include and native DE/EN welcome, scope and directory pages without
+installing. Control metadata confirms the loaded 164x314 sidebar, 150x57 left
+header, two scope options, a directory field and no header/title overlap.
+No window capture is used. Finish/uninstall page appearance and other DPI or
+high-contrast settings remain manual acceptance; no Ubuntu build was run for
+this Windows-only presentation change.
+The isolated full `npm run verify:local` passes 248 tests (two Ubuntu-only skips)
+and the complete capture-free UI test. The first run passed all unit tests but
+hit the existing UI fixture's `load-workspace` deadline; its timing cause remains
+unresolved. No shared renderer source or timeout was changed.
 
 Primary references: [official Forge integration](https://www.electron.build/v26/docs/features/electron-forge/)
 and [NSIS options](https://www.electron.build/nsis/). This decision supersedes the

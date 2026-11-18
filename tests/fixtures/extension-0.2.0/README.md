@@ -1,5 +1,7 @@
 # Frozen extension 0.2.0 fixture
 
+**English | [Deutsch](README_DE.md)**
+
 Unmodified canonical artifact from Symcon_Z2MAutomations commit
 `e75b0aa934de4ad63fddaa5fbb37297bdd19ff26`, `libs/z2m/z2m-automations.mjs`.
 Consumed by desktop commit `98d61e0`. Retain its source notices; do not edit or

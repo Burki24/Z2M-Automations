@@ -1,0 +1,66 @@
+<a id="user-guide-screenshots"></a>
+
+# Bildschirmbilder der Anwenderhandbücher
+
+**Deutsch | [English](README.md)**
+
+Die Aktualisierung auf 0.125.0 nutzt Software-Rendering ausschließlich im
+freigegebenen Aufnahmewerkzeug, um abgeschnittene Zeichen zu vermeiden. Die
+Testdaten setzen den tatsächlichen Sprachschlüssel vor dem App-Import; dadurch
+übernimmt das erste englische Bild keine deutsche Oberfläche. Der Arbeitsbereich
+wird mit 1920×1280 aufgenommen, damit der gesamte Beispielablauf hineinpasst;
+weitere Bildabmessungen stehen einzeln im Manifest. Das Rendering der normalen
+App bleibt unverändert. Dieselben Bilder werden mit den Offline-Handbüchern
+ausgeliefert.
+
+Dies sind genehmigte Aufnahmen des tatsächlichen gemeinsamen Desktop-Renderers
+und seiner Bestätigungsvorlage mit isolierten synthetischen Darstellungsdaten.
+Echte Broker, Geräte, private Projekte, Zugangsdaten-Dialoge oder Desktop wurden
+nicht aufgenommen. Beide Sprachsätze zeigen dieselben Situationen und sind keine
+über ein Bild gemalten Übersetzungen. Geräte- und Projektnamen sind je Sprache
+eigens erstellte Beispieldaten; die Anwendung übersetzt benutzerdefinierte Namen
+nicht.
+
+Die Renderer-Referenz steht in manifest.json: Anwendungsversion, Inhaltskennung
+des gemeinsamen Designers, Aufnahmeplattform und Abmessungen jedes Bildes.
+Windows lieferte die Aufnahmeumgebung. Dies sind gemeinsame Anwendungsansichten,
+keine Nachweise nativer Ubuntu-Installations-/Schlüsselbunddialoge oder echter
+Ausführung. Unterschiede der Betriebssysteme beschreiben die Handbücher.
+
+Die Haupt-READMEs verwenden ein [englisches](readme-hero-en.png) und ein
+[deutsches](readme-hero-de.png) Titelbild. Diese KI-generierten Kompositionen
+basieren auf dem freigegebenen deutschen Motiv und genehmigten App-Aufnahmen im
+dunklen Design mit synthetischen Daten in der jeweils passenden Oberflächensprache.
+Ihre Renderer-Referenz ist Anwendung 0.121.0. Es sind Werbemotive, keine unveränderten
+Bildschirmaufnahmen oder Nachweise für natives Ubuntu-Verhalten. Das freigegebene
+deutsche Motiv bleibt unverändert; die englische Fassung lokalisiert Texte und
+Monitoransicht. Angaben zur Erzeugung und Datei-Prüfsummen stehen in
+[readme-hero-provenance.json](readme-hero-provenance.json).
+Das Manifest der Handbuchaufnahmen bleibt getrennt.
+
+<a id="regenerate-after-permission"></a>
+
+## Nach Freigabe neu erstellen
+
+Vor jeder künftigen Aufnahme nach der globalen Aufnahmeregel die ausdrückliche
+Freigabe für diese Dokumentationsaufgabe einholen. Der folgende Befehlsschalter
+ist eine zusätzliche Absicherung und ersetzt die Zustimmung des Benutzers nicht.
+Vorher Ziel (diese App), Zweck (Anwenderdokumentation) und Umfang (synthetische
+DE-/EN-Ansichten) benennen.
+
+~~~sh
+npm run build
+node scripts/capture-user-guide.mjs --approved
+~~~
+
+Das Skript verwendet die bestehende Electron-Abhängigkeit, ein wegwerfbares
+Profil und lokale kompilierte Dateien. Seine Testdaten haben weder
+MQTT-Transport noch allgemeine Dateivorgänge oder Zugangsdatenzugriff. Es nimmt
+nur App-Inhalte auf und schließt die App danach. Es läuft weder in der CI noch
+in den normalen Prüfbefehlen.
+
+Beide Sprachsätze visuell prüfen, Links und übereinstimmende Situationsnamen
+kontrollieren und anschließend die bildfreien lokalen Pflichtprüfungen
+ausführen. Bildänderungen zusammen mit passenden Handbuch- und Manifeständerungen
+halten. Native Installationsaufnahmen sind getrennt auf dem genannten
+Betriebssystem nach eigener eingegrenzter Zustimmung zu erstellen.

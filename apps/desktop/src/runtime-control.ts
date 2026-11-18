@@ -3,7 +3,7 @@ import type {MqttReader, NetworkCommand, RuntimeAction} from './mqtt-reader.js';
 import type {ProjectService} from './project-service.js';
 import {runtimeStopped} from './runtime-state.js';
 
-interface Review {system: string; broker: string; topic: string; revision: number; rule: string; run: string; recovery: boolean; enabled: number}
+interface Review {system: string; broker: string; topic: string; revision: number; rule: string; run: string; recovery: boolean; enabled: number; enabledRules: string[]}
 const same = (a: RemoteStatus, b: RemoteStatus) => a.session === b.session && a.revision === b.revision
   && a.checksum === b.checksum && a.build === b.build && a.executing === b.executing && a.resumeEnabled === b.resumeEnabled;
 
@@ -30,14 +30,15 @@ export class RuntimeControl {
       const remote = starting ? await wire.editor() : undefined;
       if (remote && !same(initial, remote.status)) throw new Error('runtimeChanged');
       const enabled = remote?.configuration.automations.filter(rule => rule['enabled'] === true).length ?? 0;
-      if (action === 'activate' && (!enabled || initial.executing)) throw new Error('runtimeNoEnabled');
+      if (action === 'activate' && (initial.executing || !enabled && !remote?.configuration.mesh_peers.length)) throw new Error('runtimeNoEnabled');
       if (action === 'run_once' && !remote?.configuration.automations.some(rule => rule['id'] === command.rule)) throw new Error('runtimeChanged');
       const selectedRun = (status: RemoteStatus) => status.execution?.runs.find(run => run.rule === command.rule);
       const running = (status: RemoteStatus) => selectedRun(status)?.state === 'running' ? selectedRun(status) : undefined;
       if (action === 'stop_rule' && running(initial)?.run !== command.run || action === 'run_once' && running(initial)) throw new Error('runtimeChanged');
       if (!await this.confirm(action, {system: system.name, topic: system.baseTopic,
         broker: broker.name + ' (' + broker.host + ':' + broker.port + ')', revision: initial.revision,
-        rule: command.rule ?? '—', run: command.run ?? '—', recovery: command.resume === true, enabled})) return 'transferCanceled';
+        rule: command.rule ?? '—', run: command.run ?? '—', recovery: command.resume === true, enabled,
+        enabledRules: remote?.configuration.automations.filter(rule => rule['enabled'] === true).map(rule => String(rule['name'])) ?? []})) return 'transferCanceled';
       const {status: base, value} = await wire.runtimeStatus();
       if (!same(initial, base) || !base.execution || action === 'stop_rule' && running(base)?.run !== command.run
         || action === 'run_once' && (running(base) || selectedRun(initial)?.run !== selectedRun(base)?.run)) throw new Error('runtimeChanged');

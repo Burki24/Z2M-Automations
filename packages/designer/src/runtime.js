@@ -3,6 +3,7 @@ import {t, bindText, bindHTML, bindAttribute, localizedOption, localizeRecord, M
 import {createUUID} from './identity.js';
 import {systemHeaders} from './workspace.js';
 import {confirmAction} from './confirmation.js';
+import {activationRuleNames} from './operation-readiness.js';
 
 /* Polling is read-only. Every MQTT request, including a fresh status, needs a click. */
 export async function runtimeRequest(data, action, {token, rule = '', run = '', resume = true,
@@ -37,7 +38,7 @@ export async function runtimeRequest(data, action, {token, rule = '', run = '', 
 }
 
 export function installRuntime({getData, reload, isLoading = () => false, message, onStatus = () => {}}) {
-    const element = (type, text = '') => { const node = document.createElement(type); bindText(node, () => text); return node; };
+    const element = (type, text = '') => { const node = document.createElement(type); if (text) bindText(node, () => text); return node; };
     const panel = element('section'); panel.className = 'system-transfer system-runtime'; panel.hidden = true;
     const heading = element('strong');
     const status = element('p'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
@@ -46,17 +47,17 @@ export function installRuntime({getData, reload, isLoading = () => false, messag
     resumeLabel.append(resume, element('span', () => t('mqtt.resume')));
     const actions = element('div'); actions.className = 'transfer-actions';
     const buttons = {};
-    for (const [action, text] of [['activate', t("ui.activate.saved.automations.89243fd1")], ['deactivate', t("ui.stop.all.automations.of.this.baed310b")], ['status', t("ui.refresh.z2m.operating.status.e313db3d")]]) {
-        const button = element('button', text); button.type = 'button'; button.addEventListener('click', () => send(action)); buttons[action] = button; actions.append(button);
+    for (const [action, key] of [['activate', 'mqtt.activate'], ['deactivate', 'ui.stop.all.automations.of.this.baed310b'], ['status', 'desktop.operation.readStatus']]) {
+        const button = element('button', () => t(key)); button.type = 'button'; button.addEventListener('click', () => send(action)); buttons[action] = button; actions.append(button);
     }
-    const selectionLabel = element('label', t("ui.select.a.saved.automation.b565d8b4")); const selection = element('select'); bindAttribute(selection, 'aria-label', () => t("ui.automation.for.single.run.or.e7f85af7"));
+    const selectionLabel = element('label', () => t("ui.select.a.saved.automation.b565d8b4")); const selection = element('select'); bindAttribute(selection, 'aria-label', () => t("ui.automation.for.single.run.or.e7f85af7"));
     selectionLabel.append(selection);
     const runStatus = element('p'); runStatus.setAttribute('role', 'status');
     const runActions = element('div'); runActions.className = 'transfer-actions';
-    for (const [action, text] of [['run_once', t("ui.run.once.with.condition.checks.04b18ecd")], ['stop_rule', t("ui.stop.only.this.run.61c5770e")]]) {
-        const button = element('button', text); button.type = 'button'; button.addEventListener('click', () => send(action)); buttons[action] = button; runActions.append(button);
+    for (const [action, key] of [['run_once', 'ui.run.once.with.condition.checks.04b18ecd'], ['stop_rule', 'ui.stop.only.this.run.61c5770e']]) {
+        const button = element('button', () => t(key)); button.type = 'button'; button.addEventListener('click', () => send(action)); buttons[action] = button; runActions.append(button);
     }
-    const note = element('p', t("ui.single.run.checks.conditions.even.a8f08d10")); note.className = 'field-help';
+    const note = element('p', () => t("ui.single.run.checks.conditions.even.a8f08d10")); note.className = 'field-help';
     panel.append(heading, status, notice, resumeLabel, actions, selectionLabel, runStatus, runActions, note);
     document.querySelector('.system-selector').after(panel);
     const selections = new Map(); const preferences = new Map();
@@ -83,6 +84,8 @@ export function installRuntime({getData, reload, isLoading = () => false, messag
         selection.disabled = busy || isLoading();
         bindText(runStatus, () => rule?.message ?? t("ui.select.a.saved.automation.for.53527a68"));
         buttons.activate.disabled = busy || isLoading() || !v.canActivate;
+        bindText(buttons.activate, () => t(v.releasedCount === 0 && data.configuration?.mesh_peers?.length ? 'operation.receiver.activate' : 'mqtt.activate'));
+        buttons.activate.classList.toggle('primary', v.confirmed && !v.executing && v.canActivate);
         buttons.deactivate.disabled = busy || isLoading() || !v.canStop;
         buttons.status.disabled = busy || isLoading() || !v.canRefresh;
         buttons.run_once.disabled = busy || isLoading() || !rule?.canRun;
@@ -105,7 +108,10 @@ export function installRuntime({getData, reload, isLoading = () => false, messag
                 : action === 'run_once' ? t("ui.run.in.once.with.condition.e5366532", {p1: rule.name, p2: target}) : '';
         if (prompt) {
             const approved = JSON.stringify([data.workspaceContext, data.configuration, data.runtime.context]);
-            const accepted = data.guidedUI ? await confirmAction({title: () => t('symcon.steps.operation'), detail: () => prompt}) : confirm(prompt);
+            const names = action === 'activate' ? activationRuleNames(v) : [];
+            const detail = names.length ? prompt + '\n' + t('operation.activate.rules', {count: names.length})
+                : action === 'activate' && v.releasedCount === 0 && data.configuration?.mesh_peers?.length ? prompt + '\n' + t('operation.receiver.help') : prompt;
+            const accepted = data.guidedUI ? await confirmAction({title: () => t('symcon.steps.operation'), detail: () => detail, items: names}) : confirm(detail + (names.length ? '\n' + names.join('\n') : ''));
             if (!accepted) return;
             if (JSON.stringify([getData()?.workspaceContext, getData()?.configuration, getData()?.runtime?.context]) !== approved) { message(() => t('symcon.transfer.changed')); return; }
         }

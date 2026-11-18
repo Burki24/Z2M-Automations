@@ -1,5 +1,7 @@
 # Z2M-Automations – Implementation plan
 
+**English | [Deutsch](DESKTOP_PLAN_DE.md)**
+
 As of 2026-11-09. This is the operational desktop agenda for the new repository
 `Burki24/Z2M-Automations`, located locally at `E:\git\Z2M-Automations`.
 Windows and Linux will be developed in parallel; **Ubuntu LTS x64** is the
@@ -21,8 +23,9 @@ Importing this plan did not change any Symcon or Z2M installation.
 Imported from the [original plan in the Symcon repository](https://github.com/Burki24/Symcon_Z2MAutomations/blob/01f444d91d5c664177a5d2a60a5d644c72840523/docs/DESKTOP_PLAN.md)
 at source commit `01f444d91d5c664177a5d2a60a5d644c72840523`. Scope and sequence
 are preserved; repository context, source ownership and links are adapted here.
-This file is now the authoritative desktop agenda. Repository documentation is
-maintained in English; the application still targets German and English UI support.
+This file is now the authoritative desktop agenda. English documentation is
+authoritative; complete German companions are maintained alongside it. The
+application supports German and English through its local UI catalogs.
 
 Architecture decision: [ADR 0001](adr/0001-parallel-desktop-platforms.md).
 

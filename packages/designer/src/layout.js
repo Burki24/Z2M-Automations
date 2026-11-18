@@ -33,8 +33,8 @@ export function workflowStatus(data, desktop = isDesktop()) {
     return {system: selectedSystemName(data), stored, projectFile, next};
 }
 
-export function installLayout({getData, reload}) {
-    const guided = isDesktop() ? () => {} : installSymconWorkspace({getData, reload});
+export function installLayout({getData, reload, onStepChange}) {
+    const guided = isDesktop() ? () => {} : installSymconWorkspace({getData, reload, onStepChange});
     const node = (tag, className, text) => {
         const el = document.createElement(tag);
         if (className) el.className = className;

@@ -1,6 +1,6 @@
 // Generated from own extension, runtime, mesh, scenes, sequences, diagnostics, event catalog and schema sources. Do not edit.
-export const EXTENSION_BUILD = 'c17ae7537a1e209649c73bef62df7d2d223978181db28865b4e9f1ca2bfde23d';
-export const EXTENSION_VERSION = '0.2.2';
+export const EXTENSION_BUILD = '3f8a06859635cdb3222da02a237fe41971e6aaa53cd43c5d16ae4df03ffbef6b';
+export const EXTENSION_VERSION = '0.2.4';
 import {createHash, randomUUID} from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import {join} from 'node:path';
@@ -1190,6 +1190,7 @@ const ERRORS = Object.freeze({
     busy: 'Too many requests are pending.',
     not_ready: 'Extension is not accepting requests.',
     runtime_unavailable: 'Required Z2M runtime interfaces are unavailable.',
+    catalog_limit: 'The device catalog exceeds its safe size limit; no partial catalog was returned.',
     unknown_entity: 'A configured device or group is unavailable.',
     scene_unavailable: 'The selected scene is no longer available on the target.',
     checksum_mismatch: 'Activation checksum does not match the stored configuration.',
@@ -1339,7 +1340,11 @@ export function validateYaml(yaml) {
 // Bounded scalar capabilities and recognized writable colors enter the editor; raw definitions stay in Z2M.
 export function buildEditorCatalog(zigbee) {
     const candidates = [];
-    let optionCount = 0, devicesSeen = 0;
+    let optionCount = 0, devicesSeen = 0, catalogBytes = 2;
+    const account = value => {
+        catalogBytes += Buffer.byteLength(JSON.stringify(value), 'utf8') + 1;
+        if (catalogBytes > 524288) fail('catalog_limit');
+    };
     const scalar = value => value === null || typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value))
         || (typeof value === 'string' && [...value].length <= 256);
     for (const device of zigbee?.devicesIterator?.() ?? []) {
@@ -1350,7 +1355,7 @@ export function buildEditorCatalog(zigbee) {
         const walk = (features, depth = 0, phase = 0, endpoint = '') => {
             if (!Array.isArray(features) || depth > 6) return;
             for (const feature of features) {
-                if (++visited > 128 || optionCount >= 1024) break;
+                if (++visited > 128) break;
                 if (!isObject(feature)) continue;
                 const channel = typeof feature.endpoint === 'string' ? feature.endpoint : endpoint;
                 // Composite children belong inside their parent payload, never at /set's top level.
@@ -1361,9 +1366,10 @@ export function buildEditorCatalog(zigbee) {
                         && Array.isArray(feature.features) && feature.features.length === 2
                         && members.every(key => feature.features.filter(p => p?.property === key && p.type === 'numeric' && Number.isInteger(p.access) && p.access >= 0 && (p.access & 2) !== 0).length === 1)
                         && properties.length < 64 && !properties.some(p => p.property === feature.property)) {
-                        properties.push({property: feature.property, type: 'color', access: 2, label: 'Color',
-                            endpoint: typeof channel === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(channel) ? channel : '', values: []});
-                        optionCount++;
+                        const property = {property: feature.property, type: 'color', access: 2, label: 'Color',
+                            endpoint: typeof channel === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(channel) ? channel : '', values: []};
+                        account(property); properties.push(property);
+                        if (optionCount < 1024) optionCount++;
                     }
                     continue;
                 }
@@ -1375,48 +1381,54 @@ export function buildEditorCatalog(zigbee) {
                 const priority = state ? 0 : feature.type === 'enum' && /^(?:state|action)(?:_[A-Za-z0-9_]+)?$/.test(feature.property) ? 1 : 2;
                 if (priority !== phase) continue;
                 const admitted = [];
-                const before = optionCount;
                 if (feature.type === 'numeric' && (feature.access & 3) !== 0 && numeric.length < 64 && optionCount < 1024) {
                     if ((feature.access & 1) !== 0) {
-                        numeric.push({property: feature.property, unit: typeof feature.unit === 'string' ? [...feature.unit].slice(0, 24).join('') : ''});
+                        const entry = {property: feature.property, unit: typeof feature.unit === 'string' ? [...feature.unit].slice(0, 24).join('') : ''};
+                        account(entry); numeric.push(entry);
                     }
                     optionCount++;
                 }
                 const values = feature.type === 'binary' ? [feature.value_on, feature.value_off]
                     : feature.type === 'enum' && Array.isArray(feature.values) ? feature.values.slice(0, 32) : [];
                 for (const value of values) {
-                    if (!scalar(value) || optionCount >= 1024) continue;
+                    if (!scalar(value)) continue;
                     const entry = {property: feature.property, value};
-                    const prior = optionCount;
-                    if ((feature.access & 1) !== 0 && triggers.length < 64 && optionCount < 1024) { triggers.push(entry); optionCount++; }
-                    if ((feature.access & 2) !== 0 && actions.length < 64 && optionCount < 1024) { actions.push(entry); optionCount++; }
-                    if (optionCount > prior && !admitted.includes(value)) admitted.push(value);
+                    if ((feature.access & 1) !== 0 && triggers.length < 64 && optionCount < 1024) { account(entry); triggers.push(entry); optionCount++; }
+                    if ((feature.access & 2) !== 0 && actions.length < 64 && optionCount < 1024) { account(entry); actions.push(entry); optionCount++; }
+                    if (!admitted.includes(value)) admitted.push(value);
                 }
-                if (optionCount > before && properties.length < 64 && ['binary', 'enum', 'numeric'].includes(feature.type)
+                // Typed metadata is independent of the bounded legacy choice lists.
+                if ((feature.access & 3) !== 0 && (feature.type === 'numeric' || admitted.length) && properties.length < 64 && ['binary', 'enum', 'numeric'].includes(feature.type)
                     && !properties.some(item => item.property === feature.property)) {
                     const property = {property: feature.property, type: feature.type, access: feature.access & 3,
                         label: typeof feature.label === 'string' && !/[\x00-\x1f\x7f]/.test(feature.label) ? [...feature.label].slice(0, 80).join('') : feature.property,
                         endpoint: typeof channel === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(channel) ? channel : '', values: admitted};
                     if (feature.type === 'numeric') {
+                        if (typeof feature.unit === 'string' && feature.unit) property.unit = [...feature.unit].slice(0, 24).join('');
                         for (const [from, to] of [['value_min', 'minimum'], ['value_max', 'maximum'], ['value_step', 'step']]) {
                             if (typeof feature[from] === 'number' && Number.isFinite(feature[from]) && (to !== 'step' || feature[from] > 0)) property[to] = feature[from];
                         }
                     }
-                    properties.push(property);
+                    account(property); properties.push(property);
                 }
             }
         };
         let features;
         try { features = device.exposes(); } catch { continue; }
-        candidates.push({entry: {id: device.ieeeAddr,
-            name: typeof device.name === 'string' ? [...device.name].slice(0, 120).join('') : device.ieeeAddr, triggers, actions, numeric, properties},
+        const entry = {id: device.ieeeAddr,
+            name: typeof device.name === 'string' ? [...device.name].slice(0, 120).join('') : device.ieeeAddr, triggers, actions, numeric, properties};
+        account(entry);
+        candidates.push({entry,
         scan: phase => { visited = 0; walk(features, 0, phase); }, failed: false});
     }
     // Reserve switch channels first, then button events and cover commands, before special options.
     for (const phase of [0, 1, 2]) {
         for (const candidate of candidates) {
             if (candidate.failed) continue;
-            try { candidate.scan(phase); } catch { candidate.failed = true; }
+            try { candidate.scan(phase); } catch (error) {
+                if (error instanceof ConfigurationError && error.code === 'catalog_limit') throw error;
+                candidate.failed = true;
+            }
         }
     }
     return candidates.filter(({entry, failed}) => !failed && (entry.triggers.length || entry.actions.length || entry.numeric.length || entry.properties.length)).map(({entry}) => entry);

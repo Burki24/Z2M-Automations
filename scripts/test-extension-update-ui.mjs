@@ -45,7 +45,7 @@ if (!process.versions.electron) {
     };
     await step('app-ready', () => app.whenReady());
     const assets = join(root, 'apps/desktop/.build/renderer');
-    const names = new Set(['network.js', 'operation-flags.js', 'draft-review.js', 'validation-feedback.js', 'drafts.js', 'desktop-workspace.js', 'guided-workspace.js', 'symcon-workspace.js', 'guided-workspace.css', 'layout.js', 'confirmation.js', 'runtime.js', 'workspace.js', 'identity.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
+    const names = new Set(['network.js', 'operation-flags.js', 'operation-readiness.js', 'draft-review.js', 'validation-feedback.js', 'drafts.js', 'desktop-workspace.js', 'guided-workspace.js', 'symcon-workspace.js', 'draft-sync.js', 'draft-files.js', 'draft-merge.js', 'guided-workspace.css', 'layout.js', 'confirmation.js', 'runtime.js', 'workspace.js', 'identity.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
     protocol.handle('z2ma', async request => {
       if (request.url === 'z2ma://app/index.html') return new Response('<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="designer.css"><link rel="stylesheet" href="desktop-palette.css"><link rel="stylesheet" href="desktop.css"><body class="desktop-foundation"></body>', {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
       if (request.url === 'z2ma://app/workspace.html') return new Response((await readFile(join(assets, 'index.html'), 'utf8')).replace('<script type="module" src="desktop.js"></script>', ''), {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
@@ -122,6 +122,7 @@ if (!process.versions.electron) {
       await window.webContents.executeJavaScript("document.documentElement.style.fontSize = '';");
       await resize(1000, 800);
     });
+    await evaluate('receiver-readiness', '(' + receiverReadinessTest + ')()');
     await load('draft-summaries', 'z2ma://app/index.html');
     await evaluate('draft-summaries', '(' + workspaceSummaryTest + ')()');
     await load('network-controls', 'z2ma://app/index.html');
@@ -146,6 +147,7 @@ if (!process.versions.electron) {
         if (document.activeElement !== input || input.getBoundingClientRect().width < 18) throw new Error('Rule checkboxes must remain keyboard accessible');
       })()`);
     }
+    await step('transfer-resume-confirmation', () => transferConfirmationTest(window, assets, resize));
     await load('confirmation', 'z2ma://app/confirmation.html');
     for (const width of [320, 540]) for (const theme of ['light', 'dark']) {
       await layout(`confirmation-${width}-${theme}`, width, 310, `(() => {
@@ -161,9 +163,53 @@ if (!process.versions.electron) {
         if (document.scrollingElement.scrollTop !== 0) throw new Error('Confirmation body must not scroll');
       })()`);
     }
-    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/capability-findings/operation-flags/confirmation-layout/workspace-wheel elapsedMs=' + (Date.now() - started)); app.exit(0);
+    window.destroy(); console.log('EXTENSION_UPDATE_DOM_OK progress/de/en/automatic-draft-check/guided-transfer/capability-findings/operation-flags/transfer-resume-confirmation/confirmation-layout/workspace-wheel elapsedMs=' + (Date.now() - started)); app.exit(0);
   };
   run().catch(error => { console.error('EXTENSION_UPDATE_DOM_FAILED ' + error.stack); app.exit(1); });
+}
+
+async function transferConfirmationTest(window, assets, resize) {
+  const assert = (await import('node:assert/strict')).default;
+  const {confirmationScript} = require('../apps/desktop/.build/confirmation.js');
+  for (const language of ['de', 'en']) {
+    const catalog = JSON.parse(await readFile(join(assets, 'locales', language + '.json'), 'utf8'));
+    const options = {language, question: 'Synthetic transfer?', detail: 'Synthetic stopped review. '.repeat(30), cancel: 'Cancel', accept: 'Continue',
+      resume: {label: catalog['project.transferResumePrevious'], help: catalog['project.transferResumeHelp'],
+        detail: 'Synthetic checked enabled rule, new rule disabled. '.repeat(30), enabled: true}};
+    await window.loadURL('z2ma://app/confirmation.html');
+    const reply = window.webContents.executeJavaScript(confirmationScript(options));
+    assert.deepEqual(await window.webContents.executeJavaScript(`(() => ({checked: document.querySelector('#resume-previous-operation').checked,
+      disabled: document.querySelector('#resume-previous-operation').disabled, focus: document.activeElement.id,
+      label: document.querySelector('#resume-label').textContent}))()`),
+    {checked: false, disabled: false, focus: 'cancel', label: options.resume.label});
+    for (const width of [320, 540]) for (const theme of ['light', 'dark']) {
+      await resize(width, 430);
+      await window.webContents.executeJavaScript(`(() => {
+        document.documentElement.style.colorScheme = '${theme}';
+        const footer = document.querySelector('footer').getBoundingClientRect();
+        const choice = document.querySelector('#resume-previous-operation'); const bounds = choice.getBoundingClientRect();
+        if (footer.bottom > innerHeight + 1 || footer.top < 0 || bounds.top < 0 || bounds.bottom > footer.top || bounds.width < 18) throw new Error('Transfer choice or buttons outside viewport');
+        if (document.scrollingElement.scrollHeight > innerHeight + 1 || document.scrollingElement.scrollWidth > innerWidth + 1) throw new Error('Transfer dialog must not scroll as a whole');
+        const detail = document.querySelector('#detail');
+        if (detail.clientHeight < 20 || detail.scrollHeight <= detail.clientHeight) throw new Error('Transfer review needs a usable scroll area');
+        choice.focus(); if (document.activeElement !== choice) throw new Error('Resume choice needs keyboard access');
+      })()`);
+    }
+    assert.equal(await window.webContents.executeJavaScript(`(() => {
+      document.querySelector('#resume-previous-operation').click(); return document.querySelector('#detail').textContent;
+    })()`), options.resume.detail);
+    await window.webContents.executeJavaScript("document.querySelector('#accept').click()");
+    assert.deepEqual(await reply, {accepted: true, resume: true});
+    for (const ending of ['cancel', 'escape', 'disabled']) {
+      await window.loadURL('z2ma://app/confirmation.html');
+      const next = window.webContents.executeJavaScript(confirmationScript({...options, resume: {...options.resume, enabled: ending !== 'disabled'}}));
+      assert.equal(await window.webContents.executeJavaScript("document.querySelector('#resume-previous-operation').checked"), false, 'a subsequent transfer never inherits a previous choice');
+      await window.webContents.executeJavaScript(ending === 'disabled'
+        ? "document.querySelector('#resume-previous-operation').checked = true; document.querySelector('#accept').click()"
+        : ending === 'escape' ? "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))" : "document.querySelector('#cancel').click()");
+      assert.deepEqual(await next, ending === 'disabled' ? {accepted: true, resume: false} : false);
+    }
+  }
 }
 
 async function workspaceWheelTest(window, theme) {
@@ -251,13 +297,53 @@ async function prepareWorkspaceLayout() {
   workspace.update({desktop: {project: true, source: 'draft', draftRevision: 13}, workspaceContext: {systemId: 'synthetic'}, status: {mqttConnected: true}});
 }
 
+async function receiverReadinessTest() {
+  const {installOperationReadiness} = await import('./operation-readiness.js');
+  const {setLanguage} = await import('./localization.js');
+  const assert = (value, message) => { if (!value) throw new Error(message); };
+  const source = {name: 'Synthetic source', binding: {systemId: 'source', baseTopic: 'synthetic/source'}, runtimeConfirmed: true, executing: true};
+  const target = {name: 'Synthetic receiver', binding: {systemId: 'target', baseTopic: 'synthetic/target'}, runtimeConfirmed: true, executing: false};
+  const entry = {id: 'saved', name: 'Saved remote rule', enabled: true, actions: [{type: 'set', target: {system: 'synthetic/target'}}]};
+  const saved = {automations: [entry], sequences: [], mesh_peers: ['synthetic/target']};
+  let data = {desktop: {project: true}, workspaceContext: {systemId: 'source'}, module: {baseTopic: 'synthetic/source'},
+    workspace: {systems: [source, target]}, configuration: {automations: [], sequences: []}, operationConfiguration: saved};
+  const choices = [];
+  const update = installOperationReadiness({getData: () => data, getEntry: () => entry,
+    chooseSystem: async id => { choices.push(id); data = {...data, workspaceContext: {systemId: id}, module: {baseTopic: id === 'source' ? source.binding.baseTopic : target.binding.baseTopic},
+      operationConfiguration: id === 'source' ? saved : {automations: [], sequences: [], mesh_peers: ['synthetic/source']}}; return true; },
+    showOperation: () => document.querySelector('#desktop-nav-operation').click()});
+  update();
+  for (const lang of ['de', 'en']) {
+    setLanguage(lang, {persist: false, report: false}); update();
+    const row = document.querySelector('.operation-readiness li');
+    assert(row.dataset.state === 'stopped' && row.textContent.includes('Synthetic receiver'), 'Desktop identifies the stopped receiver');
+    assert(document.querySelector('.operation-preparation li[data-state="stopped"]'), 'Desktop operation uses saved rules even when the local draft has no remote rules');
+    for (const [index, theme] of ['light', 'dark'].entries()) {
+      document.documentElement.style.colorScheme = theme;
+      assert(getComputedStyle(row).color === ['rgb(159, 40, 63)', 'rgb(240, 166, 177)'][index], 'Stopped receiver uses the desktop error palette');
+    }
+  }
+  document.querySelector('button[data-operation-system="target"]').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert(choices.join(',') === 'target' && !document.querySelector('#desktop-view-operation').hidden, 'Direct receiver navigation opens Operation');
+  assert(document.querySelector('.operation-preparation').textContent.includes('Activate partner reception'), 'Receiver-only preparation explains that local rules need not be released');
+  document.querySelector('button[data-operation-return="source"]').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert(choices.join(',') === 'target,source', 'Return navigation uses the original stable system identity');
+  target.runtimeConfirmed = false; update();
+  assert(document.querySelector('.operation-readiness li').dataset.state === 'unknown', 'An unconfirmed desktop receiver remains unknown');
+  target.runtimeConfirmed = target.executing = true; update();
+  assert(document.querySelector('.operation-readiness li').dataset.state === 'active', 'Confirmed desktop readback clears the stopped warning');
+}
+
 async function workspaceSummaryTest() {
   const {installDraftExchange} = await import('./drafts.js');
   const {setLanguage} = await import('./localization.js');
   const panel = document.createElement('section'); document.body.append(panel);
-  const workspace = {pages: {draft: panel}, review: document.createElement('div'), link: parent => {
+  const workspace = {pages: {draft: panel}, actions: document.createElement('div'), review: document.createElement('div'), link: parent => {
     const button = document.createElement('button'); parent.append(button); return button;
   }};
+  panel.append(workspace.actions);
   installDraftExchange({}, workspace);
   const view = {desktop: {project: true, source: 'stored', draftRevision: 13,
     draftSummary: {rules: 8, enabled: 1, sequences: 0}, storedSummary: {rules: 8, enabled: 7, sequences: 0}},
@@ -440,6 +526,12 @@ async function rendererTest() {
   assert(document.querySelector('#mqtt-rule-count').textContent.includes('0 of 2')
     && document.querySelector('#mqtt-operation-reason').textContent.includes('No automation is enabled')
     && document.querySelector('#mqtt-activate').disabled, 'Explain the zero-enabled start block beside the operation controls');
+  state.systems[0].runtime.peers = ['synthetic/partner']; state.sequence++; update(view);
+  await wait(() => !document.querySelector('#mqtt-activate').disabled);
+  assert(document.querySelector('#mqtt-activate').textContent === 'Activate partner reception'
+    && document.querySelector('#mqtt-operation-reason').textContent.includes('No local automations'), 'Saved partner grants offer an explicit receiver-only start without releasing local rules');
+  state.systems[0].runtime.peers = []; state.sequence++; update(view);
+  await wait(() => document.querySelector('#mqtt-activate').disabled);
   await grantStatus('Rule permissions: Confirmed', 'success');
   assert([...ruleList.querySelectorAll('strong')].map(node => node.textContent).join('|') === 'Alpha|Zulu', 'Operation rules must be alphabetical');
   choose('rule_b', true);

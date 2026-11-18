@@ -1,4 +1,4 @@
-import {showConfirmation, showConfirmationChoice} from './confirmation.js';
+import {showConfirmation, showConfirmationChoice, showTransferConfirmation} from './confirmation.js';
 import {RuntimeControl} from './runtime-control.js';
 import {app, BrowserWindow, ipcMain, protocol, session, Menu, nativeTheme, dialog, safeStorage} from 'electron';
 import {readFileSync, mkdtempSync, readdirSync, rmSync, mkdirSync, writeFileSync} from 'node:fs';
@@ -10,7 +10,7 @@ import {Diagnostics} from './diagnostics.js';
 import {OfflineWorkspace} from './offline-workspace.js';
 import {configureSmokeRendering, smokeCaptureEnabled} from './smoke-rendering.js';
 import {ProjectService, type ProjectCommand} from './project-service.js';
-import type {Configuration} from './project.js';
+import {validId, type Configuration} from './project.js';
 import {promptCredentials} from './credential-prompt.js';
 import {Credentials, readCredentialFile, type CredentialCommand} from './credentials.js';
 import {smokeProjects} from './smoke-projects.js';
@@ -27,6 +27,8 @@ import {DraftExchange} from './draft-exchange.js';
 import {DraftValidationError} from './draft-feedback.js';
 import {ExtensionTransfer, bundledExtension} from './extension-transfer.js';
 import {smokeDrafts} from './smoke-drafts.js';
+import {smokeHelp} from './smoke-help.js';
+import {helpURL, allowedHelpNavigation, type HelpRequest} from './help.js';
 
 if (process.platform === 'linux') app.setDesktopName('z2m-automations.desktop');
 
@@ -42,6 +44,7 @@ const metadata: {version: string} = JSON.parse(readFileSync(join(__dirname, 'ver
 const debug = new Diagnostics();
 const workspace = new OfflineWorkspace(debug, process.platform, metadata.version);
 let window: BrowserWindow | null = null;
+let manual: BrowserWindow | null = null;
 let language: 'de' | 'en' = 'en';
 let projects: ProjectService;
 let reader: MqttReader;
@@ -73,7 +76,11 @@ function snapshot(): unknown {
       storedRevision: remote?.status.revision ?? system?.stored?.revision ?? null,
       executing: remote?.fresh ? remote.status.executing : false, activeRevision: remote?.fresh && remote.status.executing ? remote.status.revision : null},
     catalogAvailable: Boolean(remote), configuration: configuration ?? {schema_version: 1, revision: 1, automations: [], sequences: [], mesh_peers: []},
-    workspace: {fingerprint: project.id, systems: project.systems.map(system => ({name: system.name, binding: {systemId: system.id, generation: 1, baseTopic: system.baseTopic}}))},
+    operationConfiguration: remote?.fresh ? remote.configuration : null,
+    workspace: {fingerprint: project.id, systems: project.systems.map(system => ({name: system.name,
+      runtimeConfirmed: reader.connected(system.brokerId) && reader.current(system.id)?.fresh === true,
+      executing: reader.connected(system.brokerId) && reader.current(system.id)?.fresh ? reader.current(system.id)!.status.executing : null,
+      binding: {systemId: system.id, generation: 1, baseTopic: system.baseTopic}}))},
     partnerPermissions: partnerOverview(project, reader),
     workspaceContext: {systemId: system?.id ?? '', generation: projects.generation() + 1, fingerprint: project.id},
     ...(system ? drafts.view(system) : {})};
@@ -82,6 +89,25 @@ function snapshot(): unknown {
 function handle(channel: Channel, payload: unknown): unknown {
   if (!validPayload(channel, payload)) { debug.record('rejected'); throw new Error('Invalid desktop request.'); }
   switch (channel) {
+    case 'help': {
+      const request = payload as HelpRequest;
+      if (!window) throw new Error('Help unavailable.');
+      if (!manual || manual.isDestroyed()) {
+        manual = new BrowserWindow({parent: window, width: 1120, height: 850, minWidth: 360, minHeight: 400,
+          show: !smoke, autoHideMenuBar: true, webPreferences: {...rendererPreferences}});
+        manual.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
+        manual.webContents.on('will-navigate', (event, url) => { if (!allowedHelpNavigation(url)) event.preventDefault(); });
+        manual.webContents.on('will-redirect', event => event.preventDefault());
+        manual.webContents.on('will-attach-webview', event => event.preventDefault());
+        manual.on('closed', () => { manual = null; });
+      }
+      const viewer = manual;
+      return viewer.loadURL(helpURL(request)).then(() => {
+        if (!smoke && !viewer.isDestroyed()) { viewer.show(); viewer.focus(); }
+        debug.record('helpOpened', undefined, request.language);
+        return {ok: true};
+      });
+    }
     case 'snapshot': return snapshot();
     case 'select-system': if (typeof payload === 'string') {
       if (!projects.active) return workspace.select(payload);
@@ -120,7 +146,33 @@ async function designer(command: DesignerCommand): Promise<unknown> {
   const context = {operation: 'draft' as const, ...(typeof command.payload['requestId'] === 'string' ? {transaction: command.payload['requestId']} : {})};
   debug.record('draftRequest', command.systemId, undefined, context);
   try {
-    const result = await (['import', 'export', 'adopt'].includes(command.route) ? exchange.command(command) : drafts.command(command));
+    let result;
+    if (command.route === 'draft-files') result = await exchange.fileCommand(command);
+    else if (command.route === 'draft-sync' || command.route === 'draft-sync-status') {
+      drafts.system(command);
+      if (command.route === 'draft-sync-status' && Object.keys(command.payload).length) throw new Error('invalidRequest');
+      if (command.route === 'draft-sync') {
+        const {action, operation, choices = {}} = command.payload;
+        if (!validId(command.payload['requestId']) || String(command.payload['requestId']).startsWith('example')
+          || Object.keys(command.payload).some(key => !['requestId', 'action', 'operation', 'choices'].includes(key)) || typeof action !== 'string' || typeof operation !== 'string'
+          || !choices || typeof choices !== 'object' || Array.isArray(choices)) throw new Error('invalidRequest');
+        if (action !== 'refresh') await projects.resolveDraftSync(command.systemId, operation, action, choices);
+        if (action === 'refresh' || action === 'merge') {
+          const projectID = projects.data().id; const epoch = projects.generation();
+          projects.beginDraftRead(command.systemId);
+          void reader.refresh(command.systemId).catch(() => {
+            if (projects.data().id === projectID && projects.generation() === epoch) projects.failDraftRead(command.systemId);
+          });
+        }
+        reader.reconcile(projects.data(), projects.generation());
+      }
+      const system = projects.data().systems.find(item => item.id === command.systemId)!;
+      result = {ok: true, draftSync: drafts.view(system)['draftSync']};
+    } else result = await (['import', 'export', 'adopt'].includes(command.route) ? exchange.command(command) : drafts.command(command));
+    if (command.route === 'editor-state' && command.payload['pending'] === false) {
+      for (const system of projects.data().systems) if (system.stored) await projects.reconcileStored(projects.data().id, projects.generation(), system.id, system.stored);
+      reader.reconcile(projects.data(), projects.generation());
+    }
     debug.record('draftCompleted', command.systemId, undefined, context); return result;
   } catch (error) { debug.record('draftRejected', command.systemId, undefined, context); throw error; }
 }
@@ -165,6 +217,8 @@ async function network(command: NetworkCommand): Promise<unknown> {
     }
     case 'runtimeStatus': void reader.refresh(command.id).catch(() => {}); break;
     case 'validateEnabled': case 'validate': case 'store': case 'install': case 'checkTransfer': {
+      const target = projects.data().systems.find(system => system.id === command.id);
+      if (command.action === 'store' || ['validateEnabled', 'validate'].includes(command.action) && target && reader.connected(target.brokerId)) projects.assertDraftSynchronized(command.id);
       if (smoke && command.action !== 'validate') throw new Error('invalidRequest');
       try {
         const outcome = await transfers.command(command.action, command.id);
@@ -193,9 +247,11 @@ async function network(command: NetworkCommand): Promise<unknown> {
 async function open(): Promise<void> {
   Menu.setApplicationMenu(null);
   const assets = new Set(readdirSync(assetsRoot, {recursive: true}).filter((name): name is string => typeof name === 'string').map(name => name.replaceAll('\\', '/')));
-  const mime: Record<string, string> = {'.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json'};
+  const mime: Record<string, string> = {'.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json'};
   protocol.handle('z2ma', request => {
-    const name = assetPath(request.url, request.method, assets);
+    // Electron retains fragments for custom-scheme requests; only handbook navigation permits them.
+    const resource = allowedHelpNavigation(request.url) ? request.url.replace(/#.*$/, '') : request.url;
+    const name = assetPath(resource, request.method, assets);
     if (!name || !mime[extname(name)]) return new Response(null, {status: 404});
     const headers = {'Content-Type': mime[extname(name)] + '; charset=utf-8', 'Content-Security-Policy': csp, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store'};
     return new Response(request.method === 'HEAD' ? null : readFileSync(join(assetsRoot, name)), {headers});
@@ -210,6 +266,7 @@ async function open(): Promise<void> {
     title: 'Z2M-Automations ' + (process.platform === 'win32' ? 'for Windows' : 'for Linux'),
     webPreferences: {...rendererPreferences, preload: join(__dirname, 'preload.js')}});
   const view = window.webContents;
+  window.once('closed', () => { manual?.destroy(); });
   language = app.getLocale().startsWith('de') ? 'de' : 'en';
   const vault = new Credentials(join(app.getPath('userData'), 'credentials'), osProtection(safeStorage, process.platform), process.platform);
   const reviewDialog = (key: string, detail?: string, notice = false): Promise<boolean> => window
@@ -221,13 +278,13 @@ async function open(): Promise<void> {
     chooseOpen: async () => {
       if (smoke) return join(app.getPath('userData'), 'synthetic.z2ma');
       if (!window) return null;
-      const result = await dialog.showOpenDialog(window, {title: message('open'), properties: ['openFile'], filters: [{name: 'Z2M-Automations', extensions: ['z2ma', 'bak']}]});
+      const result = await dialog.showOpenDialog(window, {title: message('open'), properties: ['openFile'], filters: [{name: message('projectFile'), extensions: ['z2map', 'z2ma', 'bak']}]});
       return result.canceled ? null : result.filePaths[0] ?? null;
     },
     chooseSave: async () => {
       if (smoke) return join(app.getPath('userData'), 'synthetic.z2ma');
       if (!window) return null;
-      const result = await dialog.showSaveDialog(window, {title: message('save'), defaultPath: 'project.z2ma', filters: [{name: 'Z2M-Automations', extensions: ['z2ma']}]});
+      const result = await dialog.showSaveDialog(window, {title: message('save'), defaultPath: 'project.z2map', filters: [{name: message('projectFile'), extensions: ['z2map']}]});
       return result.canceled ? null : result.filePath ?? null;
     },
     confirmDiscard: () => confirm('discard'), confirmRestore: () => confirm('restoreConfirm'), confirmDelete: () => confirm('deleteConfirm'),
@@ -245,10 +302,10 @@ async function open(): Promise<void> {
       if (result.canceled || !result.filePaths[0]) return null;
       return readCredentialFile(result.filePaths[0]);
     }
-  }, debug);
+  }, debug, join(app.getPath('userData'), 'draft-recovery'));
   reader = new MqttReader(vault, debug, (project, epoch, system, stored, current) => projects.serialize(async () => {
     if (!current()) throw new Error('stale');
-    projects.observe(project, epoch, system, stored);
+    await projects.reconcileStored(project, epoch, system, stored, {}, current);
     reader.reconcile(projects.data(), projects.generation());
   }), smoke ? options => {
     if (options.host !== '127.0.0.1' || options.port !== Number(process.env['Z2MA_SMOKE_MQTT_PORT'])) throw new Error('smokeNetworkDisabled');
@@ -258,7 +315,7 @@ async function open(): Promise<void> {
   drafts = new DraftEditor(projects, reader);
   const chooseDraft = async (key: string, extension: string, open: boolean): Promise<string | null> => {
     if (!window || smoke) return null;
-    const filters = [{name: extension === 'z2ma' ? 'Z2M-Automations' : 'YAML / JSON', extensions: extension === 'z2ma' ? ['z2ma'] : ['yaml', 'yml', 'json']}];
+    const filters = [{name: extension === 'yaml' ? message('draftFile') : 'Z2M-Automations', extensions: open ? ['z2mad', 'z2map', 'z2ma', 'yaml', 'yml', 'json'] : extension === 'yaml' ? ['yaml', 'yml', 'json'] : [extension]}];
     if (open) { const result = await dialog.showOpenDialog(window, {title: message(key), properties: ['openFile'], filters}); return result.canceled ? null : result.filePaths[0] ?? null; }
     const result = await dialog.showSaveDialog(window, {title: message(key), defaultPath: 'draft.' + extension, filters}); return result.canceled ? null : result.filePath ?? null;
   };
@@ -266,7 +323,7 @@ async function open(): Promise<void> {
     backup: async (conflict, review) => {
       if (conflict && review) await reviewDialog('transferConflict',
         message('transferConflictDetail').replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? '')), true);
-      return chooseDraft(conflict ? 'transferConflictBackup' : 'transferBackup', 'z2ma', false);
+      return chooseDraft(conflict ? 'transferConflictBackup' : 'transferBackup', 'z2map', false);
     },
     confirm: async (action, review) => {
       if (!window || smoke) return false;
@@ -274,19 +331,29 @@ async function open(): Promise<void> {
         + message(review.kind === 'flags' ? 'transferStoreFlags' : 'transferStoreConfiguration') + '\n'
         + message(review.running ? 'transferStoreStop' : 'transferStoreStopped') : message('transferInstallDetail'))
         .replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? ''));
-      return reviewDialog(action === 'store' ? review.kind === 'flags' ? 'transferStoreFlagsConfirm' : 'transferStoreConfirm' : 'transferInstallConfirm', detail);
+      if (action === 'store') {
+        const values = {...review, enabled: review.resumeRules.length, names: review.resumeRules.map(name => '• ' + name).join('\n') || '—'};
+        return showTransferConfirmation(window, {language, question: message(review.kind === 'flags' ? 'transferStoreFlagsConfirm' : 'transferStoreConfirm'),
+          detail, cancel: message('cancel'), accept: message('continue'), resume: {enabled: review.resumeAllowed,
+            label: message('transferResumePrevious'), help: message(review.resumeAllowed ? 'transferResumeHelp' : 'transferResumeUnavailable'),
+            detail: message('transferResumeDetail').replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof values) => String(values[key] ?? ''))}});
+      }
+      return reviewDialog('transferInstallConfirm', detail);
     }
   });
   runtime = new RuntimeControl(projects, reader, async (action, review) => {
     if (!window || smoke) return false;
     const detail = message('runtimeTarget').replace(/\{\{(\w+)\}\}/g, (_, key: keyof typeof review) => String(review[key] ?? ''))
-      + (action === 'activate' ? '\n' + message(review.recovery ? 'runtimeRecoveryOn' : 'runtimeRecoveryOff').replace('{{enabled}}', String(review.enabled)) : '');
+      + (action === 'activate' ? '\n' + message(review.recovery ? 'runtimeRecoveryOn' : 'runtimeRecoveryOff').replace('{{enabled}}', String(review.enabled))
+        + '\n' + (review.enabled ? message('runtimeEnabledRules') + '\n' + review.enabledRules.map(name => '• ' + name).join('\n') : message('runtimeReceiverOnly')) : '');
     return reviewDialog('runtime_' + action, detail);
   });
   exchange = new DraftExchange(projects, drafts, {
     chooseImport: () => chooseDraft('importDraft', 'yaml', true),
     chooseExport: () => smoke ? Promise.resolve(join(app.getPath('userData'), 'synthetic-automations.yaml')) : chooseDraft('exportDraft', 'yaml', false),
-    chooseBackup: () => chooseDraft('backupDraft', 'z2ma', false),
+    chooseBackup: () => chooseDraft('backupDraft', 'z2map', false),
+    chooseDraftExport: () => chooseDraft('exportDraft', 'z2mad', false),
+    chooseProjectExport: () => chooseDraft('save', 'z2map', false),
     confirm: async summary => {
       if (!window || smoke) return false;
       return reviewDialog('replaceDraft', message('importSummary').replace('{{oldRules}}', String(summary.oldRules))
@@ -346,7 +413,7 @@ async function open(): Promise<void> {
         }
         debug.record('projectFailed');
         const key = error instanceof Error ? error.message : '';
-        return {ok: false, error: ['invalidProject', 'invalidCredentials', 'credentialPromptUnavailable', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'credentialsMissing', 'credentialsLocked', 'autoConnectSettings', 'connectionError', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferStopUncertain', 'transferUnchanged', 'transferUncertain', 'transferBridge', 'extensionUpdatePending', 'extensionStopUncertain', 'extensionSaveUncertain', 'extensionRestartUncertain', 'extensionRestoreUncertain', 'extensionVerifyUncertain', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly', 'runtimeFlagsChanged'].includes(key) ? key : 'failed'};
+        return {ok: false, error: ['catalogLimit', 'invalidProject', 'invalidCredentials', 'credentialPromptUnavailable', 'fileConflict', 'noProject', 'chooseFile', 'protectionUnavailable', 'credentialsMissing', 'credentialsLocked', 'autoConnectSettings', 'connectionError', 'applyFirst', 'invalidTLS', 'noSystems', 'disconnected', 'noStored', 'draftSchema', 'draftTimezone', 'draftValue', 'draftCapability', 'draftPermission', 'draftSequence', 'draftLimit', 'draftStale', 'draftInitialRead', 'draftSyncRequired', 'timeout', 'protocol', 'remoteError', 'transferChanged', 'transferConflict', 'transferValidateFirst', 'transferRunning', 'transferStopUncertain', 'transferUnchanged', 'transferUncertain', 'transferBridge', 'extensionUpdatePending', 'extensionStopUncertain', 'extensionSaveUncertain', 'extensionRestartUncertain', 'extensionRestoreUncertain', 'extensionVerifyUncertain', 'runtimeChanged', 'runtimeUncertain', 'runtimeNoEnabled', 'runtimeFlagsOnly', 'runtimeFlagsChanged'].includes(key) ? key : 'failed'};
       }
     });
   });
@@ -409,7 +476,7 @@ async function open(): Promise<void> {
         if (value !== 'system') await wait(() => matchMedia('(prefers-color-scheme: ' + value + ')').matches);
       }
       if (typeof require !== 'undefined' || typeof process !== 'undefined') throw new Error('Node exposed');
-      if (Object.keys(bridge).sort().join(',') !== 'credential,designer,diagnostics,language,network,project,recording,selectSystem,snapshot,theme') throw new Error('Unexpected bridge');
+      if (Object.keys(bridge).sort().join(',') !== 'credential,designer,diagnostics,help,language,network,project,recording,selectSystem,snapshot,theme') throw new Error('Unexpected bridge');
       const first = await bridge.snapshot();
       const before = JSON.stringify(first.configuration);
       await bridge.recording('start');
@@ -450,6 +517,7 @@ async function open(): Promise<void> {
       return {systems: 2, languages: ['en','de'], preserved: true, isolated: true, debug: true};
     })()`);
     console.log('DESKTOP_SMOKE_OK ' + JSON.stringify(result));
+    await smokeHelp(view, () => manual);
     await smokeProjects(view);
     await smokeNetwork(view, Number(process.env['Z2MA_SMOKE_MQTT_PORT']));
     await smokeDrafts(view, join(app.getPath('userData'), 'synthetic-automations.yaml'), smokeCaptures);

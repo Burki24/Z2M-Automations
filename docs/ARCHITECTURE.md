@@ -1,5 +1,14 @@
 # Architecture
 
+**English | [Deutsch](ARCHITECTURE_DE.md)**
+
+Offline help is staged with the renderer, including both handbooks and their
+language-specific images. A fixed help IPC accepts only a language and a known
+chapter; it cannot accept URLs, file paths or control commands. The separate
+sandboxed viewer has no preload or application bridge, blocks external
+navigation, and uses the desktop palette. Help/F1 preserves the editor; hover
+and keyboard tooltips add explanations while stop warnings remain visible.
+
 Status: D1/D2 implementation and Windows/Ubuntu CI are complete. D3 read-only
 MQTT, D4 local editing and D5 installation and storage passed platform CI.
 D6 adds main-process runtime control while execution stays in the extension.
