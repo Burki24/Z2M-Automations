@@ -8,8 +8,9 @@ This notice covers the Z2M-Automations desktop application for Windows and
 Linux. Burkhard Kneiseler is responsible for the data processing described here
 that is carried out by the publisher.
 
-Postal address: [Add the postal address for publication]  
-Privacy email: [Add the email address for publication]
+Postal address: Am Espenpfuhl 55a, 12355 Berlin, Germany
+
+Privacy email: [datenschutz@kneiseler.de](mailto:datenschutz@kneiseler.de)
 
 ## Data processed by the application
 
