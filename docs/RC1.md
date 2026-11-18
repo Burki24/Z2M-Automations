@@ -129,6 +129,16 @@ These packages are build tools; the production-only audit reported no findings.
   when the affected upstream consumers adopt corrected versions, then repeat
   clean installation, audit and actual packaging on both platforms.
 
+CI run [44150360859](https://github.com/Burki24/Z2M-Automations/actions/runs/44150360859)
+stopped at the dependency audit on both platforms. The high-severity
+[picomatch advisory](https://github.com/advisories/GHSA-fc5q-39xc-vjpf) accounts
+for 17 findings through the build dependency tree. No fixed release was
+available. For Electron Rebuild 4.2.1, pin its node-gyp to 11.1.0, before it
+adopted tinyglobby and picomatch. Both node-gyp and its header cache (cacache
+19.0.1) use the existing audited glob 14.0.6. The packaging test checks Electron
+Rebuild's node-gyp entry point, solution discovery and cache verification.
+Remove these overrides when Electron Rebuild resolves an audited dependency tree.
+
 ## Local verification on 2026-11-16
 
 - A clean pinned installation, reviewed tool setup and both full and

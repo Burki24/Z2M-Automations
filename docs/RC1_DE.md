@@ -158,6 +158,17 @@ Befunde.
   Versionen übernehmen; dann saubere Installation, Audit und tatsächlichen
   Paketbau auf beiden Plattformen wiederholen.
 
+CI-Lauf [44150360859](https://github.com/Burki24/Z2M-Automations/actions/runs/44150360859)
+brach auf beiden Plattformen beim Abhängigkeits-Audit ab. Der als hoch bewertete
+[picomatch-Befund](https://github.com/advisories/GHSA-fc5q-39xc-vjpf) führte zu
+17 Meldungen im Build-Abhängigkeitsbaum. Eine korrigierte Version war nicht
+verfügbar. Für Electron Rebuild 4.2.1 wird node-gyp auf 11.1.0 festgelegt, bevor
+es tinyglobby und picomatch eingebunden hat. Node-gyp und sein Header-Cache
+(cacache 19.0.1) verwenden das bereits geprüfte glob 14.0.6. Der Pakettest prüft
+den Aufruf von node-gyp aus Electron Rebuild, die Suche nach Projektmappen und
+die Cache-Prüfung. Diese Überschreibungen entfallen, sobald Electron Rebuild
+einen Build-Abhängigkeitsbaum ohne Audit-Befunde auflöst.
+
 <a id="local-verification-on-2026-11-16"></a>
 
 ## Lokale Prüfung am 2026-11-16

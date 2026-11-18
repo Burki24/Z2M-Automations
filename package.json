@@ -12,6 +12,15 @@
     "node": ">=24.20.0 <25"
   },
   "overrides": {
+    "@electron/rebuild@4.2.1": {
+      "node-gyp": {
+        ".": "11.1.0",
+        "glob": "14.0.6"
+      }
+    },
+    "cacache@19.0.1": {
+      "glob": "14.0.6"
+    },
     "minimatch@>=7.0.0 <11.0.1": "11.0.8"
   },
   "scripts": {
