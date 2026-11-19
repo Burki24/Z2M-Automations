@@ -2,6 +2,8 @@
 
 **English | [Deutsch](README_DE.md)**
 
+[![PayPal.Me](https://img.shields.io/badge/PayPal-Me-lightblue.svg)](#donations)
+
 ![Z2M-Automations for Windows and Ubuntu: visual automation designer, connected Zigbee2MQTT networks, projects and drafts, and execution in Zigbee2MQTT](docs/images/readme-hero-en.png)
 
 **Your Zigbee. Your automations.**
@@ -75,3 +77,9 @@ The app also includes the complete manual offline, accessible through **Help · 
 
 Z2M-Automations is available under the
 [PolyForm Noncommercial 1.0.0 license](LICENSE) for noncommercial use.
+
+## Donations
+
+You can support the development of this project with a voluntary donation.
+
+[![PayPal.Me](https://img.shields.io/badge/PayPal-Me-lightblue.svg)](https://www.paypal.me/BurkhardKneiseler)
