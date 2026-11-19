@@ -1,0 +1,56 @@
+name: z2m-automations
+title: Z2M-Automations
+version: '@DEB_VERSION@'
+summary: Visual automation designer for Zigbee2MQTT
+description: |
+  Design, check and transfer automations to your Zigbee2MQTT systems.
+  Projects and drafts are saved locally and the app includes offline help
+  in English and German.
+license: PolyForm-Noncommercial-1.0.0
+base: core24
+grade: devel
+confinement: strict
+platforms:
+  amd64:
+
+plugs:
+  chromium-sandbox:
+    interface: browser-support
+    allow-sandbox: true
+  password-manager-service:
+    interface: password-manager-service
+
+apps:
+  z2m-automations:
+    extensions: [gnome]
+    command: usr/lib/z2m-automations/Z2M-Automations --disable-setuid-sandbox
+    desktop: usr/share/applications/z2m-automations.desktop
+    environment:
+      XDG_CONFIG_HOME: $SNAP_USER_DATA/.config
+    plugs:
+      - chromium-sandbox
+      - home
+      - network
+      - password-manager-service
+
+parts:
+  desktop:
+    plugin: dump
+    source: app.deb
+    source-type: deb
+    override-build: |
+      craftctl default
+      sed -i -e 's/^Name=.*/Name=Z2M-Automations (Snap)/' \
+        -e 's|^Icon=.*|Icon=${SNAP}/usr/share/pixmaps/z2m-automations.png|' \
+        "$CRAFT_PART_INSTALL/usr/share/applications/z2m-automations.desktop"
+    stage-packages:
+      - libasound2t64
+      - libatomic1
+      - libnotify4
+      - libnspr4
+      - libnss3
+      - libxss1
+      - xdg-utils
+    prime:
+      - -usr/bin/z2m-automations
+      - -usr/lib/z2m-automations/chrome-sandbox

@@ -487,6 +487,38 @@ closure with original licenses. `smoke:packaged` verifies that closure inside
 ASAR, then repeats the actual read-only UI/MQTT smoke against the packaged
 executable. It must follow `package` or `make`. See [D3](D3.md).
 
+## Local Ubuntu Snap prototype
+
+On Ubuntu 24.04 amd64 with Snapcraft installed, build the local Snap from a
+verified release DEB. The Snap reuses the packaged application and gets its
+version from that DEB. Use an isolated build environment if passing
+`--destructive-mode`, which installs build dependencies on the host.
+
+```sh
+bash scripts/build-snap-prototype.sh path/to/z2m-automations_0.135.0_amd64.deb artifacts/snap-prototype
+sudo snap install --dangerous artifacts/snap-prototype/z2m-automations_0.135.0_amd64.snap
+sudo snap connect z2m-automations:chromium-sandbox
+snap run z2m-automations
+```
+
+The prototype uses strict confinement and requires manual connection of the
+Chromium sandbox interface. For protected MQTT credentials, connect
+`z2m-automations:password-manager-service` explicitly in the test VM. This
+grants access to the desktop password manager. Without that interface, the
+application must refuse protected storage if the keyring is unavailable.
+
+Open the existing `.z2map` project and any standalone `.z2mad` drafts from a
+non-hidden folder in the home directory. The Snap uses a separate profile under
+`~/snap/z2m-automations/current/.config/Z2M-Automations`. To test a transfer of
+credentials under the same Ubuntu account, close both editions and copy only
+the encrypted `credentials` directory from the DEB profile into an empty Snap
+profile that has no credential store. Keep the DEB profile and GNOME keyring
+intact. Test with a synthetic broker and require a successful authenticated
+connection after restarting the Snap.
+
+Snapcraft may download build and runtime dependencies. The prototype is built
+and installed locally with a development grade.
+
 ## Shared source ownership
 
 The shared adapter provides “Update from Z2M” in step 6 and portable file controls
