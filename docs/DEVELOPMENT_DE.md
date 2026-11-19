@@ -591,6 +591,27 @@ Snaps die erfolgreiche Anmeldung an einem synthetischen Testbroker.
 Snapcraft kann Build- und Laufzeitabhängigkeiten herunterladen. Der Prototyp
 wird lokal mit der Einstufung als Entwicklungsbuild gebaut und installiert.
 
+Wenn beim LXD-Bau per SSH in der Test-VM Hilfsprozesse während der Einrichtung
+angehalten werden, starte den Bau ohne Terminalbindung und schreibe die Ausgabe
+in eine Logdatei. Führe den Befehl im Repository-Stammverzeichnis der VM aus.
+
+```sh
+mkdir -p artifacts/snap-prototype
+sudo -v
+sudo -n setsid --wait env PATH=/snap/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  bash scripts/build-snap-prototype.sh path/to/z2m-automations_0.135.0_amd64.deb \
+  artifacts/snap-prototype --use-lxd --verbosity=verbose \
+  </dev/null >artifacts/snap-prototype/snapcraft-lxd.log 2>&1
+```
+
+Snapcraft kann bei „Creating new base instance“ stehen bleiben, während `dpkg`
+Updates installiert. Prüfe den Fortschritt in `/var/log/dpkg.log` im
+Build-Container, bevor du den Bau neu startest.
+
+Schließe den LXD-Bau ab, bevor du in derselben VM parallele Snap-Instanzen
+für einen Update-Test aktivierst. Falls LXD den Container wegen `shmounts:
+file exists` nicht starten kann, prüfe den [bekannten Fehler im Mount-Namensraum](https://github.com/canonical/lxd/issues/12168).
+
 ## Gemeinsame Quellzuständigkeit
 
 Der gemeinsame Adapter bietet „Aus Z2M aktualisieren“ in Schritt 6 und portable

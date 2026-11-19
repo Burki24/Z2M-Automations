@@ -523,6 +523,27 @@ connection after restarting the Snap.
 Snapcraft may download build and runtime dependencies. The prototype is built
 and installed locally with a development grade.
 
+When running the LXD build over SSH in the test VM, detach it from the terminal
+and log its output if LXD helper processes are suspended during provisioning.
+Run these commands from the repository root in the VM.
+
+```sh
+mkdir -p artifacts/snap-prototype
+sudo -v
+sudo -n setsid --wait env PATH=/snap/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  bash scripts/build-snap-prototype.sh path/to/z2m-automations_0.135.0_amd64.deb \
+  artifacts/snap-prototype --use-lxd --verbosity=verbose \
+  </dev/null >artifacts/snap-prototype/snapcraft-lxd.log 2>&1
+```
+
+Snapcraft may remain on “Creating new base instance” while `dpkg` installs
+updates. Inspect `/var/log/dpkg.log` inside the build container for progress
+before restarting the build.
+
+Complete the LXD build before enabling parallel Snap instances for an update
+test in the same VM. If LXD fails to start a container with `shmounts: file
+exists`, check for the [known mount namespace issue](https://github.com/canonical/lxd/issues/12168).
+
 ## Shared source ownership
 
 The shared adapter provides “Update from Z2M” in step 6 and portable file controls
