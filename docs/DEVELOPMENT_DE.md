@@ -457,6 +457,11 @@ automatische Entwurfsprüfmodi, einzige Prüfaktion, ausdrückliche
 Designs geprüft. Es erzeugt keine Bilder. Backend-Integrationstests verwenden
 die echte festgelegte Erweiterung für Zustimmung, Sicherung und Stoppreihenfolge,
 reine Schalter-/unveränderte Entwürfe und verlorene Antworten ohne Wiederholung.
+Electron-Start und erstes Laden des Arbeitsbereichs haben jeweils 20 Sekunden
+Zeit, damit auch ein frisch gestarteter Renderer laden kann. Für die folgenden
+Phasen gelten jeweils 8 Sekunden und für den Prozess insgesamt 60 Sekunden.
+Scheitert eine Navigation, meldet der Test das letzte Ladeereignis. Bei einem
+Renderer-Abbruch meldet er den Grund und den Exitcode.
 Das DOM-Testgerüst prüft auch ausführliche Fähigkeitsbefunde in DE/EN,
 wörtliche Beschriftungsdarstellung, genaue Korrekturziele und begrenzte
 Editorzusammenfassungen. Entwurfs-Smoke öffnet einen Befund zum zweiten Wert

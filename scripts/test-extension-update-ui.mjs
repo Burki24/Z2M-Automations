@@ -4,23 +4,27 @@ import {mkdtemp, readFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve, dirname, basename, extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {watchSmokeProcess} from './smoke-deadline.mjs';
 
 // DOM and layout assertions only. No desktop/window/image capture.
 const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL('../', import.meta.url));
+const startupTimeoutMs = 20000;
+const phaseTimeoutMs = 8000;
+const suiteTimeoutMs = 60000;
 if (!process.versions.electron) {
   const profile = await mkdtemp(join(tmpdir(), 'z2ma-update-ui-'));
   try {
     const env = {...process.env, Z2MA_UPDATE_TEST_PROFILE: profile}; delete env.ELECTRON_RUN_AS_NODE;
     const child = spawn(require('electron'), [fileURLToPath(import.meta.url)], {cwd: root, env, windowsHide: true, stdio: 'inherit'});
     const started = Date.now(); let expired = false;
-    const timer = setTimeout(() => { expired = true; child.kill(); }, 30000);
+    const stopWatchdog = watchSmokeProcess(child, suiteTimeoutMs, () => { expired = true; });
     try {
       const {code, signal} = await new Promise((done, reject) => {
         child.once('error', reject); child.once('close', (code, signal) => done({code, signal}));
       });
       if (expired || code !== 0) throw new Error('Extension update DOM test failed: ' + JSON.stringify({timeout: expired, elapsedMs: Date.now() - started, code, signal}));
-    } finally { clearTimeout(timer); }
+    } finally { stopWatchdog(); }
   } finally {
     const target = resolve(profile);
     if (dirname(target) !== resolve(tmpdir()) || !basename(target).startsWith('z2ma-update-ui-')) throw new Error('Unexpected test profile');
@@ -34,16 +38,16 @@ if (!process.versions.electron) {
   if (process.platform === 'linux' && process.env.CI === 'true') app.disableHardwareAcceleration();
   const run = async () => {
     const started = Date.now();
-    const step = async (phase, action) => {
+    const step = async (phase, action, timeoutMs = phaseTimeoutMs) => {
       console.log('EXTENSION_UPDATE_DOM_STEP ' + JSON.stringify({phase, elapsedMs: Date.now() - started}));
       let timer;
       try {
         return await Promise.race([Promise.resolve().then(action), new Promise((_, reject) => {
-          timer = setTimeout(() => reject(new Error('Extension update DOM phase timed out: ' + phase)), 8000);
+          timer = setTimeout(() => reject(new Error(`Extension update DOM phase timed out: ${phase} after ${timeoutMs}ms`)), timeoutMs);
         })]);
       } finally { clearTimeout(timer); }
     };
-    await step('app-ready', () => app.whenReady());
+    await step('app-ready', () => app.whenReady(), startupTimeoutMs);
     const assets = join(root, 'apps/desktop/.build/renderer');
     const names = new Set(['network.js', 'operation-flags.js', 'operation-readiness.js', 'draft-review.js', 'validation-feedback.js', 'drafts.js', 'desktop-workspace.js', 'guided-workspace.js', 'symcon-workspace.js', 'draft-sync.js', 'draft-files.js', 'draft-merge.js', 'guided-workspace.css', 'layout.js', 'confirmation.js', 'runtime.js', 'workspace.js', 'identity.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
     protocol.handle('z2ma', async request => {
@@ -55,7 +59,28 @@ if (!process.versions.electron) {
     });
     const window = new BrowserWindow({show: false, width: 1000, height: 800, webPreferences: {...rendererPreferences, backgroundThrottling: false}});
     const evaluate = (phase, source) => step(phase, () => window.webContents.executeJavaScript(source));
-    const load = (page, url) => step('load-' + page, () => window.loadURL(url));
+    const load = async (page, url, timeoutMs) => {
+      const view = window.webContents;
+      let lastEvent = 'none';
+      const onLoading = () => { lastEvent = 'did-start-loading'; };
+      const onDomReady = () => { lastEvent = 'dom-ready'; };
+      const rendererExit = Promise.withResolvers();
+      const onRendererGone = (_event, {reason, exitCode}) => {
+        rendererExit.reject(new Error(`Renderer exited during load-${page}: ${reason} (${exitCode})`));
+      };
+      view.on('did-start-loading', onLoading);
+      view.on('dom-ready', onDomReady);
+      view.once('render-process-gone', onRendererGone);
+      try {
+        await step('load-' + page, () => Promise.race([window.loadURL(url), rendererExit.promise]), timeoutMs);
+      } catch (error) {
+        throw new Error(`${error.message} (last navigation event: ${lastEvent})`, {cause: error});
+      } finally {
+        view.off('did-start-loading', onLoading);
+        view.off('dom-ready', onDomReady);
+        view.off('render-process-gone', onRendererGone);
+      }
+    };
     const resize = async (width, height) => {
       window.setContentSize(width, height);
       const deadline = Date.now() + 3000; let viewport;
@@ -70,7 +95,8 @@ if (!process.versions.electron) {
       await resize(width, height);
       return window.webContents.executeJavaScript(source);
     });
-    await load('workspace', 'z2ma://app/workspace.html');
+    // The first navigation includes the cold startup of Chromium's renderer.
+    await load('workspace', 'z2ma://app/workspace.html', startupTimeoutMs);
     await evaluate('prepare-workspace', '(' + prepareWorkspaceLayout + ')()');
     await step('input-setup', async () => {
       window.webContents.debugger.attach('1.3');

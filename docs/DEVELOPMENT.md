@@ -402,6 +402,10 @@ explicit-transfer controls and DE/EN feedback.
 Confirmation layout is checked in both themes. It captures no images. Backend
 integration tests use the real pinned extension to verify consent, backup and
 stop ordering, switch-only/unchanged drafts and lost replies without replay.
+Electron startup and the first workspace navigation each have a 20-second
+deadline to allow for a cold renderer. Subsequent phases have 8 seconds each
+and the process is bounded by a 60-second watchdog. A failed navigation reports
+its last lifecycle event, and a renderer exit reports its reason and exit code.
 The DOM fixture also checks detailed capability findings in DE/EN, literal label
 rendering, exact correction targets and bounded editor summaries. Draft smoke
 opens a finding for the second value of a multi-property action and verifies
