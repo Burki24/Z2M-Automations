@@ -10,6 +10,7 @@ import {installDesktopWorkspace} from './desktop-workspace.js';
 import {installHelp} from './help.js';
 
 const bridge = window.z2maDesktop;
+const workspacePath = new URL('.', import.meta.url).pathname;
 let editorState = Promise.resolve();
 document.addEventListener('z2ma-editor-pending', event => {
     const pending = event.detail === true;
@@ -23,7 +24,7 @@ document.addEventListener('z2ma-editor-pending', event => {
 installTransport({kind: 'desktop', request: async (input, init = {}) => {
     const url = new URL(input, location.href);
     if (url.origin !== location.origin) throw new Error('Unsupported desktop request.');
-    const route = url.pathname;
+    const route = url.pathname.startsWith(workspacePath) ? '/' + url.pathname.slice(workspacePath.length) : url.pathname;
     const method = init.method ?? 'GET';
     let value;
     if (route === '/data' && method === 'GET') value = await bridge.snapshot();
@@ -130,7 +131,11 @@ try {
     installHelp(bridge);
     const view = await bridge.snapshot();
     const caption = document.querySelector('.brand-copy strong') ?? document.querySelector('.brand strong');
-    if (caption) bindText(caption, () => 'Z2M-Automations ' + t(view.desktop.platform === 'win32' ? 'desktop.windows' : 'desktop.linux') + ' · ' + view.desktop.version);
+    if (caption) bindText(caption, () => {
+        const platform = view.desktop.platform === 'home-assistant' ? '· Home Assistant'
+            : t(view.desktop.platform === 'win32' ? 'desktop.windows' : 'desktop.linux');
+        return 'Z2M-Automations ' + platform + ' · ' + view.desktop.version;
+    });
 } catch {
     document.body.replaceChildren();
     const error = document.createElement('p'); bindText(error, () => t('desktop.failed')); document.body.append(error);

@@ -72,3 +72,16 @@ read-only HTTP route returned the revision, checksum, rules and device catalog
 from the existing MQTT reader. The synthetic peer recorded three non-retained
 read requests. Running the designer with a Home Assistant adapter and verifying
 real Ingress authentication in Home Assistant OS are open acceptance checks.
+
+## Shared workspace implementation
+
+The desktop main process and the Home Assistant adapter use the same workspace
+dispatcher, project service and MQTT services. Electron supplies native dialogs
+and OS-protected credentials. Home Assistant supplies browser dialogs over
+Ingress and private app storage for files and credentials.
+
+`npm run pack:workspace` builds the versioned workspace archive alongside the
+existing designer package. The workspace manifest binds the compiled services,
+desktop renderer, handbook and verified extension to the matching designer
+asset identity. It records the source revision and whether the build used
+local changes. Home Assistant pins both archives and their checksums.

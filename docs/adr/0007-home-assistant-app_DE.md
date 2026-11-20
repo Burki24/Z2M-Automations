@@ -79,3 +79,16 @@ Prüfsumme, Regeln und Gerätekatalog über den vorhandenen MQTT-Lesedienst. Die
 synthetische Gegenstelle zeichnete drei nicht-retainierte Leseanfragen auf.
 Der Betrieb des Designers mit einem Home-Assistant-Adapter und die Prüfung der
 Ingress-Anmeldung in Home Assistant OS stehen für die Abnahme noch aus.
+
+## Gemeinsamer Arbeitsbereich
+
+Der Desktop-Hauptprozess und der Home-Assistant-Adapter verwenden dieselbe
+Anwendungslogik, Projektverwaltung und MQTT-Anbindung. Electron stellt native
+Dialoge und den Zugangsschutz des Betriebssystems bereit. Home Assistant nutzt
+Browserdialoge über Ingress und privaten App-Speicher für Dateien und Zugangsdaten.
+
+`npm run pack:workspace` baut das versionierte Archiv des Arbeitsbereichs
+zusätzlich zum vorhandenen Designer-Paket. Das Manifest bindet die kompilierten
+Dienste, die Desktop-Oberfläche, das Handbuch und die geprüfte Erweiterung an
+die passenden Designer-Dateien. Es erfasst den Quellcommit und lokale Änderungen
+am Build. Home Assistant bindet beide Archive mit ihren Prüfsummen ein.

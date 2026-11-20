@@ -41,6 +41,7 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:packaged": "node scripts/smoke-packaged.mjs",
     "pack:designer": "npm run build:designer && node scripts/pack-designer.mjs",
+    "pack:workspace": "npm run build && node scripts/pack-workspace.mjs",
     "prepare:rc": "node scripts/prepare-candidate.mjs",
     "setup:tools": "node scripts/setup-tools.mjs"
   },

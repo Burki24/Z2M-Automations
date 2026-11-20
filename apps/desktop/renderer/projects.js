@@ -1,4 +1,5 @@
 import {t, bindText, onLanguageChange, language, sortByName} from './localization.js';
+import {createUUID} from './identity.js';
 
 // File paths and credential reads are intentionally absent from the renderer bridge.
 export async function installProjects(bridge, workspace) {
@@ -217,7 +218,7 @@ export async function installProjects(bridge, workspace) {
     paintSecretState();
   });
   button(brokerForm, 'applyBroker', () => {
-    if (brokerForm.reportValidity()) void run({action: 'broker', broker: {id: brokerChoice.value || crypto.randomUUID(), name: brokerName.value, host: host.value, port: Number(port.value), tls: tls.checked}}, brokerForm);
+    if (brokerForm.reportValidity()) void run({action: 'broker', broker: {id: brokerChoice.value || createUUID(), name: brokerName.value, host: host.value, port: Number(port.value), tls: tls.checked}}, brokerForm);
   });
   const systemForm = form('system', systemGroup); const systemChoice = select(systemForm, 'systemChoice');
   const systemName = input(systemForm, 'systemName'); const systemBroker = select(systemForm, 'systemBroker'); systemBroker.required = true;
@@ -231,7 +232,7 @@ export async function installProjects(bridge, workspace) {
     systemOverview.markSelection();
   });
   button(systemForm, 'applySystem', () => {
-    if (systemForm.reportValidity()) void run({action: 'system', system: {id: systemChoice.value || crypto.randomUUID(), name: systemName.value, brokerId: systemBroker.value, baseTopic: topic.value}}, systemForm);
+    if (systemForm.reportValidity()) void run({action: 'system', system: {id: systemChoice.value || createUUID(), name: systemName.value, brokerId: systemBroker.value, baseTopic: topic.value}}, systemForm);
   });
   const credentialForm = form('credentials', brokerGroup); brokerForm.after(credentialForm);
   const mode = select(credentialForm, 'credentialMode');
