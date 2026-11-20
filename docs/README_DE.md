@@ -75,3 +75,4 @@ Für heutiges Verhalten aktuelles Handbuch und Projektkontext verwenden.
 | ADR 0004 | [Gemeinsame Entwurfsprüfung und geführte Übertragung](adr/0004-guided-draft-transfer_DE.md) |
 | ADR 0005 | [Gemeinsamer Desktop-/Symcon-Arbeitsbereich](adr/0005-shared-guided-workspace_DE.md) |
 | ADR 0006 | [Verbindungsabgleich und portable Projekt-/Entwurfsdateien](adr/0006-draft-reconciliation-and-portable-files_DE.md) |
+| ADR 0007 | [Vorgeschlagene App für Home Assistant OS](adr/0007-home-assistant-app_DE.md) |

@@ -64,3 +64,4 @@ stage. Use the current manual and project context for present-day behavior.
 | ADR 0004 | [Common draft check and guided transfer](adr/0004-guided-draft-transfer.md) |
 | ADR 0005 | [Shared desktop/Symcon workspace](adr/0005-shared-guided-workspace.md) |
 | ADR 0006 | [Connected reconciliation and portable project/draft files](adr/0006-draft-reconciliation-and-portable-files.md) |
+| ADR 0007 | [Proposed Home Assistant OS app](adr/0007-home-assistant-app.md) |
