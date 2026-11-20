@@ -402,6 +402,10 @@ explicit-transfer controls and DE/EN feedback.
 Confirmation layout is checked in both themes. It captures no images. Backend
 integration tests use the real pinned extension to verify consent, backup and
 stop ordering, switch-only/unchanged drafts and lost replies without replay.
+Electron startup and the first workspace navigation each have a 20-second
+deadline to allow for a cold renderer. Subsequent phases have 8 seconds each
+and the process is bounded by a 60-second watchdog. A failed navigation reports
+its last lifecycle event, and a renderer exit reports its reason and exit code.
 The DOM fixture also checks detailed capability findings in DE/EN, literal label
 rendering, exact correction targets and bounded editor summaries. Draft smoke
 opens a finding for the second value of a multi-property action and verifies
@@ -486,6 +490,59 @@ test tooling. Packaging stages the lockfile-selected production dependency
 closure with original licenses. `smoke:packaged` verifies that closure inside
 ASAR, then repeats the actual read-only UI/MQTT smoke against the packaged
 executable. It must follow `package` or `make`. See [D3](D3.md).
+
+## Local Ubuntu Snap prototype
+
+On Ubuntu 24.04 amd64 with Snapcraft installed, build the local Snap from a
+verified release DEB. The Snap reuses the packaged application and gets its
+version from that DEB. Use an isolated build environment if passing
+`--destructive-mode`, which installs build dependencies on the host.
+
+```sh
+bash scripts/build-snap-prototype.sh path/to/z2m-automations_0.135.0_amd64.deb artifacts/snap-prototype
+sudo snap install --dangerous artifacts/snap-prototype/z2m-automations_0.135.0_amd64.snap
+sudo snap connect z2m-automations:chromium-sandbox
+snap run z2m-automations
+```
+
+The prototype uses strict confinement and requires manual connection of the
+Chromium sandbox interface. For protected MQTT credentials, connect
+`z2m-automations:password-manager-service` explicitly in the test VM. This
+grants access to the desktop password manager. Without that interface, the
+application must refuse protected storage if the keyring is unavailable.
+
+Open the existing `.z2map` project and any standalone `.z2mad` drafts from a
+non-hidden folder in the home directory. The Snap uses a separate profile under
+`~/snap/z2m-automations/current/.config/Z2M-Automations`. To test a transfer of
+credentials under the same Ubuntu account, close both editions and copy only
+the encrypted `credentials` directory from the DEB profile into an empty Snap
+profile that has no credential store. Keep the DEB profile and GNOME keyring
+intact. Test with a synthetic broker and require a successful authenticated
+connection after restarting the Snap.
+
+Snapcraft may download build and runtime dependencies. The prototype is built
+and installed locally with a development grade.
+
+When running the LXD build over SSH in the test VM, detach it from the terminal
+and log its output if LXD helper processes are suspended during provisioning.
+Run these commands from the repository root in the VM.
+
+```sh
+mkdir -p artifacts/snap-prototype
+sudo -v
+sudo -n setsid --wait env PATH=/snap/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  bash scripts/build-snap-prototype.sh path/to/z2m-automations_0.135.0_amd64.deb \
+  artifacts/snap-prototype --use-lxd --verbosity=verbose \
+  </dev/null >artifacts/snap-prototype/snapcraft-lxd.log 2>&1
+```
+
+Snapcraft may remain on “Creating new base instance” while `dpkg` installs
+updates. Inspect `/var/log/dpkg.log` inside the build container for progress
+before restarting the build.
+
+Complete the LXD build before enabling parallel Snap instances for an update
+test in the same VM. If LXD fails to start a container with `shmounts: file
+exists`, check for the [known mount namespace issue](https://github.com/canonical/lxd/issues/12168).
 
 ## Shared source ownership
 

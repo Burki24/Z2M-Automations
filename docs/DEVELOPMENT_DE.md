@@ -457,6 +457,11 @@ automatische Entwurfsprüfmodi, einzige Prüfaktion, ausdrückliche
 Designs geprüft. Es erzeugt keine Bilder. Backend-Integrationstests verwenden
 die echte festgelegte Erweiterung für Zustimmung, Sicherung und Stoppreihenfolge,
 reine Schalter-/unveränderte Entwürfe und verlorene Antworten ohne Wiederholung.
+Electron-Start und erstes Laden des Arbeitsbereichs haben jeweils 20 Sekunden
+Zeit, damit auch ein frisch gestarteter Renderer laden kann. Für die folgenden
+Phasen gelten jeweils 8 Sekunden und für den Prozess insgesamt 60 Sekunden.
+Scheitert eine Navigation, meldet der Test das letzte Ladeereignis. Bei einem
+Renderer-Abbruch meldet er den Grund und den Exitcode.
 Das DOM-Testgerüst prüft auch ausführliche Fähigkeitsbefunde in DE/EN,
 wörtliche Beschriftungsdarstellung, genaue Korrekturziele und begrenzte
 Editorzusammenfassungen. Entwurfs-Smoke öffnet einen Befund zum zweiten Wert
@@ -551,6 +556,61 @@ Oberflächen-/MQTT-Smoke gegen die gepackte EXE. Es muss auf `package` oder
 `make` folgen. Siehe [D3](D3_DE.md).
 
 <a id="shared-source-ownership"></a>
+
+## Lokaler Snap-Prototyp für Ubuntu
+
+Unter Ubuntu 24.04 amd64 mit installiertem Snapcraft lässt sich der lokale Snap
+aus einem geprüften Release-DEB bauen. Der Snap übernimmt die paketierte App
+und deren Versionsnummer aus dem DEB. `--destructive-mode` installiert
+Build-Abhängigkeiten auf dem Host und gehört daher in eine isolierte
+Build-Umgebung.
+
+```sh
+bash scripts/build-snap-prototype.sh path/to/z2m-automations_0.135.0_amd64.deb artifacts/snap-prototype
+sudo snap install --dangerous artifacts/snap-prototype/z2m-automations_0.135.0_amd64.snap
+sudo snap connect z2m-automations:chromium-sandbox
+snap run z2m-automations
+```
+
+Der Prototyp verwendet strikte Sandbox-Regeln und benötigt eine manuelle
+Verbindung zur Chromium-Sandbox-Schnittstelle. Verbinde für geschützte
+MQTT-Zugangsdaten in der Test-VM ausdrücklich
+`z2m-automations:password-manager-service`. Das gewährt Zugriff auf den
+Passwortmanager des Desktops. Ist der Schlüsselbund ohne diese Schnittstelle
+nicht erreichbar, muss die App das geschützte Speichern ablehnen.
+
+Öffne die vorhandene `.z2map`-Projektdatei und getrennte `.z2mad`-Entwürfe aus
+einem sichtbaren Ordner im Home-Verzeichnis. Der Snap nutzt ein eigenes Profil
+unter `~/snap/z2m-automations/current/.config/Z2M-Automations`. Um die
+Übernahme der Zugangsdaten im selben Ubuntu-Konto zu prüfen, schließe beide
+Varianten und kopiere nur den verschlüsselten Ordner `credentials` aus dem
+DEB-Profil in ein Snap-Profil ohne vorhandenen Zugangsspeicher. Das DEB-Profil
+und der GNOME-Schlüsselbund bleiben dabei erhalten. Prüfe nach dem Neustart des
+Snaps die erfolgreiche Anmeldung an einem synthetischen Testbroker.
+
+Snapcraft kann Build- und Laufzeitabhängigkeiten herunterladen. Der Prototyp
+wird lokal mit der Einstufung als Entwicklungsbuild gebaut und installiert.
+
+Wenn beim LXD-Bau per SSH in der Test-VM Hilfsprozesse während der Einrichtung
+angehalten werden, starte den Bau ohne Terminalbindung und schreibe die Ausgabe
+in eine Logdatei. Führe den Befehl im Repository-Stammverzeichnis der VM aus.
+
+```sh
+mkdir -p artifacts/snap-prototype
+sudo -v
+sudo -n setsid --wait env PATH=/snap/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  bash scripts/build-snap-prototype.sh path/to/z2m-automations_0.135.0_amd64.deb \
+  artifacts/snap-prototype --use-lxd --verbosity=verbose \
+  </dev/null >artifacts/snap-prototype/snapcraft-lxd.log 2>&1
+```
+
+Snapcraft kann bei „Creating new base instance“ stehen bleiben, während `dpkg`
+Updates installiert. Prüfe den Fortschritt in `/var/log/dpkg.log` im
+Build-Container, bevor du den Bau neu startest.
+
+Schließe den LXD-Bau ab, bevor du in derselben VM parallele Snap-Instanzen
+für einen Update-Test aktivierst. Falls LXD den Container wegen `shmounts:
+file exists` nicht starten kann, prüfe den [bekannten Fehler im Mount-Namensraum](https://github.com/canonical/lxd/issues/12168).
 
 ## Gemeinsame Quellzuständigkeit
 
