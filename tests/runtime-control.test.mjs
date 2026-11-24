@@ -303,7 +303,12 @@ for (const recovery of [false, true]) test('opt-in transfer resumes the checked 
   assert.equal(s.extension.status().executing, true);
   assert.equal(s.extension.status().resume_enabled, recovery);
   assert.equal(s.extension.status().enabled_count, 1);
-  await s.reader.refresh(s.id);
+  const projected = s.reader.state().systems.find(system => system.id === s.id);
+  assert.equal(projected.fresh, true);
+  assert.equal(projected.executing, true);
+  assert.equal(projected.revision, s.extension.status().stored_revision);
+  assert.equal(projected.checksum, s.extension.status().checksum);
+  assert.deepEqual(projected.runtime.rules.filter(rule => rule.enabled).map(rule => rule.name), ['Edited synthetic rule']);
   assert.equal(s.reader.current(s.id).configuration.automations.find(rule => rule.id === 'new_rule').enabled, false);
   assert.equal(s.projects.data().systems[0].stored.configuration.automations.find(rule => rule.id === 'new_rule').enabled, false);
   assert.deepEqual(s.peer.publications.map(packet => packet.topic.split('/request/')[1]).filter(operation => ['activate', 'deactivate', 'store'].includes(operation)),
@@ -337,8 +342,11 @@ test('an opted-in transfer never resumes after failed validation or unconfirmed 
     assert.equal(s.extension.status().executing, false);
     assert.equal(s.count('activate'), 1, 'only the initial pre-transfer start was sent');
     if (phase === 'readback') {
+      assert.equal(s.reader.current(s.id).fresh, false);
       s.suppress(undefined);
       assert.equal(await s.transfer.command('checkTransfer', s.id), 'transferStored');
+      assert.equal(s.reader.current(s.id).fresh, true);
+      assert.equal(s.reader.current(s.id).status.revision, s.extension.status().stored_revision);
       assert.equal(s.count('activate'), 1, 'later reconciliation only reads the saved state');
     }
   }

@@ -256,6 +256,7 @@ export class MqttReader {
     const connection = system && this.connections.get(system.brokerId);
     if (!system || !connection?.ready) throw new Error('disconnected');
     const generation = connection.generation;
+    const epoch = this.epoch;
     const assertCurrent = () => {
       if (this.connections.get(system.brokerId) !== connection || connection.generation !== generation || !connection.ready) throw new Error('disconnected');
     };
@@ -275,6 +276,13 @@ export class MqttReader {
     };
     return {
       assertCurrent,
+      confirmReadback: (remote: RemoteRead): void => {
+        assertCurrent();
+        if (this.epoch !== epoch) throw new Error('stale');
+        connection.reads.delete(id);
+        this.errors.delete(id);
+        this.cacheRead(id, remote);
+      },
       status: async (): Promise<RemoteStatus> => statusData(await send('status')),
       runtimeStatus: async () => {
         const value = await send('status');
@@ -314,15 +322,7 @@ export class MqttReader {
           && this.project?.id === project.id && this.epoch === epoch && connection.reads.get(id) === task;
         await this.observed(project.id, epoch, id, {revision: after.revision, checksum: after.checksum, configuration: remote.configuration, yaml: remote.yaml}, current);
         if (!current()) throw new Error('stale');
-        const execution = after.execution;
-        if (execution) {
-          const previousStatus = previous?.status;
-          delete after.execution;
-          if (previousStatus?.session === after.session && previousStatus.revision === after.revision && previousStatus.checksum === after.checksum
-            && previousStatus.execution) after.execution = previousStatus.execution;
-          this.updateExecution(id, after, execution);
-        }
-        this.remote.set(id, {...remote, fresh: true}); this.debug.record('mqttReadComplete', id);
+        this.cacheRead(id, remote);
       } catch (error) {
         const code = error instanceof Error && ['timeout', 'protocol', 'stale', 'disconnected', 'remoteError', 'catalogLimit'].includes(error.message) ? error.message : 'readError';
         if (connection.reads.get(id) === task && generation === connection.generation && this.connections.get(system.brokerId) === connection && this.epoch === epoch) this.errors.set(id, code);
@@ -330,6 +330,20 @@ export class MqttReader {
       } finally { if (connection.reads.get(id) === task) connection.reads.delete(id); this.sequence++; }
     });
     connection.reads.set(id, task); return task;
+  }
+  private cacheRead(id: string, remote: RemoteRead): void {
+    const {status} = remote;
+    if (status.execution) {
+      const execution = status.execution;
+      const previous = this.remote.get(id)?.status;
+      delete status.execution;
+      if (previous?.session === status.session && previous.revision === status.revision && previous.checksum === status.checksum
+        && previous.execution) status.execution = previous.execution;
+      this.updateExecution(id, status, execution);
+    }
+    this.remote.set(id, {...remote, fresh: true});
+    this.sequence++;
+    this.debug.record('mqttReadComplete', id);
   }
   private updateExecution(id: string, status: RemoteStatus, execution: Execution): void {
     if (status.execution && execution.sequence <= status.execution.sequence) return;
@@ -363,6 +377,7 @@ export class MqttReader {
       systems: (this.project?.systems ?? []).map(system => ({id: system.id, name: system.name, baseTopic: system.baseTopic, brokerId: system.brokerId, fresh: this.remote.get(system.id)?.fresh ?? false,
         reading: this.connections.get(system.brokerId)?.reads.has(system.id) ?? false, error: this.errors.get(system.id) ?? '', source: this.source(system.id),
         stored: this.remote.has(system.id) || Boolean(system.stored), revision: this.remote.get(system.id)?.status.revision ?? system.stored?.revision ?? null,
+        checksum: this.remote.has(system.id) ? this.remote.get(system.id)!.status.checksum : system.stored?.checksum ?? null,
         executing: this.remote.get(system.id)?.fresh ? this.remote.get(system.id)?.status.executing ?? false : null,
         runtime: (() => {
           const remote = this.remote.get(system.id);

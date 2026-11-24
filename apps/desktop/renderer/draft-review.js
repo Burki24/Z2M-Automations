@@ -2,7 +2,12 @@ import {t, bindText, formatNumber} from './localization.js';
 import {validationLocation, validationReason, validationCapability} from './validation-feedback.js';
 export {validationSummary} from './validation-feedback.js';
 
-const draftScope = view => JSON.stringify([view?.desktop.projectId, view?.desktop.epoch, view?.workspaceContext?.systemId, view?.module.baseTopic, view?.desktop.draftRevision]);
+const draftTarget = view => [view?.desktop.projectId, view?.desktop.epoch, view?.workspaceContext?.systemId, view?.module.baseTopic];
+const draftScope = view => JSON.stringify([...draftTarget(view), view?.desktop.draftRevision]);
+const isStored = key => key === 'stored' || key === 'flagsStored';
+const sameDraftContents = (a, b) => a?.desktop.source === 'draft' && b?.desktop.source === 'draft'
+  && JSON.stringify(draftTarget(a)) === JSON.stringify(draftTarget(b))
+  && JSON.stringify({...a.configuration, revision: 0}) === JSON.stringify({...b.configuration, revision: 0});
 
 export function installDraftReview(bridge, workspace, {current, perform, command, busy, button}) {
   const checkFromEditor = button(workspace.actions, 'desktop-check-draft', 'desktop.review.check', () => {
@@ -87,16 +92,18 @@ export function installDraftReview(bridge, workspace, {current, perform, command
     const fresh = connected && system?.fresh && !system.reading;
     const scope = draftScope(view);
     if (result?.scope !== scope && result) {
-      result = result.view.workspaceContext.systemId === view?.workspaceContext?.systemId
+      if (isStored(result.key) && sameDraftContents(result.view, view)) result = {...result, scope, view};
+      else result = result.view.workspaceContext.systemId === view?.workspaceContext?.systemId
         && result.view.desktop.epoch === view?.desktop.epoch ? {scope, view, key: 'changed'} : undefined;
     }
     if (!fresh && result?.key === 'ready') result = {...result, key: 'local'};
     if (fresh && ['ready', 'stored', 'flagsStored'].includes(result?.key) && result.remote
-      && (system.revision !== result.remote.revision || system.build !== result.remote.build)) result = {...result, key: 'changed', check: undefined};
+      && (system.revision !== result.remote.revision || system.checksum !== result.remote.checksum
+        || system.build !== result.remote.build)) result = {...result, key: 'changed', check: undefined};
     const checked = result?.key === 'ready';
     const ready = checked && fresh && !stored;
     const blocked = busy() || !system || stored;
-    const sent = result?.key === 'stored' || result?.key === 'flagsStored';
+    const sent = isStored(result?.key);
     const confirmedReceipt = sent && fresh && system.runtime && !system.transferPending && !system.updatePending;
     check.disabled = checkFromEditor.disabled = blocked;
     store.disabled = blocked || !ready;
@@ -158,7 +165,11 @@ export function installDraftReview(bridge, workspace, {current, perform, command
     transferValidateFirst: 'desktop.review.changed', protocol: 'desktop.review.protocol', failed: 'desktop.review.failed'
   };
   function set(view, flags, update) {
-    if (draftScope(current().view) !== draftScope(view)) return;
+    const latest = current().view;
+    if (draftScope(latest) !== draftScope(view)) {
+      if (!isStored(update.key) || !sameDraftContents(view, latest)) return;
+      view = latest;
+    }
     const scope = draftScope(view);
     result = {scope, view, flags, ...(result?.scope === scope ? {check: result.check} : {}), ...update};
     paint();

@@ -462,6 +462,9 @@ async function rendererTest() {
   assert(transferMessage.textContent.includes('1 of 2') && transferMessage.dataset.tone === 'success', 'A switch-only receipt must report the enabled count confirmed by Z2M');
   assert(document.querySelector('#desktop-transfer-mode').hidden && document.querySelector('#desktop-transfer-changes').hidden,
     'Completed transfers must hide the instructions and changes for a planned upload');
+  view = {...view, desktop: {...view.desktop, draftRevision: view.desktop.draftRevision + 1}};
+  update(view);
+  assert(transferMessage.dataset.tone === 'success', 'Synchronizing the draft revision without changing its contents must keep the confirmed receipt');
   state.systems[0].fresh = false; state.sequence++; update(view);
   await wait(() => document.querySelector('#mqtt-rule-count').dataset.enabled === '');
   assert(transferMessage.dataset.tone === 'warning' && !transferMessage.textContent.includes('Enabled in Z2M'), 'A lost connection must not keep a green transfer receipt or current enabled count');
@@ -479,7 +482,10 @@ async function rendererTest() {
   assert(document.querySelector('#desktop-transfer-mode').textContent.startsWith('Content changed'), 'Same check chooses content mode');
   assert(!document.querySelector('#mqtt-store').disabled, 'Guided transfer is available while operation runs');
   transferring = false; document.querySelector('#mqtt-store').click();
-  await wait(() => transferring); finishTransfer();
+  await wait(() => transferring);
+  view = {...view, desktop: {...view.desktop, draftRevision: view.desktop.draftRevision + 1}};
+  update(view);
+  finishTransfer();
   await wait(() => !document.querySelector('#mqtt-validate').disabled);
   assert(transferMessage.textContent.includes('0 of 2') && transferMessage.dataset.tone === 'success', 'A content transfer reports the actual disabled-rule count from readback');
   assert(document.querySelector('#desktop-transfer-mode').hidden, 'The disabled-storage policy is a pre-transfer instruction');

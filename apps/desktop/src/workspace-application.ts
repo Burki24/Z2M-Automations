@@ -237,11 +237,13 @@ export function createWorkspaceApplication(host: WorkspaceHost) {
         const target = projects.data().systems.find(system => system.id === command.id);
         if (command.action === 'store' || ['validateEnabled', 'validate'].includes(command.action) && target && reader.connected(target.brokerId)) projects.assertDraftSynchronized(command.id);
         if (smoke && command.action !== 'validate') throw new Error('invalidRequest');
+        let outcome: string | undefined;
         try {
-          const outcome = await transfers.command(command.action, command.id);
+          outcome = await transfers.command(command.action, command.id);
           return {...networkState(), outcome};
         } finally {
-          if (command.action !== 'validate' && command.action !== 'validateEnabled') void reader.refresh(command.id).catch(() => {});
+          // A confirmed store already published the independently verified readback.
+          if (outcome !== 'transferStored' && command.action !== 'validate' && command.action !== 'validateEnabled') void reader.refresh(command.id).catch(() => {});
         }
       }
       case 'status': break;

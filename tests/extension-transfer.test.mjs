@@ -177,6 +177,10 @@ test('D5 validates the exact disabled bytes, backs up the prior state and confir
   assert.equal(s.count('/request/store'), 1);
   assert.equal(s.system().stored.revision, 4);
   assert.equal(s.system().stored.configuration.automations[0].enabled, false);
+  const projected = s.reader.state().systems.find(system => system.id === s.id);
+  assert.equal(projected.revision, 4, 'The command result must already project the revision verified by readback');
+  assert.equal(projected.fresh, true);
+  assert.equal(s.reader.current(s.id).status.checksum, s.system().stored.checksum);
   assert.deepEqual(s.system().configuration, s.draft);
   assert.equal(JSON.parse(await readFile(s.backup, 'utf8')).systems[0].stored.revision, 3);
   assert.ok(s.peer.publications.every(packet => !packet.retain && packet.qos === 0));

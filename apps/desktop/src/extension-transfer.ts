@@ -141,8 +141,10 @@ export class ExtensionTransfer {
   private async read(wire: Wire): Promise<RemoteRead> {
     const before = await wire.status();
     const remote = await wire.editor();
-    if (!same(before, remote.status) || !same(before, await wire.status())) throw new Error('transferChanged');
-    return remote;
+    if (!same(before, remote.status)) throw new Error('transferChanged');
+    const after = await wire.status();
+    if (!same(before, after)) throw new Error('transferChanged');
+    return {...remote, status: after};
   }
   private async resolveUncertainty(key: string, wire: Wire, id: string): Promise<string | undefined> {
     const pending = this.uncertain.get(key);
@@ -159,21 +161,23 @@ export class ExtensionTransfer {
       if (current.revision !== pending.base.revision || current.checksum !== pending.base.checksum || current.build !== pending.base.build) throw new Error('transferResumeUncertain');
       const remote = await this.read(wire);
       if (!same(current, remote.status)) throw new Error('transferResumeUncertain');
-      this.observe(id, remote); this.projects.acceptStoredBase(id); this.uncertain.delete(key);
-      this.stage(id, 'complete', this.progress.get(id)?.kind ?? 'configuration');
-      return 'transferStored';
+      return this.completeStore(key, id, wire, remote);
     }
     if (current.checksum === pending.checksum && current.revision === pending.revision && current.build === pending.base.build && !running(current)) {
       const remote = await this.read(wire);
       if (!same(current, remote.status)) throw new Error('transferUncertain');
-      this.observe(id, remote);
-      this.projects.acceptStoredBase(id);
-      this.uncertain.delete(key);
-      this.stage(id, 'complete', this.progress.get(id)?.kind ?? 'configuration');
-      return 'transferStored';
+      return this.completeStore(key, id, wire, remote);
     } else if (current.session === pending.base.session) throw new Error('transferUncertain');
     this.uncertain.delete(key);
     return undefined;
+  }
+  private completeStore(key: string, id: string, wire: Wire, remote: RemoteRead): string {
+    this.observe(id, remote);
+    this.projects.acceptStoredBase(id);
+    wire.confirmReadback(remote);
+    this.uncertain.delete(key);
+    this.stage(id, 'complete', this.progress.get(id)?.kind ?? 'configuration');
+    return 'transferStored';
   }
   async command(action: Action, id: string): Promise<string> {
     if (!this.projects.active) throw new Error('noProject');
@@ -310,9 +314,9 @@ export class ExtensionTransfer {
       if (stored.status.session !== base.session || stored.status.build !== base.build || stored.status.checksum !== receipt.checksum
         || stored.status.revision !== receipt.configuration.revision || stored.yaml !== receipt.yaml || running(stored.status)) throw new Error('transferUncertain');
       assertReview();
-      this.observe(id, stored); this.projects.acceptStoredBase(id);
-      this.uncertain.delete(key);
       if (resume) {
+        this.observe(id, stored); this.projects.acceptStoredBase(id);
+        this.uncertain.delete(key);
         phase = 'resuming'; this.stage(id, phase, receipt.kind);
         assertReview();
         const challenge = await wire.runtimeStatus();
@@ -324,10 +328,10 @@ export class ExtensionTransfer {
         const active = await this.read(wire);
         if (!sameStoredStatus(stored.status, active.status) || active.yaml !== receipt.yaml || !active.status.executing
           || !active.status.activeMatches || active.status.resumeEnabled !== base.resumeEnabled) throw new Error('transferResumeUncertain');
-        assertReview(); this.observe(id, active); this.uncertain.delete(key);
+        assertReview();
+        return this.completeStore(key, id, wire, active);
       }
-      this.stage(id, 'complete', receipt.kind);
-      return 'transferStored';
+      return this.completeStore(key, id, wire, stored);
     } catch (error) {
       this.stage(id, phase, receipt.kind, true);
       if (phase === 'resuming') throw new Error('transferResumeUncertain');
