@@ -104,7 +104,9 @@ export function editorData(value: unknown): RemoteRead {
   for (const group of groups) {
     if (!record(group) || !Number.isInteger(group['id']) || Number(group['id']) < 1 || Number(group['id']) > 65535 || !displayText(group['name'], 120) || !group['name']) throw new Error('protocol');
     if (devices.some(device => device.target.type === 'group' && device.target.id === group['id'])) throw new Error('protocol');
-    devices.push({key: 'group:' + group['id'], name: group['name'], target: {type: 'group', id: Number(group['id'])}, properties: []});
+    // The group catalog carries identity only. Match the supported group switch actions without inheriting member capabilities.
+    devices.push({key: 'group:' + group['id'], name: group['name'], target: {type: 'group', id: Number(group['id'])},
+      properties: [{id: 'state', label: 'State', type: 'binary', access: 2, values: ['ON', 'OFF']}]});
   }
   const scenes: Scene[] = []; const rawScenes = value['scenes'] ?? [];
   if (!Array.isArray(rawScenes) || rawScenes.length > 512) throw new Error('protocol');

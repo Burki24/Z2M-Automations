@@ -183,6 +183,52 @@ test('D5 validates the exact disabled bytes, backs up the prior state and confir
   assert.ok(s.debug.read().events.some(event => event.operation === 'store' && event.transaction));
 });
 
+test('a saved partner group toggle allows a disabled test rule to be stored and read back', async t => {
+  const source = remoteFixture();
+  const partner = remoteFixture('Partner fixture');
+  source.editor.configuration.mesh_peers = ['other'];
+  partner.editor.configuration.mesh_peers = ['synthetic'];
+  const group = {type: 'group', id: 1, system: 'other'};
+  const existing = source.editor.configuration.automations[0];
+  existing.enabled = false;
+  existing.actions = [{type: 'toggle', target: group, property: 'state'}];
+  for (const fixture of [source, partner]) {
+    const yaml = JSON.stringify(fixture.editor.configuration);
+    fixture.status.checksum = hash(yaml);
+    Object.assign(fixture.editor, fixture.status, {yaml});
+  }
+  const partnerPeer = await startPeer({systems: new Map([['other', partner]])});
+  t.after(() => partnerPeer.close());
+  const s = await setup(t, {fixture: source});
+  const brokerId = randomUUID();
+  const partnerId = randomUUID();
+  await s.projects.command({action: 'broker', broker: {id: brokerId, name: 'Partner', host: '127.0.0.1', port: partnerPeer.port, tls: false}});
+  await s.projects.command({action: 'system', system: {id: partnerId, name: 'Partner', brokerId, baseTopic: 'other'}});
+  s.reader.reconcile(s.projects.data(), s.projects.generation());
+  await s.reader.connectBroker(brokerId);
+  for (let attempt = 0; !s.reader.connected(brokerId) && attempt < 100; attempt++) await new Promise(resolve => setTimeout(resolve, 20));
+  await s.reader.refresh(partnerId);
+
+  const draft = structuredClone(source.editor.configuration);
+  const testRule = {...structuredClone(existing), id: 'disabled-group-test', name: 'Disabled group test',
+    actions: [{type: 'set', target: group, values: {state: 'OFF'}}]};
+  draft.automations.push(testRule);
+  const unsupported = structuredClone(draft);
+  unsupported.automations[1].actions[0].values = {brightness: 42};
+  s.projects.replaceDraft(s.id, unsupported);
+  await assert.rejects(s.command('validate'), /draftCapability/);
+  assert.equal(s.count('/request/validate'), 0);
+  s.projects.replaceDraft(s.id, draft);
+
+  assert.equal(await s.command('validate'), 'transferValidated');
+  assert.equal(await s.command('store'), 'transferStored');
+  const stored = s.system().stored;
+  assert.equal(stored.revision, draft.revision + 1);
+  assert.equal(stored.checksum, hash(stored.yaml));
+  assert.deepEqual(stored.configuration.automations, [existing, testRule]);
+  assert.ok(partnerPeer.publications.every(packet => /\/request\/(status|editor)$/.test(packet.topic)));
+});
+
 test('validation locates missing entries in older drafts and identifies the actual action field', async t => {
   const s = await setup(t);
   const draft = structuredClone(s.draft);

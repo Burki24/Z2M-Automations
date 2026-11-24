@@ -151,7 +151,9 @@ test('real MQTT.js shares one broker for eight isolated systems and emits only n
     assert.equal(stored.get(system.id).configuration.automations[0].name, 'Remote ' + index);
     assert.equal(stored.get(system.id).yaml, fixtures.get(system.baseTopic).editor.yaml);
     assert.equal(reader.current(system.id).devices[0].properties[0].access, 1);
-    assert.equal(reader.current(system.id).devices[2].properties.length, 0, 'groups do not inherit write rights');
+    const group = reader.current(system.id).devices.find(device => device.target.type === 'group');
+    assert.deepEqual(group.properties, [{id: 'state', label: 'State', type: 'binary', access: 2, values: ['ON', 'OFF']}],
+      'groups expose a write-only switch without inheriting member capabilities');
     assert.equal(reader.current(system.id).scenes.length, 1);
   }
   assert.deepEqual(project, before, 'observing remote rules never mutates local draft input');
