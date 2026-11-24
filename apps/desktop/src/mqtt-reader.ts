@@ -372,8 +372,19 @@ export class MqttReader {
     if (!system || source === 'stored' && !this.remote.has(id) && !system.stored) throw new Error('noStored');
     this.views.set(id, source); this.sequence++;
   }
+  private automationOverview(system: ProjectSystem) {
+    const remote = this.remote.get(system.id);
+    const configuration = remote?.configuration ?? system.stored?.configuration;
+    const connection = this.connections.get(system.brokerId);
+    const confirmed = Boolean(remote?.fresh && connection?.ready && !connection.reads.has(system.id));
+    const runs = new Map(confirmed ? remote?.status.execution?.runs.map(run => [run.rule, run.state]) : []);
+    return {id: system.id, name: system.name, baseTopic: system.baseTopic, confirmed,
+      revision: configuration?.revision ?? null, executing: confirmed ? remote!.status.executing : null,
+      rules: configuration?.automations.map(rule => ({id: rule['id'], name: rule['name'], enabled: rule['enabled'] === true, run: runs.get(String(rule['id']))})) ?? null};
+  }
   state() {
     return {sequence: this.sequence, brokers: (this.project?.brokers ?? []).map(broker => ({id: broker.id, name: broker.name, host: broker.host, port: broker.port, tls: broker.tls, state: this.connections.get(broker.id)?.state ?? 'disconnected', error: this.connections.get(broker.id)?.error ?? '', certificates: this.tls.has(broker.id)})),
+      automationOverview: (this.project?.systems ?? []).map(system => this.automationOverview(system)),
       systems: (this.project?.systems ?? []).map(system => ({id: system.id, name: system.name, baseTopic: system.baseTopic, brokerId: system.brokerId, fresh: this.remote.get(system.id)?.fresh ?? false,
         reading: this.connections.get(system.brokerId)?.reads.has(system.id) ?? false, error: this.errors.get(system.id) ?? '', source: this.source(system.id),
         stored: this.remote.has(system.id) || Boolean(system.stored), revision: this.remote.get(system.id)?.status.revision ?? system.stored?.revision ?? null,

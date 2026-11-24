@@ -1,7 +1,7 @@
 import {t, bindText, bindAttribute, formatNumber} from './localization.js';
 
 const orderedSteps = ['project', 'broker', 'system', 'connection', 'draft', 'automations', 'review', 'transfer'];
-const pageKeys = [...orderedSteps, 'operation'];
+const pageKeys = [...orderedSteps, 'operation', 'overview'];
 
 export function installGuidedWorkspace({prefix = 'desktop', partnerActions = '#desktop-partner-actions', onStepChange = () => {}} = {}) {
   document.body.classList.add('guided-foundation');
@@ -90,7 +90,7 @@ export function installGuidedWorkspace({prefix = 'desktop', partnerActions = '#d
     for (const [name, {section}] of sections) {
       section.hidden = name !== key;
       const button = buttons.get(name);
-      if (name === key) button.setAttribute('aria-current', name === 'operation' ? 'page' : 'step');
+      if (name === key) button.setAttribute('aria-current', orderedSteps.includes(name) ? 'step' : 'page');
       else button.removeAttribute('aria-current');
     }
     active = picker.value = key;

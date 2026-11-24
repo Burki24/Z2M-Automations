@@ -141,6 +141,7 @@ test('real MQTT.js shares one broker for eight isolated systems and emits only n
   const project = projectFor([peer], 8); const before = structuredClone(project);
   const {reader, stored, debug} = readerFor(t, project, {timeout: 1500, secret: {username: 'SYNTHETIC_USER', password: 'SYNTHETIC_SECRET'}});
   assert.equal(peer.clients.length, 0, 'opening a project must not connect');
+  assert.ok(reader.state().automationOverview.every(system => system.rules === null && !system.confirmed));
   await reader.connectBroker(project.brokers[0].id);
   await waitFor(() => reader.state().systems.every(system => system.fresh), JSON.stringify(reader.state()));
   assert.equal(peer.clients.length, 1);
@@ -155,6 +156,12 @@ test('real MQTT.js shares one broker for eight isolated systems and emits only n
     assert.deepEqual(group.properties, [{id: 'state', label: 'State', type: 'binary', access: 2, values: ['ON', 'OFF']}],
       'groups expose a write-only switch without inheriting member capabilities');
     assert.equal(reader.current(system.id).scenes.length, 1);
+    const overview = reader.state().automationOverview.find(item => item.id === system.id);
+    assert.equal(overview.revision, 3);
+    assert.equal(overview.confirmed, true);
+    assert.equal(overview.executing, true);
+    assert.equal(overview.rules[0].name, 'Remote ' + index);
+    assert.equal(overview.rules[0].enabled, true);
   }
   assert.deepEqual(project, before, 'observing remote rules never mutates local draft input');
   assert.equal(peer.publications.length, 24);
@@ -166,6 +173,12 @@ test('real MQTT.js shares one broker for eight isolated systems and emits only n
   assert.equal(JSON.stringify(debug.read()).includes('SYNTHETIC_SECRET'), false);
   assert.equal(JSON.stringify(debug.read()).includes('Remote 0'), false);
   assert.ok(debug.read().events.some(event => event.transaction), 'wire transactions are traceable without raw content');
+  reader.disconnect(project.brokers[0].id);
+  for (const [index, system] of reader.state().automationOverview.entries()) {
+    assert.equal(system.confirmed, false);
+    assert.equal(system.executing, null);
+    assert.equal(system.rules[0].name, 'Remote ' + index);
+  }
 });
 test('separate brokers with identical base topics and device IDs cannot cross system ownership', async t => {
   const peers = [await startPeer({systems: new Map([['synthetic', remoteFixture('First broker')]])}), await startPeer({systems: new Map([['synthetic', remoteFixture('Second broker')]])})];

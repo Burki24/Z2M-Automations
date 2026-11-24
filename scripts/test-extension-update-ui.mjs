@@ -49,7 +49,7 @@ if (!process.versions.electron) {
     };
     await step('app-ready', () => app.whenReady(), startupTimeoutMs);
     const assets = join(root, 'apps/desktop/.build/renderer');
-    const names = new Set(['network.js', 'operation-flags.js', 'operation-readiness.js', 'draft-review.js', 'validation-feedback.js', 'drafts.js', 'desktop-workspace.js', 'guided-workspace.js', 'symcon-workspace.js', 'draft-sync.js', 'draft-files.js', 'draft-merge.js', 'guided-workspace.css', 'layout.js', 'confirmation.js', 'runtime.js', 'workspace.js', 'identity.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
+    const names = new Set(['network.js', 'automation-overview.js', 'operation-flags.js', 'operation-readiness.js', 'draft-review.js', 'validation-feedback.js', 'drafts.js', 'desktop-workspace.js', 'guided-workspace.js', 'symcon-workspace.js', 'draft-sync.js', 'draft-files.js', 'draft-merge.js', 'guided-workspace.css', 'layout.js', 'confirmation.js', 'runtime.js', 'workspace.js', 'identity.js', 'localization.js', 'transport.js', 'locales.js', 'designer.css', 'desktop-palette.css', 'desktop.css', 'confirmation.css', 'confirmation.html']);
     protocol.handle('z2ma', async request => {
       if (request.url === 'z2ma://app/index.html') return new Response('<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="designer.css"><link rel="stylesheet" href="desktop-palette.css"><link rel="stylesheet" href="desktop.css"><body class="desktop-foundation"></body>', {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
       if (request.url === 'z2ma://app/workspace.html') return new Response((await readFile(join(assets, 'index.html'), 'utf8')).replace('<script type="module" src="desktop.js"></script>', ''), {headers: {'Content-Type': 'text/html', 'Content-Security-Policy': csp}});
@@ -397,12 +397,20 @@ async function rendererTest() {
   const choice = document.createElement('select'); choice.id = 'project-brokerChoice'; brokerCard.append(choice);
   const picker = node('select'); picker.id = 'designer-system';
   node('div').id = 'draft-local-actions'; node('div').id = 'draft-stored-actions';
-  const workspace = {pages: Object.fromEntries(['operation', 'connection', 'draft', 'review', 'transfer'].map(key => [key, node('section')])), actions: node('div'), review: node('div'), show: () => true,
+  const workspace = {pages: Object.fromEntries(['operation', 'connection', 'draft', 'review', 'transfer', 'overview'].map(key => [key, node('section')])), actions: node('div'), review: node('div'), show: () => true,
     link: parent => { const value = document.createElement('button'); parent.append(value); return value; }};
   const id = '11111111-1111-4111-8111-111111111111';
   const state = {sequence: 0, brokers: [{id: 'broker', state: 'connected'}], systems: [{id, brokerId: 'broker', name: 'Synthetic', baseTopic: 'synthetic', fresh: true, stored: true, revision: 1, build: 'a'.repeat(64),
     flagsContext: 'a'.repeat(64), devices: 0, scenes: 0, executing: false, runtime: {resume: true, recovery: 'stopped', runs: [], rules: [
       {id: 'rule_a', name: 'Zulu', enabled: false}, {id: 'rule_b', name: 'Alpha', enabled: false}]}}], extensionUpdates: []};
+  state.automationOverview = [
+    {id, name: 'Network 1', baseTopic: 'synthetic', executing: true, confirmed: true, revision: 3,
+      rules: [{id: 'shared', name: 'First rule', enabled: false, run: 'running'}]},
+    {id: 'overview-2', name: 'Network 2', baseTopic: 'synthetic', executing: null, confirmed: false, revision: 5,
+      rules: [{id: 'shared', name: 'Second rule', enabled: true, run: 'running'}]},
+    {id: 'overview-3', name: 'Network 3', baseTopic: 'synthetic', executing: false, confirmed: true, revision: 0, rules: []},
+    {id: 'overview-4', name: 'Network 4', baseTopic: 'synthetic', executing: null, confirmed: false, revision: null, rules: null}
+  ];
   let finish, installing = false, polls = 0, view, finishTransfer, transferring = false, kind = 'flags', validationFailure, flagsCanceled = false, flagsRejected = false;
   const commands = [];
   const bridge = {snapshot: async () => structuredClone(view), designer: async () => ({ok: true}), network: async ({action, enabled, context}) => {
@@ -444,6 +452,14 @@ async function rendererTest() {
   view = {desktop: {project: true, projectId: id, epoch: 1, source: 'draft', draftRevision: 1}, workspaceContext: {systemId: id},
     configuration: {automations: [], sequences: []}, module: {baseTopic: 'synthetic'}, devices: [], status: {confirmed: true}};
   update(view);
+  const overview = workspace.pages.overview;
+  await wait(() => overview.querySelectorAll('table').length === 2);
+  const text = index => overview.querySelectorAll('.automation-overview section')[index].textContent;
+  assert(text(0).includes('Confirmed stored revision 3') && text(0).includes('First ruleDisabledRunning'), 'A disabled rule can have a confirmed single run');
+  assert(text(1).includes('Last known stored revision 5') && text(1).includes('Second ruleEnabled—'), 'An offline network retains its last read rules without active runs');
+  assert(text(2).includes('No automations in this revision') && text(3).includes('No stored configuration has been read'), 'Empty and unknown networks must remain distinct');
+  overview.querySelector('#automation-overview-reload').click();
+  assert(commands.length === 0, 'Reloading the overview must not send a network command');
   await wait(() => !document.querySelector('#mqtt-install').disabled);
   document.querySelector('#mqtt-validate').click();
   await wait(() => !document.querySelector('#mqtt-validate').disabled);

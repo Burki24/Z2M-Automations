@@ -1,4 +1,5 @@
 import {installGuidedWorkspace} from './guided-workspace.js';
+import {installAutomationOverview} from './automation-overview.js';
 import {t, bindText, locale, localizeResponse, MessageError, ResponseError} from './localization.js';
 import {designerRequest as request} from './transport.js';
 import {createUUID} from './identity.js';
@@ -54,6 +55,7 @@ export function installSymconWorkspace({getData, reload = async () => false, onS
     let flagBusy = false;
     let updateDraftSync = () => {};
     let updateDraftFiles = () => {};
+    let updateOverview;
     const node = (tag, parent, key) => {
         const element = document.createElement(tag);
         if (key) bindText(element, () => t(key));
@@ -72,6 +74,7 @@ export function installSymconWorkspace({getData, reload = async () => false, onS
             updateCatalogShortcut();
             onStepChange();
         }});
+        updateOverview = installAutomationOverview(shell.pages.overview, reload);
         const storedStatus = node('span', shell.context); storedStatus.className = 'status-chip'; storedStatus.id = 'symcon-stored-status';
         const runtimeStatus = node('span', shell.context); runtimeStatus.className = 'status-chip'; runtimeStatus.id = 'symcon-runtime-status';
         const centre = card(shell.pages.project);
@@ -204,6 +207,8 @@ export function installSymconWorkspace({getData, reload = async () => false, onS
         updateDraftFiles();
         updateCatalogShortcut();
         const systems = [...data.workspace.systems].sort((a, b) => new Intl.Collator(locale(), {numeric: true, sensitivity: 'base'}).compare(a.name, b.name));
+        updateOverview(systems.map(system => ({id: system.systemId, name: system.name, baseTopic: system.binding.baseTopic,
+            executing: system.executing, rules: null, ...system.automationOverview})));
         const brokers = [...new Set(systems.map(system => system.binding?.mqttParent))];
         shell.updateProject({active: true, project: {name: data.module.name, brokers: brokers.length ? brokers : [{}], systems}}, initial);
         shell.update({desktop: {project: true, source: 'draft', draftRevision: data.configuration?.revision ?? 0}, workspaceContext: data.workspaceContext, status: data.status ?? {mqttConnected: false}});

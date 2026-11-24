@@ -1,6 +1,7 @@
 import {t, bindText, onLanguageChange, sortByName, formatNumber, language} from './localization.js';
 import {installDraftReview} from './draft-review.js';
 import {installOperationFlags} from './operation-flags.js';
+import {installAutomationOverview} from './automation-overview.js';
 
 function button(parent, id, key, action) {
   const element = document.createElement('button'); element.type = 'button';
@@ -71,7 +72,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
   let state = {sequence: -1, brokers: [], systems: []};
   let pending = false;
   let deferredStateChange = false;
-  let polling = false;
+  let polling;
   let selected = '';
   let operationFeedback;
   let setupFeedback;
@@ -90,13 +91,13 @@ export function installNetwork(bridge, workspace, settleEditor) {
     if (changed && pending) deferredStateChange = true;
     else if (changed) document.dispatchEvent(new Event('z2ma-project-changed'));
   }
-  async function refresh() {
-    if (polling) return;
-    polling = true;
-    try {
-      const response = await bridge.network({action: 'status', id: ''});
+  function refresh() {
+    if (polling) return polling;
+    polling = bridge.network({action: 'status', id: ''}).then(response => {
       if (response.ok) { updateState(response.state); paint(); }
-    } finally { polling = false; }
+      return response.ok;
+    }).finally(() => { polling = undefined; });
+    return polling;
   }
   async function command(action, id, fields = {}) {
     const response = await bridge.network({action, id, ...fields});
@@ -134,6 +135,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
 
   const operation = document.createElement('section'); operation.className = 'desktop-card';
   workspace.pages.operation.append(operation);
+  const updateOverview = installAutomationOverview(workspace.pages.overview, refresh);
   const operationState = status(operation);
   const operationConnection = actions(operation);
   const connectOperation = workspace.link(operationConnection, 'connection');
@@ -307,6 +309,7 @@ export function installNetwork(bridge, workspace, settleEditor) {
     certificates.disabled = clearCertificates.disabled = pending || !brokerChoice.value;
     flags.paint();
     review.paint();
+    updateOverview(state.automationOverview);
   }
   function update(data) {
     const id = data.desktop.projectId + ':' + data.desktop.epoch + ':' + data.workspaceContext?.systemId;
